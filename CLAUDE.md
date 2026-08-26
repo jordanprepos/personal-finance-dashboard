@@ -25,13 +25,23 @@ don't invent `pnpm lint` or `pnpm test` commands. `pnpm typecheck` (or a
 package-scoped `pnpm --filter @expense-tracker/<pkg> typecheck`) is the
 correctness check available.
 
-Both apps run with **no Firebase project configured**: absent env config they
-fall back to an in-memory seed dataset (`packages/shared/src/data/seedData.ts`)
-and say so in the header. To point at real Firebase, `cp .env.example .env` at
-the workspace root (both `vite.config.ts` files set `envDir: '../..'`) and fill
-in `VITE_FIREBASE_*` from the Firebase console. Deploy rules/indexes with
-`npx firebase-tools deploy --only firestore:rules,firestore:indexes` before
-first use against a live project — the series delete query
+Absent env config, both apps fall back to an in-memory seed dataset
+(`packages/shared/src/data/seedData.ts`) and say so in the header. To point at
+real Firebase, `cp .env.example .env` at the workspace root (both
+`vite.config.ts` files set `envDir: '../..'`) and fill in `VITE_FIREBASE_*`
+from the Firebase console — this repo already has a live project wired up
+(`personal-web-app-projects`, active alias in `.firebaserc`), so `.env` is
+normally just the config for the existing web app, not a fresh setup.
+
+Firestore lives in a **named database, `expense-tracker`, in `asia-southeast2`**
+— not `(default)`. `personal-web-app-projects`'s `(default)` database slot is
+permanently pinned to `nam5` (US) by its App Engine location, which can't be
+changed once set, so `packages/shared/src/firebase.ts` calls
+`getFirestore(app, 'expense-tracker')` explicitly and `firebase.json`'s
+`firestore.database` field points deploys at the same database. Deploy
+rules/indexes with
+`npx firebase-tools deploy --only firestore:rules,firestore:indexes --database expense-tracker`
+before first use against a live project — the series delete query
 (`seriesId ASC, date ASC`) is the first thing that surfaces a missing composite
 index.
 
@@ -82,11 +92,17 @@ Budget      { id, income, categoryBudgets: { [categoryId]: number } }
 
 `amount` is in the smallest currency unit (IDR has no decimals).
 
-Auth is anonymous sign-in (`currentUser()` in `packages/shared/src/data/index.ts`)
-so `request.auth.uid` is populated and `firebase/firestore.rules` can enforce
-access control. `VITE_FIREBASE_*` values are intentionally inlined into the
-client bundle — that's public identification, not a secret; access control
-lives entirely in the rules file, not in hiding config.
+Auth defaults to anonymous sign-in (`currentUser()` in
+`packages/shared/src/data/index.ts`) so `request.auth.uid` is populated and
+`firebase/firestore.rules` can enforce access control even before either app
+has a login screen. The same module also exports `signUpWithEmail`,
+`signInWithEmail`, `signInWithGoogle`, and `signOutUser` for when one grows
+one — Email/Password and Google Sign-in are already enabled on the live
+project (deployed via `firebase deploy --only auth`, configured under the
+`auth` key in `firebase.json`), just not yet called from any UI.
+`VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
+that's public identification, not a secret; access control lives entirely in
+the rules file, not in hiding config.
 
 ### Recurring entries — `seriesId`
 
@@ -148,6 +164,10 @@ than a share of zero.
 - Category identity is `categoryId` everywhere; the prototype matched by
   display name.
 - Month lengths are computed from the date, not a hardcoded table.
-- The Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`, anonymous
-  sign-in) typechecks and is wired but has not been exercised against a live
-  project — the seed/in-memory path is what's actually been run end to end.
+- The Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`) is now wired
+  against the live `personal-web-app-projects` project — Auth (anonymous,
+  Email/Password, Google Sign-in) and Firestore (named database
+  `expense-tracker`, `asia-southeast2`) are both live and rules/indexes are
+  deployed. Neither app has a login screen yet, so only the anonymous sign-in
+  path is actually exercised end to end; Email/Password and Google Sign-in are
+  enabled but unused until one exists.

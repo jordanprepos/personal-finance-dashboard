@@ -67,6 +67,9 @@ export interface FirebaseServices {
 }
 
 const APP_NAME = 'expense-tracker';
+/** Not "(default)" — this project's default database is locked to nam5 (US);
+ * this named database lives in asia-southeast2 instead. */
+const FIRESTORE_DATABASE_ID = 'expense-tracker';
 let services: FirebaseServices | null = null;
 
 /** Idempotent — repeated calls return the same app, auth and Firestore handles. */
@@ -77,7 +80,7 @@ export function initFirebase(config: FirebaseOptions): FirebaseServices {
     ? getApp(APP_NAME)
     : initializeApp(config, APP_NAME);
 
-  services = { app, auth: getAuth(app), db: getFirestore(app) };
+  services = { app, auth: getAuth(app), db: getFirestore(app, FIRESTORE_DATABASE_ID) };
   return services;
 }
 

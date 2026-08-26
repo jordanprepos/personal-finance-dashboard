@@ -1,6 +1,18 @@
 {
   "firestore": {
+    "database": "expense-tracker",
     "rules": "firebase/firestore.rules",
     "indexes": "firebase/firestore.indexes.json"
+  },
+  "auth": {
+    "authorizedDomains": ["localhost"],
+    "providers": {
+      "anonymous": true,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Personal Finance Dashboard",
+        "supportEmail": "christopherjordantp@gmail.com"
+      }
+    }
   }
 }

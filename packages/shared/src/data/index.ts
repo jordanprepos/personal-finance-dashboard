@@ -1,4 +1,14 @@
-import { onAuthStateChanged, signInAnonymously, type Auth, type User } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  type Auth,
+  type User,
+} from 'firebase/auth';
 
 import { initFirebase, missingFirebaseEnvKeys, readFirebaseConfig, type EnvRecord } from '../firebase.js';
 import { createFirestoreDataSource } from './firestoreSource.js';
@@ -71,6 +81,28 @@ export function currentUser(auth: Auth): Promise<User> {
       },
     );
   });
+}
+
+/**
+ * Permanent-account sign-in, for when the apps grow a login screen. Each
+ * either upgrades the existing anonymous session (if signed in anonymously)
+ * or starts a new one — Firestore data written under the anonymous uid does
+ * not automatically move to the linked account.
+ */
+export function signUpWithEmail(auth: Auth, email: string, password: string): Promise<User> {
+  return createUserWithEmailAndPassword(auth, email, password).then((cred) => cred.user);
+}
+
+export function signInWithEmail(auth: Auth, email: string, password: string): Promise<User> {
+  return signInWithEmailAndPassword(auth, email, password).then((cred) => cred.user);
+}
+
+export function signInWithGoogle(auth: Auth): Promise<User> {
+  return signInWithPopup(auth, new GoogleAuthProvider()).then((cred) => cred.user);
+}
+
+export function signOutUser(auth: Auth): Promise<void> {
+  return signOut(auth);
 }
 
 const describe = (error: unknown): string =>
