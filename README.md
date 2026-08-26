@@ -1,0 +1,218 @@
+# expense-tracker
+
+A personal expense tracker with two front ends — a mobile webview and a desktop
+dashboard — sharing one Firebase backend and one package of business logic.
+
+The UI implements the Claude Design prototype
+[`Expense Dashboard Prototype.dc.html`](https://claude.ai/design/p/21aceca5-bde0-48a3-8290-d22e161276bc?file=Expense+Dashboard+Prototype.dc.html):
+its desktop layout is `packages/desktop`, its phone layout is
+`packages/mobile-webview`.
+
+```
+expense-tracker/
+├── packages/
+│   ├── shared/              # Firebase config, TS types, business logic, utils
+│   ├── mobile-webview/      # Mobile-facing web app
+│   └── desktop/             # Desktop dashboard app
+├── firebase/
+│   ├── firestore.rules
+│   └── firestore.indexes.json
+├── package.json             # workspace root
+├── pnpm-workspace.yaml
+├── .env.example             # Firebase config keys — .env is gitignored
+└── README.md
+```
+
+## Getting started
+
+```bash
+pnpm install
+pnpm build          # builds shared first, then both apps
+pnpm dev:desktop    # http://localhost:5173
+pnpm dev:mobile     # http://localhost:5174
+```
+
+Both apps run immediately with no Firebase project: with no config in the
+environment they fall back to an in-memory seed dataset (see
+`packages/shared/src/data/seedData.ts`) and say so in the header.
+
+## Firebase setup
+
+1. Copy the template and fill it in from **Firebase console → Project settings
+   → Your apps → SDK setup and configuration**:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   One `.env` at the workspace root serves both apps — each `vite.config.ts`
+   sets `envDir: '../..'`.
+
+2. Enable **Anonymous** sign-in under Authentication → Sign-in method. The apps
+   sign in anonymously when no session exists, so `request.auth.uid` is
+   populated and the security rules apply. Swap `currentUser()` in
+   `packages/shared/src/data/index.ts` for a real sign-in flow when you add one.
+
+3. Deploy the rules and indexes:
+
+   ```bash
+   npx firebase-tools deploy --only firestore:rules,firestore:indexes
+   ```
+
+The `VITE_FIREBASE_*` values are inlined into the client bundle by design.
+Firebase web config is public identification, not a secret — access control is
+enforced entirely by `firebase/firestore.rules`. `.env` is gitignored;
+`.env.example` holds placeholders only.
+
+## Data model
+
+```
+users/{userId}
+  ├── categories/{categoryId}
+  ├── transactions/{transactionId}
+  ├── budgets/{yearMonth}        // doc id "2026-08"
+  └── profile/main               // single doc
+```
+
+`profile` is a single document at `users/{userId}/profile/main`. Firestore
+paths alternate collection/document, so a bare `profile` segment is not a legal
+document path; `main` keeps it under `users/{userId}` where the rule applies.
+
+The interfaces live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts)
+and are the contract dashboard queries are written against.
+
+```ts
+Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
+Transaction { id, categoryId, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+Budget      { id, income, categoryBudgets: { [categoryId]: number } }
+```
+
+`amount` is in the smallest currency unit — for IDR that means no decimals.
+
+### Recurring entries — `seriesId`
+
+A repeating charge is written as one independent document per month (which is
+what keeps rollups to equality queries), and every document in that run carries
+the same `seriesId`. Nothing is inferred from the item name.
+
+`seriesId` is **`string | null`, always written** — one-off entries store an
+explicit `null` rather than omitting the field. A document that is *missing* a
+field matches no filter on it in Firestore, not even `!=` or `not-in`, so
+omitting it would make "recurring" queryable and "one-off" not. Written this
+way, both directions work:
+
+```ts
+where('seriesId', '==', seriesId)                          // one whole run
+where('seriesId', '==', seriesId), where('date', '>=', d)  // this + future months
+where('seriesId', '!=', null)                              // all recurring spend
+where('seriesId', '==', null)                              // all one-off spend
+```
+
+The id is issued by `createTransactionSeries` (a fresh Firestore document id)
+and never edited afterwards — it is excluded from `TransactionInput` and
+`TransactionPatch` alongside the denormalized fields, so a caller cannot invent
+one or move an entry between runs. Editing a series member changes only that
+month's entry.
+
+Backfilling history from a spreadsheet? Rows written with `createTransaction`
+get `seriesId: null` and read as one-offs. Repeating charges have to go in
+through `createTransactionSeries` to appear in the recurring panel.
+
+### Denormalization
+
+`yearMonth` ("YYYY-MM") and `year` ("YYYY") are computed **from `date` on every
+write**, never derived at query time, so daily / monthly / yearly rollups are
+equality queries rather than range scans:
+
+```ts
+where('date', '==', '2026-08-26')   // daily
+where('yearMonth', '==', '2026-08') // monthly
+where('year', '==', '2026')         // yearly
+```
+
+The type system enforces it: `TransactionInput` is
+`Omit<Transaction, 'id' | 'yearMonth' | 'year' | 'seriesId' | 'createdAt'>`, so
+a caller *cannot* pass those fields. `createTransaction`, `createTransactionSeries` and
+`updateTransaction` in
+[`packages/shared/src/lib/queries.ts`](packages/shared/src/lib/queries.ts) set
+them; changing `date` in a patch re-derives both in the same write.
+
+### Derived values
+
+**Budget Left**, **Expense Per Bulan**, category totals, envelope fill, donut
+shares, pace and the yearly rollups are **not stored fields**. They are pure
+functions over `(transactions, categories, budget)` in
+[`packages/shared/src/lib/derive.ts`](packages/shared/src/lib/derive.ts), used
+by both apps. No rollup documents exist and no `total` field is written
+anywhere.
+
+## Packages
+
+### `packages/shared`
+
+| Path | What it holds |
+| --- | --- |
+| `src/types.ts` | The Firestore schema as TypeScript interfaces |
+| `src/firebase.ts` | Config read from env vars, app/auth/Firestore init |
+| `src/lib/queries.ts` | Daily / monthly / yearly queries and every write path |
+| `src/lib/derive.ts` | All derived values — totals, envelopes, donut, pace, year bars |
+| `src/lib/dates.ts` | `YYYY-MM-DD` / `YYYY-MM` helpers, leap-year-correct month lengths |
+| `src/lib/format.ts` | IDR-first money formatting |
+| `src/lib/forms.ts` | Framework-free validation for the add/edit forms |
+| `src/store.ts` | `ExpenseStore` — app state, framework-agnostic |
+| `src/data/` | `ExpenseDataSource` with a Firestore and an in-memory seed implementation |
+| `src/styles/tokens.css` | Design tokens and component classes from the design project |
+
+`ExpenseStore` exposes `subscribe` / `getSnapshot`, so React binds to it with
+`useSyncExternalStore` and React stays out of this package. Both apps drive the
+same store and differ only in how they render its snapshot.
+
+### `packages/desktop` and `packages/mobile-webview`
+
+React 19 + Vite + TypeScript. Both depend on `@expense-tracker/shared` as a
+workspace package (`"@expense-tracker/shared": "workspace:*"`), which pnpm
+builds first. Neither app contains business logic or Firestore calls — they
+import view models from `shared` and render them.
+
+## Income and allocations
+
+`Budget` is data, not a constant — nothing is seeded on a fresh project, so both
+apps can write it:
+
+* **Income** — the Income card on the desktop Monthly tab, and the top of the
+  mobile Month tab. Commits on blur or Enter to `budgets/{yearMonth}.income`.
+* **Allocations** — the per-category field in the desktop Categories modal, and
+  the allocation input when creating a category on mobile. Writes to
+  `budgets/{yearMonth}.categoryBudgets[categoryId]`.
+
+Until an income is set, the Budget Left card shows spend for the month and says
+so, rather than reporting a share of zero.
+
+## Status
+
+The seed path is exercised end to end — derived values, writes, recurring
+detection, series expansion and clamping, and the zero-budget state. The
+Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`, anonymous sign-in)
+typechecks and is wired, but has not been run against a live project; deploy the
+indexes before first use, since the series delete
+(`seriesId ASC, date ASC`) is the query a missing composite index surfaces
+first.
+
+## Notes on the port
+
+* **Recurring entries.** The prototype's `recurring: boolean` becomes
+  `seriesId?: string` — see [Recurring entries](#recurring-entries--seriesid).
+  This is the one addition to the schema you specified, and it was made at your
+  request. It reproduces the prototype's behaviour exactly: only the five
+  monthly charges are flagged, and Token Listrik and Gojek read as the one-offs
+  they were. The read converter normalises a legacy document written without
+  the field to `null`, so pre-existing rows still deserialise — but they will
+  not match a `== null` query until the field is backfilled.
+* **Category allocations** live on `budgets/{yearMonth}.categoryBudgets`, not
+  on the category document, so an allocation can change month to month.
+* **Category identity** is `categoryId` everywhere. The prototype matched
+  categories by display name.
+* **Month lengths** are computed from the date rather than from a hardcoded
+  `[31,28,…]` table, so 2028 is correct.
+* The mobile Month and Year tabs render envelope and per-month summaries; in
+  the prototype those bottom-nav items only changed the highlight colour.

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktop",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@expense-tracker/desktop", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "mobile-webview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@expense-tracker/mobile-webview", "dev"],
+      "port": 5174
+    }
+  ]
+}

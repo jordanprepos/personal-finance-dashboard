@@ -1,0 +1,18 @@
+{
+  "name": "expense-tracker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal expense tracker — mobile webview + desktop dashboard on one Firebase backend",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "build:shared": "pnpm --filter @expense-tracker/shared build",
+    "dev:mobile": "pnpm --filter @expense-tracker/mobile-webview dev",
+    "dev:desktop": "pnpm --filter @expense-tracker/desktop dev",
+    "clean": "pnpm -r clean"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

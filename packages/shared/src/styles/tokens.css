@@ -1,0 +1,621 @@
+/*
+ * Design tokens and component classes ported from the Claude Design project
+ * "Personal expense dashboard directions" (_ds/minimalist-aesthetic-8140cc4e).
+ *
+ * Only the parts the expense dashboard actually uses are carried over — the
+ * source bundle is a general kit and most of it (POS tables, QR, ticket,
+ * stepper, menu) is dead weight here.
+ *
+ * Imported by both apps:  import '@expense-tracker/shared/styles.css';
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+
+:root {
+  --cf-page: #eaeff8;
+  --cf-surface: #ffffff;
+  --cf-surface-2: #f4f7fd;
+  --cf-surface-3: #eef2f9;
+  --cf-ink: #182338;
+  --cf-ink-hover: #28344c;
+  --cf-slate: #5f6c85;
+  --cf-muted: #8b98ae;
+  --cf-on-dark-soft: #c3cfe3;
+  --cf-blue: #1157d9;
+  --cf-blue-hover: #0d47b0;
+  --cf-blue-pale: #e3ecfd;
+  --cf-selection: #d7e4fb;
+  --cf-border: #dde5f4;
+  --cf-border-strong: #c9d6ee;
+
+  --cf-r-pill: 99px;
+  --cf-r-phone: 34px;
+  --cf-r-panel: 26px;
+  --cf-r-card: 22px;
+  --cf-r-tile: 20px;
+  --cf-r-chip: 16px;
+
+  --cf-shadow-pos: 0 18px 44px -22px rgba(24, 35, 56, 0.35);
+  --cf-shadow-phone: 0 20px 50px -24px rgba(24, 35, 56, 0.45);
+  --cf-shadow-card: 0 8px 22px -16px rgba(24, 35, 56, 0.35);
+  --cf-shadow-item: 0 6px 18px -14px rgba(24, 35, 56, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cf-page);
+  color: var(--cf-ink);
+  font-family: Outfit, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+input {
+  outline: none;
+}
+
+::selection {
+  background: var(--cf-selection);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cf-border-strong);
+  border-radius: var(--cf-r-pill);
+}
+
+/* Tabular figures — every money column depends on this. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.cf-spacer {
+  flex: 1;
+}
+
+@keyframes cf-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cf-anim-in-fast {
+  animation: cf-in 0.25s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-anim-in-fast {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------- typography */
+
+.cf-fieldlabel {
+  font-size: 13px;
+  color: var(--cf-slate);
+  margin-bottom: 6px;
+}
+
+.cf-group__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cf-muted);
+  margin-bottom: 9px;
+}
+
+.cf-back {
+  font-weight: 500;
+  font-size: 13px;
+  background: transparent;
+  border: 0;
+  color: var(--cf-muted);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.cf-back:hover {
+  color: var(--cf-ink);
+}
+
+/* ----------------------------------------------------------------- chips */
+
+.cf-cat {
+  flex: none;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: var(--cf-r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cf-cat--active {
+  font-weight: 600;
+  background: var(--cf-blue);
+  color: var(--cf-surface);
+  border: 0;
+}
+
+.cf-cat--idle {
+  font-weight: 500;
+  background: var(--cf-surface);
+  color: var(--cf-slate);
+  border: 1px solid var(--cf-border);
+}
+
+.cf-cat--idle:hover {
+  background: var(--cf-blue-pale);
+}
+
+.cf-tier {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--cf-r-pill);
+  padding: 4px 11px;
+  background: var(--cf-blue-pale);
+  color: var(--cf-blue);
+}
+
+.cf-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cf-opt {
+  font-size: 13px;
+  padding: 9px 15px;
+  border-radius: var(--cf-r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cf-opt--on {
+  font-weight: 600;
+  background: var(--cf-blue);
+  color: var(--cf-surface);
+  border: 0;
+}
+
+.cf-opt--off {
+  font-weight: 500;
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  border: 1px solid var(--cf-border);
+}
+
+.cf-opt--off:hover {
+  background: var(--cf-blue-pale);
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.cf-add {
+  font-weight: 600;
+  font-size: 12.5px;
+  height: 30px;
+  padding: 0 15px;
+  border-radius: var(--cf-r-pill);
+  background: var(--cf-blue);
+  color: var(--cf-surface);
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cf-add:hover {
+  background: var(--cf-blue-hover);
+}
+
+.cf-cta {
+  font-weight: 600;
+  font-size: 16px;
+  padding: 18px;
+  width: 100%;
+  border-radius: var(--cf-r-pill);
+  cursor: pointer;
+}
+
+.cf-cta:disabled {
+  cursor: not-allowed;
+}
+
+.cf-cta--primary {
+  background: var(--cf-blue);
+  color: var(--cf-surface);
+  border: 0;
+}
+
+.cf-cta--primary:hover:not(:disabled) {
+  background: var(--cf-blue-hover);
+}
+
+.cf-cta--outline {
+  background: var(--cf-surface);
+  color: var(--cf-ink);
+  border: 1.5px solid var(--cf-border-strong);
+}
+
+.cf-cta--outline:hover:not(:disabled) {
+  background: var(--cf-blue-pale);
+}
+
+.cf-ghostbtn {
+  height: 36px;
+  padding: 0 15px;
+  border-radius: var(--cf-r-pill);
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border-strong);
+  color: var(--cf-ink);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cf-ghostbtn:hover {
+  background: var(--cf-blue-pale);
+}
+
+.cf-stepbtn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--cf-r-pill);
+  border: 1px solid var(--cf-border);
+  background: var(--cf-surface);
+  color: var(--cf-slate);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.cf-stepbtn:hover {
+  background: var(--cf-blue-pale);
+  color: var(--cf-ink);
+}
+
+/* ----------------------------------------------------------------- inputs */
+
+.cf-input--pos {
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: var(--cf-r-pill);
+  font-size: 15px;
+  color: var(--cf-ink);
+  caret-color: var(--cf-blue);
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+}
+
+.cf-input--phone {
+  width: 100%;
+  min-height: 50px;
+  padding: 10px 18px;
+  border-radius: var(--cf-r-pill);
+  font-size: 15px;
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  caret-color: var(--cf-blue);
+}
+
+.cf-amountinput {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--cf-ink);
+  min-width: 0;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ cards */
+
+.cf-darkcard {
+  background: var(--cf-ink);
+  color: var(--cf-surface);
+  border-radius: var(--cf-r-panel);
+  padding: 24px;
+}
+
+.cf-darkcard__eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.cf-darkcard__title {
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin-top: 10px;
+}
+
+.cf-darkcard__sub {
+  font-size: 13.5px;
+  color: var(--cf-on-dark-soft);
+  margin-top: 10px;
+}
+
+.cf-benefits {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 18px;
+  box-shadow: var(--cf-shadow-card);
+}
+
+.cf-benefits__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cf-muted);
+}
+
+.cf-benefits__grid {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.cf-benefits__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cf-benefits__k {
+  color: var(--cf-slate);
+}
+
+.cf-benefits__v {
+  font-weight: 600;
+}
+
+.cf-benefits__v--blue {
+  color: var(--cf-blue);
+}
+
+.cf-promo {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 18px;
+  box-shadow: var(--cf-shadow-card);
+}
+
+.cf-promo__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cf-blue);
+}
+
+.cf-promo__sub {
+  font-size: 13px;
+  color: var(--cf-slate);
+  margin-top: 3px;
+}
+
+.cf-panel {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-panel);
+  box-shadow: var(--cf-shadow-pos);
+  overflow: hidden;
+}
+
+.cf-tile {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  box-shadow: var(--cf-shadow-item);
+}
+
+.cf-tile--soft {
+  background: var(--cf-surface-2);
+  box-shadow: none;
+}
+
+.cf-line {
+  background: var(--cf-surface);
+  border-radius: var(--cf-r-tile);
+  padding: 14px;
+  display: flex;
+  gap: 11px;
+  box-shadow: var(--cf-shadow-item);
+}
+
+.cf-line__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cf-line__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cf-line__opts {
+  font-size: 12.5px;
+  color: var(--cf-muted);
+  margin-top: 2px;
+}
+
+/*
+ * Ledger row. The prototype expressed this hover with an inline
+ * `style-hover` attribute, which React inline styles cannot do — so it
+ * lives here as a real class.
+ */
+.cf-row {
+  display: grid;
+  align-items: center;
+  height: 38px;
+  width: 100%;
+  font-size: 13.5px;
+  font-family: inherit;
+  border: 0;
+  border-bottom: 1px solid var(--cf-surface-3);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 0 6px;
+  color: inherit;
+  border-radius: 6px;
+}
+
+.cf-row:hover {
+  background: var(--cf-surface-2);
+}
+
+/* ----------------------------------------------------------- phone shell */
+
+.cf-phone {
+  width: 360px;
+  height: 730px;
+  border-radius: var(--cf-r-phone);
+  background: var(--cf-page);
+  box-shadow: var(--cf-shadow-phone);
+  border: 1px solid var(--cf-border-strong);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Standalone mobile webview: fill the device, drop the bezel. */
+@media (max-width: 520px) {
+  .cf-phone {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}
+
+.cf-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(24, 35, 56, 0.55);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.cf-sheet {
+  background: var(--cf-surface);
+  border-radius: var(--cf-r-panel) var(--cf-r-panel) 0 0;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 94%;
+  overflow-y: auto;
+}
+
+.cf-sheet__grab {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--cf-r-pill);
+  background: var(--cf-border-strong);
+  align-self: center;
+  flex: none;
+}
+
+.cf-fab {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--cf-r-pill);
+  background: var(--cf-blue);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 500;
+  box-shadow: var(--cf-shadow-card);
+}
+
+/* --------------------------------------------------------- modal / toast */
+
+.cf-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 35, 56, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 24px;
+}
+
+.cf-modal {
+  max-width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--cf-surface);
+  border-radius: var(--cf-r-panel);
+  box-shadow: var(--cf-shadow-pos);
+  padding: 26px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cf-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--cf-ink);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: var(--cf-r-pill);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--cf-shadow-pos);
+  z-index: 60;
+}
+
+.cf-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--cf-slate);
+  background: var(--cf-blue-pale);
+  border: 1px solid var(--cf-border-strong);
+  border-radius: var(--cf-r-pill);
+  padding: 7px 14px;
+}

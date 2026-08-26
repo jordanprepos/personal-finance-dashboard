@@ -1,0 +1,126 @@
+/* Mobile-webview layout on top of the shared design tokens. */
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* On a real phone the shell fills the viewport (see .cf-phone in the shared
+   stylesheet); on a desktop browser it renders inside a device frame so the
+   layout can be checked without a device. */
+@media (max-width: 520px) {
+  body {
+    display: block;
+  }
+}
+
+.phone__status {
+  padding: 16px 20px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--cf-muted);
+  flex: none;
+}
+
+.phone__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.phone__amount {
+  font-weight: 700;
+  font-size: 38px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.phone__chiprow {
+  flex: none;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.phone__chiprow::-webkit-scrollbar {
+  display: none;
+}
+
+.phone__list {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.phone__entry {
+  align-items: center;
+  padding: 12px 14px;
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.phone__nav {
+  flex: none;
+  padding: 10px 20px 16px;
+  background: var(--cf-surface);
+  border-top: 1px solid var(--cf-border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.phone__navbtn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 0;
+  font-family: inherit;
+}
+
+.phone__navgroup {
+  display: flex;
+  gap: 16px;
+}
+
+.phone__empty {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--cf-muted);
+  font-size: 13px;
+}
+
+.phone__monthrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+  background: var(--cf-surface);
+  font-family: inherit;
+  font-size: 14px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.phone__monthrow--current {
+  border-color: var(--cf-blue);
+  background: var(--cf-blue-pale);
+}

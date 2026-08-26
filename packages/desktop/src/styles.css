@@ -1,0 +1,209 @@
+/* Desktop-only layout on top of the shared design tokens. */
+
+.dash {
+  min-height: 100vh;
+  padding: 20px 24px 44px;
+  overflow-x: auto;
+}
+
+.dash__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 1180px;
+  margin: 0 auto 18px;
+}
+
+.dash__brand {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.dash__panel {
+  width: 1180px;
+  margin: 0 auto;
+}
+
+.dash__body {
+  padding: 22px 26px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dash__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash__tabs,
+.dash__segmented {
+  display: flex;
+  gap: 6px;
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-pill);
+  padding: 4px;
+}
+
+.dash__monthnav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash__monthlabel {
+  font-weight: 600;
+  font-size: 14.5px;
+  min-width: 128px;
+  text-align: center;
+}
+
+.dash__split {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.dash__hero {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dash__donutcard {
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.dash__donut {
+  position: relative;
+  width: 152px;
+  height: 152px;
+  flex: none;
+}
+
+.dash__donutcenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: none;
+}
+
+.dash__legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash__legendrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.dash__swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.dash__envelopes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.dash__column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash__ledgerhead,
+.dash__ledgerrow {
+  display: grid;
+  grid-template-columns: 1fr 190px 120px;
+  align-items: center;
+}
+
+.dash__yearhead,
+.dash__yearrow {
+  display: grid;
+  grid-template-columns: 1.4fr 90px 1fr 90px;
+  align-items: center;
+}
+
+.dash__yearhead {
+  padding: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--cf-muted);
+  border-bottom: 1px solid var(--cf-border);
+}
+
+.dash__yearrow {
+  height: 38px;
+  border-bottom: 1px solid var(--cf-surface-3);
+  font-size: 13.5px;
+}
+
+.dash__monthcells {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.dash__monthcell {
+  border: 0;
+  border-radius: var(--cf-r-chip);
+  cursor: pointer;
+  padding: 7px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.dash__monthcell:hover {
+  background: var(--cf-surface-2);
+}
+
+.dash__stats {
+  display: flex;
+  gap: 34px;
+  align-items: flex-end;
+}
+
+.dash__daygroup {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--cf-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--cf-border);
+}
+
+.dash__empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--cf-muted);
+  font-size: 13.5px;
+}
