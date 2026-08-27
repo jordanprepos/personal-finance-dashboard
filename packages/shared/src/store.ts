@@ -1,6 +1,7 @@
 import type { EnvRecord } from './firebase.js';
 import {
   DEFAULT_CATEGORIES,
+  collidingCategoryOrders,
   colorForName,
   nextCategoryOrder,
   normalizeCategoryName,
@@ -379,17 +380,36 @@ export class ExpenseStore {
    * against a half-populated account tops it up instead of creating a second
    * "Groceries". Allocations go in a single `saveBudget` at the end, once the
    * created ids are known.
+   *
+   * This is the only bulk write, so it is also where the `order` uniqueness
+   * invariant is checked — see the toast below.
    */
   async addDefaultCategories(): Promise<void> {
     const source = this.source;
     if (!source) return;
 
-    const { categories, yearMonth, budget } = this.state;
+    const { categories } = this.state;
+
+    /*
+     * Surfaced, not repaired. `nextCategoryOrder` makes new collisions
+     * impossible, so this can only fire on documents written before that fix.
+     * Rewriting `order` here would recolour those categories without being
+     * asked, and the seed below is unaffected either way — it appends from
+     * `max(order) + 1`.
+     */
+    const collisions = collidingCategoryOrders(categories);
+    // Appended to whichever toast this call ends on, never shown as its own.
+    // Only one toast is visible at a time, so a separate warning here would be
+    // overwritten by the outcome message a moment later — and on an
+    // already-seeded account that is every single time.
+    const warning =
+      collisions.length > 0 ? ` — heads up, ${collisions.join(', ')} share a display slot` : '';
+
     const taken = new Set(categories.map((c) => normalizeCategoryName(c.name)));
     const missing = DEFAULT_CATEGORIES.filter((c) => !taken.has(normalizeCategoryName(c.name)));
 
     if (missing.length === 0) {
-      this.showToast('Default categories are already set up');
+      this.showToast(`Default categories are already set up${warning}`);
       return;
     }
 
@@ -420,7 +440,7 @@ export class ExpenseStore {
         });
       }
 
-      return `${missing.length} ${missing.length === 1 ? 'category' : 'categories'} added`;
+      return `${missing.length} ${missing.length === 1 ? 'category' : 'categories'} added${warning}`;
     });
   }
 

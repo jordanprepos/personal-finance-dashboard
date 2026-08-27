@@ -160,6 +160,28 @@ export const normalizeCategoryName = (name: string): string => name.trim().toLow
 export const nextCategoryOrder = (categories: readonly { order: number }[]): number =>
   categories.reduce((highest, c) => Math.max(highest, c.order), -1) + 1;
 
+/**
+ * Names of categories sharing an `order` with an earlier one, in the order
+ * they were given.
+ *
+ * `nextCategoryOrder` makes new collisions impossible, so a non-empty result
+ * means documents written before that fix — nothing in the app can produce
+ * one now. Reported rather than repaired: two categories sharing a slot only
+ * matters if their colour comes from `order` (a name outside the template),
+ * and silently rewriting `order` would recolour them without being asked.
+ */
+export const collidingCategoryOrders = (
+  categories: readonly { name: string; order: number }[],
+): string[] => {
+  const seen = new Set<number>();
+  const collisions: string[] = [];
+  for (const c of categories) {
+    if (seen.has(c.order)) collisions.push(c.name);
+    else seen.add(c.order);
+  }
+  return collisions;
+};
+
 const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [normalizeCategoryName(c.name), c.color]));
 
 /**
