@@ -25,6 +25,26 @@ don't invent `pnpm lint` or `pnpm test` commands. `pnpm typecheck` (or a
 package-scoped `pnpm --filter @expense-tracker/<pkg> typecheck`) is the
 correctness check available.
 
+That does **not** mean behaviour can't be verified. `shared` is plain ESM with
+no DOM dependency, so the working pattern is to build it and drive it from
+Node against the seed source:
+
+```bash
+pnpm build:shared
+node -e "import('./packages/shared/dist/index.js').then(async ({ExpenseStore}) => {
+  const s = new ExpenseStore(); await s.init(undefined);
+  await new Promise(r => setTimeout(r, 20));       // let the subscription land
+  console.log(s.getSnapshot().status, s.getSnapshot().categories.length);
+})"
+```
+
+This is how the store's generation guard and the realtime subscriptions were
+verified. Two habits matter: `await` a short timer before asserting, because
+the month arrives by subscription rather than from `init`'s promise; and pair
+every test with a control that fails for the opposite reason — a guard that
+drops *everything* passes a "stale data was discarded" check just as happily
+as a correct one.
+
 Absent env config, both apps fall back to an in-memory seed dataset
 (`packages/shared/src/data/seedData.ts`) and say so in the header. To point at
 real Firebase, `cp .env.example .env` at the workspace root (both
@@ -125,6 +145,10 @@ never renders. Every identity is a real account. With no Firebase config there
 is nothing to sign in to, so `AuthController` reports `status: 'unavailable'`
 and the apps skip the gate and run on seed data as before.
 
+`VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
+that's public identification, not a secret; access control lives entirely in
+the rules file, not in hiding config.
+
 `ExpenseStore` guards loads with a generation counter: `reset()` bumps it, and
 any awaited read that finds the counter changed drops its result rather than
 calling `set`. Without it a slow read for the previous account can land after a
@@ -156,9 +180,28 @@ Two things matter when touching this:
 The seed source is genuinely reactive too: it keeps a watcher registry and
 re-emits after every write, so demo mode behaves like the live path instead of
 going stale after the first paint. Daily and Yearly still use one-shot reads.
-`VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
-that's public identification, not a secret; access control lives entirely in
-the rules file, not in hiding config.
+
+### The category template — one source, three consumers
+
+`src/data/defaultCategories.ts` holds `DEFAULT_CATEGORIES`, the category set
+from the source spreadsheet ("Alokasi Keuangan", Monthly Logs tab) in sheet
+order with its per-category allocations. Three things read it, so a change
+there moves all of them at once:
+
+- `seedData.ts` builds the demo dataset from it,
+- `ExpenseStore.addDefaultCategories` writes it into a live account,
+- `colorForName` treats its `color` field as the canonical palette.
+
+**Category colour is resolved from the name, not read from the document.**
+`colorForName(name, order)` is applied wherever a category is read
+(`toCategory`, `seedCategories`), and the stored `color` field is deliberately
+ignored. That is what lets an account created before the current palette pick
+it up with no migration. The field is still *written* on create, as the escape
+hatch for the day a colour picker lands — at which point this has to invert and
+consult the stored value first. Until then, changing `color` in Firestore has
+no visible effect, which is worth knowing before debugging why it "won't
+save". Matching is by name because ids are Firestore-assigned on the live
+path; only the name is stable between the template and an account.
 
 ### Recurring entries — `seriesId`
 
