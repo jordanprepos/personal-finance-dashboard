@@ -97,9 +97,17 @@ export class ExpenseStore {
 
   /* ------------------------------------------------------------- setup */
 
-  async init(env: EnvRecord | undefined): Promise<void> {
+  /**
+   * Loads the data for a signed-in identity. `userId` comes from
+   * `AuthController`; omitting it (no Firebase configured) yields seed data.
+   *
+   * Safe to call again for a different account — the previous user's rows are
+   * cleared first, so a slow reload never shows them under the new uid.
+   */
+  async init(env: EnvRecord | undefined, userId?: string): Promise<void> {
+    this.reset();
     try {
-      const session = await resolveSession(env);
+      const session = await resolveSession(env, userId);
       this.source = session.source;
       this.set({
         mode: session.mode,
@@ -110,6 +118,15 @@ export class ExpenseStore {
     } catch (error) {
       this.set({ status: 'error', error: message(error) });
     }
+  }
+
+  /** Drops every loaded row and the data source. Called on sign-out. */
+  reset(): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = null;
+    this.source = null;
+    this.state = initialState(this.state.yearMonth, this.state.today);
+    for (const listener of this.listeners) listener();
   }
 
   /** Re-reads the month, the year and the categories for `yearMonth`. */

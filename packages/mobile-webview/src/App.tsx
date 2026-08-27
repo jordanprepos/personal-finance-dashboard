@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type JSX } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   bucketByMonth,
   categoryOf,
@@ -15,13 +15,17 @@ import {
   shortMonthLabel,
   stackSegments,
   yearOfMonth,
+  type AuthController,
+  type AuthState,
+  type EnvRecord,
   type Envelope,
   type ExpenseStore,
   type MoneyFormat,
   type Transaction,
 } from '@expense-tracker/shared';
 
-import { useStore } from './useStore';
+import { useAuth, useStore } from './useStore';
+import { LoginView } from './components/LoginView';
 import { ExpenseSheet } from './components/ExpenseSheet';
 import { CategorySheet } from './components/CategorySheet';
 
@@ -33,7 +37,61 @@ const shortName = (name: string): string => {
   return first.length > 10 ? `${first.slice(0, 9)}…` : first;
 };
 
-export function App({ store }: { store: ExpenseStore }): JSX.Element {
+export function App({
+  store,
+  auth,
+  env,
+}: {
+  store: ExpenseStore;
+  auth: AuthController;
+  env: EnvRecord | undefined;
+}): JSX.Element {
+  const authState = useAuth(auth);
+
+  /*
+   * The store follows the identity: loaded once per uid, dropped on sign-out
+   * so a second account never renders the first one's rows. `unavailable`
+   * means Firebase isn't configured — there is nothing to sign in to, so the
+   * gate is skipped and the store loads seed data as it always did.
+   */
+  const loadedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key =
+      authState.status === 'signed-in' ? authState.userId
+      : authState.status === 'unavailable' ? 'seed'
+      : null;
+
+    if (key === loadedFor.current) return;
+    loadedFor.current = key;
+
+    if (key === null) store.reset();
+    else void store.init(env, authState.status === 'signed-in' ? key : undefined);
+  }, [authState.status, authState.userId, store, env]);
+
+  if (authState.status === 'checking') {
+    return (
+      <div className="cf-phone">
+        <div className="phone__empty" style={{ margin: 'auto' }}>Loading…</div>
+      </div>
+    );
+  }
+
+  if (authState.status === 'signed-out') {
+    return <LoginView auth={auth} state={authState} />;
+  }
+
+  return <Phone store={store} auth={auth} authState={authState} />;
+}
+
+function Phone({
+  store,
+  auth,
+  authState,
+}: {
+  store: ExpenseStore;
+  auth: AuthController;
+  authState: AuthState;
+}): JSX.Element {
   const state = useStore(store);
   const [tab, setTab] = useState<Tab>('daily');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -50,8 +108,17 @@ export function App({ store }: { store: ExpenseStore }): JSX.Element {
   if (state.status !== 'ready') {
     return (
       <div className="cf-phone">
-        <div className="phone__empty" style={{ margin: 'auto' }}>
+        <div className="phone__empty" style={{ margin: 'auto', textAlign: 'center' }}>
           {state.status === 'loading' ? 'Loading…' : (state.error ?? 'Something went wrong.')}
+          {/* Without this the failure is a dead end — there is no other way
+              back to the login screen once the phone can't render. */}
+          {state.status === 'error' && authState.status === 'signed-in' ? (
+            <div style={{ marginTop: 16 }}>
+              <button type="button" className="cf-ghostbtn" onClick={() => void auth.signOut()}>
+                Sign out
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -74,6 +141,11 @@ export function App({ store }: { store: ExpenseStore }): JSX.Element {
       <div className="phone__status">
         <span>{state.mode === 'firestore' ? 'live' : 'demo'}</span>
         <span style={{ fontWeight: 600 }}>{monthLabel(yearMonth)}</span>
+        {authState.status === 'signed-in' ? (
+          <button type="button" className="phone__signout" onClick={() => void auth.signOut()}>
+            Sign out
+          </button>
+        ) : null}
       </div>
 
       <div className="phone__scroll">

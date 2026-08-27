@@ -1,11 +1,15 @@
 {
-  "firestore": {
-    "database": "expense-tracker",
-    "rules": "firebase/firestore.rules",
-    "indexes": "firebase/firestore.indexes.json"
-  },
+  "firestore": [
+    {
+      "database": "expense-tracker",
+      "rules": "firebase/firestore.rules",
+      "indexes": "firebase/firestore.indexes.json"
+    }
+  ],
   "auth": {
-    "authorizedDomains": ["localhost"],
+    "authorizedDomains": [
+      "localhost"
+    ],
     "providers": {
       "anonymous": true,
       "emailPassword": true,

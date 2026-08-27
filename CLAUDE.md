@@ -92,14 +92,22 @@ Budget      { id, income, categoryBudgets: { [categoryId]: number } }
 
 `amount` is in the smallest currency unit (IDR has no decimals).
 
-Auth defaults to anonymous sign-in (`currentUser()` in
-`packages/shared/src/data/index.ts`) so `request.auth.uid` is populated and
-`firebase/firestore.rules` can enforce access control even before either app
-has a login screen. The same module also exports `signUpWithEmail`,
-`signInWithEmail`, `signInWithGoogle`, and `signOutUser` for when one grows
-one — Email/Password and Google Sign-in are already enabled on the live
+Both apps gate on a login screen. `AuthController`
+(`packages/shared/src/auth.ts`) owns the session — `subscribe`/`getSnapshot`
+like `ExpenseStore`, so the views bind to it the same way — and wraps
+`signUpWithEmail`, `signInWithEmail`, `signInWithGoogle` and `signOutUser`
+from `data/index.ts`. Email/Password and Google Sign-in are enabled on the live
 project (deployed via `firebase deploy --only auth`, configured under the
-`auth` key in `firebase.json`), just not yet called from any UI.
+`auth` key in `firebase.json`).
+
+Authentication is deliberately **not** done inside `resolveSession`: it takes
+an already-resolved `userId`, so a signed-out state exists for the login
+screens to render. Anonymous sign-in is still available
+(`signInAnonymousUser`) but is no longer the path every startup walks — making
+it automatic again would mean the gate never renders, since there would always
+be a user. With no Firebase config there is nothing to sign in to, so
+`AuthController` reports `status: 'unavailable'` and the apps skip the gate and
+run on seed data as before.
 `VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
 that's public identification, not a secret; access control lives entirely in
 the rules file, not in hiding config.
@@ -168,6 +176,9 @@ than a share of zero.
   against the live `personal-web-app-projects` project — Auth (anonymous,
   Email/Password, Google Sign-in) and Firestore (named database
   `expense-tracker`, `asia-southeast2`) are both live and rules/indexes are
-  deployed. Neither app has a login screen yet, so only the anonymous sign-in
-  path is actually exercised end to end; Email/Password and Google Sign-in are
-  enabled but unused until one exists.
+  deployed. Email/Password sign-in is exercised end to end from the login
+  screens in both apps; Google Sign-in is wired but uses `signInWithPopup`,
+  which a real native webview commonly blocks — it works in a desktop browser
+  and would need the redirect flow to be reliable inside the mobile webview.
+  "Forgot password?" is inert, matching the design — `sendPasswordResetEmail`
+  is not wired up in `shared`.
