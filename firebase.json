@@ -11,7 +11,7 @@
       "localhost"
     ],
     "providers": {
-      "anonymous": true,
+      "anonymous": false,
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "Personal Finance Dashboard",
