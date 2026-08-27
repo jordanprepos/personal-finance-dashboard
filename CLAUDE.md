@@ -157,7 +157,7 @@ edit would write to the wrong collection.
 
 ### The month is a subscription, not a read
 
-The Monthly view is live. `ExpenseDataSource.watchMonth(yearMonth, …)` returns
+The app is live. `ExpenseDataSource.watchMonth(yearMonth, …)` returns
 an unsubscribe, and `store.reload()` re-points that subscription rather than
 re-reading — writes from another tab, another device or the other app repaint
 on their own. `mutate()` therefore does **not** reload after a write; the
@@ -179,7 +179,18 @@ Two things matter when touching this:
 
 The seed source is genuinely reactive too: it keeps a watcher registry and
 re-emits after every write, so demo mode behaves like the live path instead of
-going stale after the first paint. Daily and Yearly still use one-shot reads.
+going stale after the first paint.
+
+**All three tabs are live, not just Monthly.** No view calls the data source
+directly — Daily renders from `state.monthTransactions` (the day rows are
+filtered client-side) and Yearly from `state.yearTransactions`, both of which
+`watchMonth` carries in its snapshot. So the subscription repaints every tab.
+The one-shot `listTransactionsByDate` / `listTransactionsByYear` remain on
+`ExpenseDataSource` but no app code calls them.
+
+The subscription is keyed to the month in view, so Yearly is live for the year
+*containing* that month; moving months re-subscribes and `YearlyView` derives
+its `year` from `state.yearMonth`, so the two never disagree.
 
 ### The category template — one source, three consumers
 
