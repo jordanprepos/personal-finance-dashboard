@@ -220,8 +220,9 @@ mobile webview. "Forgot password?" is inert by design;
 Deploy the indexes before first use — the series delete (`seriesId ASC,
 date ASC`) is the query a missing composite index surfaces first.
 
-The Monthly view is live: it subscribes rather than re-reading, so a write in
-one tab or app repaints the other. Daily and Yearly still use one-shot reads.
+The dashboard is live: it subscribes rather than re-reading, so a write in
+one tab or app repaints the other. Daily and Yearly are live too — every view
+renders from the same subscribed state rather than fetching for itself.
 
 ## Notes on the port
 
