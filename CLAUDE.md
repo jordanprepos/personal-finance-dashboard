@@ -70,7 +70,10 @@ Workspace layout (pnpm workspaces, `packages/*`):
     query is written against.
   - `src/firebase.ts` — config from env vars, app/auth/Firestore init.
   - `src/lib/queries.ts` — every read/write path (daily/monthly/yearly
-    queries, `createTransaction`, `createTransactionSeries`, `updateTransaction`).
+    queries, `createTransaction`, `createTransactionSeries`, `updateTransaction`),
+    plus the `watch*` counterparts built on `onSnapshot`. Each watcher mirrors
+    the `fetch*` of the same name and shares its mapper, so a live subscriber
+    and a one-shot caller can't disagree about the same data.
   - `src/lib/derive.ts` — **all** derived values (Budget Left, Expense Per
     Bulan, category totals, envelope fill, donut shares, pace, yearly
     rollups) as pure functions over `(transactions, categories, budget)`. No
@@ -127,6 +130,32 @@ any awaited read that finds the counter changed drops its result rather than
 calling `set`. Without it a slow read for the previous account can land after a
 new one has signed in — rendering one user's rows under another's uid, where an
 edit would write to the wrong collection.
+
+### The month is a subscription, not a read
+
+The Monthly view is live. `ExpenseDataSource.watchMonth(yearMonth, …)` returns
+an unsubscribe, and `store.reload()` re-points that subscription rather than
+re-reading — writes from another tab, another device or the other app repaint
+on their own. `mutate()` therefore does **not** reload after a write; the
+subscription delivers it, and Firestore's latency compensation usually paints
+it before the promise resolves.
+
+Two things matter when touching this:
+
+- **The generation guard covers listeners too.** A listener outliving its
+  account is worse than a stale read — it keeps firing. Every callback checks
+  the generation before calling `set`, and `reset()` both bumps the generation
+  and unsubscribes. `watchCurrentMonth` tears down the previous subscription
+  before opening a new one, so a month switch never leaves two running.
+- **The Firestore implementation gates its first emit.** It fans out to five
+  listeners and stays silent until all five have reported, so the first paint
+  is a whole month rather than five partial repaints. After that, every change
+  emits immediately. The first error tears the whole fan-out down — a partial
+  month is worse than a visible failure.
+
+The seed source is genuinely reactive too: it keeps a watcher registry and
+re-emits after every write, so demo mode behaves like the live path instead of
+going stale after the first paint. Daily and Yearly still use one-shot reads.
 `VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
 that's public identification, not a secret; access control lives entirely in
 the rules file, not in hiding config.

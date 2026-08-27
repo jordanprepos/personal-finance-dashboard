@@ -9,6 +9,21 @@ import type {
   TransactionSeriesKey,
 } from '../types.js';
 
+/** Tears down a subscription. Safe to call more than once. */
+export type Unsubscribe = () => void;
+
+/**
+ * Everything the Monthly view renders, delivered together so a subscriber
+ * never paints a half-updated month.
+ */
+export interface MonthSnapshot {
+  categories: Category[];
+  monthTransactions: Transaction[];
+  yearTransactions: Transaction[];
+  budget: Budget;
+  profile: Profile;
+}
+
 /**
  * One interface, two implementations: live Firestore, and an in-memory seed
  * used when no Firebase config is present. Both apps talk only to this, so
@@ -17,6 +32,21 @@ import type {
 export interface ExpenseDataSource {
   readonly kind: 'firestore' | 'seed';
   readonly userId: string;
+
+  /**
+   * Live view of one month. Calls `onChange` with the whole snapshot on every
+   * change from any client, and keeps calling until the returned function runs.
+   *
+   * The Firestore implementation fans out to five listeners and emits only
+   * once all five have reported, so the first callback is a complete month
+   * rather than five partial repaints. The seed implementation emits once and
+   * never again — there is nothing to observe in memory.
+   */
+  watchMonth(
+    yearMonth: string,
+    onChange: (snapshot: MonthSnapshot) => void,
+    onError: (error: Error) => void,
+  ): Unsubscribe;
 
   listCategories(): Promise<Category[]>;
   createCategory(input: CategoryInput): Promise<Category>;

@@ -24,6 +24,7 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
+import { catStyle } from './catStyle';
 import { useAuth, useStore } from './useStore';
 import { LoginView } from './components/LoginView';
 import { ExpenseSheet } from './components/ExpenseSheet';
@@ -190,7 +191,7 @@ function Phone({
             <div className="phone__chiprow">
               <button
                 type="button"
-                className={`cf-cat ${categoryId === null ? 'cf-cat--active' : 'cf-cat--idle'}`}
+                className={`cf-catchip${categoryId === null ? ' cf-catchip--on' : ''}`}
                 style={{ minHeight: 44 }}
                 onClick={() => setCategoryId(null)}
               >
@@ -200,10 +201,11 @@ function Phone({
                 <button
                   key={c.id}
                   type="button"
-                  className={`cf-cat ${categoryId === c.id ? 'cf-cat--active' : 'cf-cat--idle'}`}
-                  style={{ minHeight: 44 }}
+                  className={`cf-catchip${categoryId === c.id ? ' cf-catchip--on' : ''}`}
+                  style={{ ...catStyle(c.color), minHeight: 44 }}
                   onClick={() => setCategoryId(c.id)}
                 >
+                  <span className="cf-catdot" />
                   {shortName(c.name)}
                 </button>
               ))}
@@ -222,10 +224,16 @@ function Phone({
                 >
                   <div className="cf-line__body">
                     <div className="cf-line__name">{t.item}</div>
-                    <div className="cf-line__opts">
-                      {categoryOf(index, t.categoryId).name} · {Number(t.date.slice(8))}{' '}
-                      {shortMonthLabel(t.yearMonth)}
-                      {t.seriesId !== null ? ' · recurring' : ''}
+                    <div
+                      className="cf-line__opts cf-catname"
+                      style={catStyle(categoryOf(index, t.categoryId).color)}
+                    >
+                      <span className="cf-catdot" />
+                      <span>
+                        {categoryOf(index, t.categoryId).name} · {Number(t.date.slice(8))}{' '}
+                        {shortMonthLabel(t.yearMonth)}
+                        {t.seriesId !== null ? ' · recurring' : ''}
+                      </span>
                     </div>
                   </div>
                   <div
@@ -268,6 +276,7 @@ function Phone({
               {label}
             </button>
           ))}
+          <span className="phone__navsep" aria-hidden="true" />
           <button
             type="button"
             className="phone__navbtn"
@@ -293,6 +302,11 @@ function Phone({
           onClose={() => {
             setSheetOpen(false);
             setEditing(null);
+          }}
+          onManageCategories={() => {
+            setSheetOpen(false);
+            setEditing(null);
+            setCategoriesOpen(true);
           }}
         />
       ) : null}
@@ -341,8 +355,13 @@ function MonthTab({
             <div className="cf-group__label">{label} envelopes</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               {envelopes.map((e) => (
-                <div key={e.categoryId} className="cf-tile" style={{ gap: 8, padding: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <div
+                  key={e.categoryId}
+                  className="cf-tile cf-tile--cat"
+                  style={{ ...catStyle(e.color), gap: 8, padding: 14 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="cf-catdot" />
                     <span style={{ fontWeight: 600, fontSize: 14.5 }}>{e.name}</span>
                     <span className="cf-spacer" />
                     <span className="tnum" style={{ fontWeight: 700, fontSize: 15 }}>

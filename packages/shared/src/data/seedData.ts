@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import type { Budget, Category, Profile, Transaction } from '../types.js';
 import { dateInMonth, monthsOfYear, toYear, toYearMonth } from '../lib/dates.js';
+import { DEFAULT_CATEGORIES } from './defaultCategories.js';
 
 /**
  * Demo dataset, in the real schema shape — correct category ids, correct
@@ -14,37 +15,12 @@ export const SEED_YEAR = '2026';
 export const SEED_TODAY = '2026-08-26';
 export const SEED_INCOME = 9_095_079;
 
-/** Cycled through the categories — the design system's ink/blue/slate ramp. */
-const PALETTE = ['#1157d9', '#182338', '#5f6c85', '#c9d6ee', '#8b98ae'];
-
-interface CategorySeed {
-  id: string;
-  name: string;
-  type: Category['type'];
-  icon: string;
-  allocation: number;
-}
-
-const CATEGORY_SEEDS: CategorySeed[] = [
-  { id: 'groceries', name: 'Groceries', type: 'fixed', icon: '🛒', allocation: 800_000 },
-  { id: 'bills', name: 'Bills', type: 'fixed', icon: '🧾', allocation: 5_100_000 },
-  { id: 'transportation', name: 'Transportation', type: 'fixed', icon: '🛵', allocation: 600_000 },
-  { id: 'health-insurance', name: 'Health & Insurance', type: 'fixed', icon: '💊', allocation: 300_000 },
-  { id: 'utilities', name: 'Utilities', type: 'fixed', icon: '💡', allocation: 250_000 },
-  { id: 'subscription', name: 'Subscription', type: 'fixed', icon: '📺', allocation: 200_000 },
-  { id: 'food-and-beverages', name: 'Food and Beverages', type: 'variable', icon: '🍜', allocation: 900_000 },
-  { id: 'entertainment', name: 'Entertainment', type: 'variable', icon: '🎬', allocation: 300_000 },
-  { id: 'apparell', name: 'Apparell', type: 'variable', icon: '👕', allocation: 300_000 },
-  { id: 'others', name: 'Others', type: 'variable', icon: '📦', allocation: 400_000 },
-  { id: 'savings', name: 'Savings', type: 'savings', icon: '🏦', allocation: 1_000_000 },
-];
-
 export const seedCategories = (): Category[] =>
-  CATEGORY_SEEDS.map((c, i) => ({
+  DEFAULT_CATEGORIES.map((c, i) => ({
     id: c.id,
     name: c.name,
     type: c.type,
-    color: PALETTE[i % PALETTE.length] as string,
+    color: c.color,
     icon: c.icon,
     order: i,
     archived: false,
@@ -52,7 +28,7 @@ export const seedCategories = (): Category[] =>
 
 export const seedBudgets = (): Record<string, Budget> => {
   const categoryBudgets: Record<string, number> = {};
-  for (const c of CATEGORY_SEEDS) categoryBudgets[c.id] = c.allocation;
+  for (const c of DEFAULT_CATEGORIES) categoryBudgets[c.id] = c.allocation;
 
   const budgets: Record<string, Budget> = {};
   for (const yearMonth of monthsOfYear(SEED_YEAR)) {

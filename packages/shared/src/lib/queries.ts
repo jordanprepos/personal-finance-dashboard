@@ -33,6 +33,7 @@ import type {
   TransactionSeriesKey,
 } from '../types.js';
 import { monthsOfYear, shiftMonth, toYear, toYearMonth, assertYearMonth } from './dates.js';
+import { colorForName } from '../data/defaultCategories.js';
 
 /* ------------------------------------------------------------------ paths */
 
@@ -62,13 +63,18 @@ export const profileDoc = (db: Firestore, userId: string): DocumentReference<Doc
 
 function toCategory(snap: QueryDocumentSnapshot<DocumentData>): Category {
   const d = snap.data();
+  const name = String(d['name'] ?? '');
+  const order = Number(d['order'] ?? 0);
   return {
     id: snap.id,
-    name: String(d['name'] ?? ''),
+    name,
     type: (d['type'] ?? 'variable') as Category['type'],
-    color: String(d['color'] ?? '#8b98ae'),
+    // Resolved from the name, so the palette applies to accounts written
+    // before it existed without rewriting a single document — see the note on
+    // `colorForName` for why the stored value isn't read back.
+    color: colorForName(name, order),
     icon: String(d['icon'] ?? ''),
-    order: Number(d['order'] ?? 0),
+    order,
     archived: Boolean(d['archived'] ?? false),
   };
 }
@@ -232,8 +238,42 @@ export function watchTransactionsByMonth(
   onError?: (error: Error) => void,
 ): () => void {
   assertYearMonth(yearMonth);
+  return watchTransactionQuery(
+    db,
+    userId,
+    [where('yearMonth', '==', yearMonth), orderBy('date', 'desc')],
+    onChange,
+    onError,
+  );
+}
+
+/** Yearly, live. Mirrors `fetchTransactionsByYear`. */
+export function watchTransactionsByYear(
+  db: Firestore,
+  userId: string,
+  year: string,
+  onChange: (transactions: Transaction[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return watchTransactionQuery(
+    db,
+    userId,
+    [where('year', '==', year), orderBy('date', 'desc')],
+    onChange,
+    onError,
+  );
+}
+
+/** The watch counterpart of `runTransactionQuery` — same query, pushed. */
+function watchTransactionQuery(
+  db: Firestore,
+  userId: string,
+  constraints: QueryConstraint[],
+  onChange: (transactions: Transaction[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
   return onSnapshot(
-    query(transactionsCollection(db, userId), where('yearMonth', '==', yearMonth), orderBy('date', 'desc')),
+    query(transactionsCollection(db, userId), ...constraints),
     (snap) => onChange(snap.docs.map(toTransaction)),
     onError,
   );
@@ -410,6 +450,22 @@ export async function fetchBudget(db: Firestore, userId: string, yearMonth: stri
   return toBudget(yearMonth, snap.data());
 }
 
+/** One month's budget, live. Missing doc still yields a zeroed `Budget`. */
+export function watchBudget(
+  db: Firestore,
+  userId: string,
+  yearMonth: string,
+  onChange: (budget: Budget) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  assertYearMonth(yearMonth);
+  return onSnapshot(
+    doc(budgetsCollection(db, userId), yearMonth),
+    (snap) => onChange(toBudget(yearMonth, snap.data())),
+    onError,
+  );
+}
+
 /** Every budget doc of one calendar year, keyed by "YYYY-MM". */
 export async function fetchBudgetsByYear(
   db: Firestore,
@@ -463,15 +519,32 @@ export async function setIncome(
 
 export const DEFAULT_PROFILE: Profile = { displayName: '', currency: 'IDR', locale: 'id-ID' };
 
-export async function fetchProfile(db: Firestore, userId: string): Promise<Profile> {
-  const snap = await getDoc(profileDoc(db, userId));
-  const d = snap.data();
+function toProfile(d: DocumentData | undefined): Profile {
   if (!d) return DEFAULT_PROFILE;
   return {
     displayName: String(d['displayName'] ?? DEFAULT_PROFILE.displayName),
     currency: String(d['currency'] ?? DEFAULT_PROFILE.currency),
     locale: String(d['locale'] ?? DEFAULT_PROFILE.locale),
   };
+}
+
+export async function fetchProfile(db: Firestore, userId: string): Promise<Profile> {
+  const snap = await getDoc(profileDoc(db, userId));
+  return toProfile(snap.data());
+}
+
+/** The profile doc, live. Absent doc yields `DEFAULT_PROFILE`, as on read. */
+export function watchProfile(
+  db: Firestore,
+  userId: string,
+  onChange: (profile: Profile) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    profileDoc(db, userId),
+    (snap) => onChange(toProfile(snap.data())),
+    onError,
+  );
 }
 
 export async function saveProfile(db: Firestore, userId: string, profile: Partial<Profile>): Promise<void> {

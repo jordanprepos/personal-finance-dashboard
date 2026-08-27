@@ -11,7 +11,7 @@ import {
   sumAmounts,
 } from '@expense-tracker/shared';
 
-import type { ViewProps } from '../appTypes';
+import { catStyle, type ViewProps } from '../appTypes';
 
 export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
   const { monthTransactions, categories, budget, yearMonth, today } = state;
@@ -40,7 +40,7 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', flex: 1 }}>
           <button
             type="button"
-            className={`cf-cat ${categoryId === null ? 'cf-cat--active' : 'cf-cat--idle'}`}
+            className={`cf-catchip${categoryId === null ? ' cf-catchip--on' : ''}`}
             onClick={() => setCategoryId(null)}
           >
             All
@@ -49,9 +49,11 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
             <button
               key={c.id}
               type="button"
-              className={`cf-cat ${categoryId === c.id ? 'cf-cat--active' : 'cf-cat--idle'}`}
+              className={`cf-catchip${categoryId === c.id ? ' cf-catchip--on' : ''}`}
+              style={catStyle(c.color)}
               onClick={() => setCategoryId(c.id)}
             >
+              <span className="cf-catdot" />
               {c.name}
             </button>
           ))}
@@ -74,7 +76,15 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
                   onClick={() => onEdit(t)}
                 >
                   <span>{t.item}</span>
-                  <span style={{ color: 'var(--cf-slate)', fontSize: 12.5 }}>
+                  <span
+                    className="cf-catname"
+                    style={{
+                      ...catStyle(categoryOf(index, t.categoryId).color),
+                      color: 'var(--cf-slate)',
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <span className="cf-catdot" />
                     {categoryOf(index, t.categoryId).name}
                   </span>
                   <span

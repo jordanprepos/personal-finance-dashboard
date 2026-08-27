@@ -16,7 +16,7 @@ import {
   type ExpenseStore,
 } from '@expense-tracker/shared';
 
-import type { ViewProps } from '../appTypes';
+import { catStyle, type ViewProps } from '../appTypes';
 
 const DONUT_RADIUS = 54;
 
@@ -252,8 +252,12 @@ function EnvelopeTile({
         : `of ${formatMoney(envelope.allocation, fmt)} allocated`;
 
   return (
-    <div className={`cf-tile${soft ? ' cf-tile--soft' : ''}`}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+    <div
+      className={`cf-tile cf-tile--cat${soft ? ' cf-tile--soft' : ''}`}
+      style={catStyle(envelope.color)}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="cf-catdot" />
         <span style={{ fontWeight: 600, fontSize: 15 }}>{envelope.name}</span>
         <span className="cf-spacer" />
         <span
