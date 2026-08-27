@@ -69,7 +69,7 @@ export interface FirebaseServices {
 const APP_NAME = 'expense-tracker';
 /** Not "(default)" — this project's default database is locked to nam5 (US);
  * this named database lives in asia-southeast2 instead. */
-const FIRESTORE_DATABASE_ID = 'expense-tracker';
+const FIRESTORE_DATABASE_ID = 'personal-finance-dashboard-db';
 let services: FirebaseServices | null = null;
 
 /** Idempotent — repeated calls return the same app, auth and Firestore handles. */

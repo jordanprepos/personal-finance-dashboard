@@ -33,17 +33,31 @@ from the Firebase console — this repo already has a live project wired up
 (`personal-web-app-projects`, active alias in `.firebaserc`), so `.env` is
 normally just the config for the existing web app, not a fresh setup.
 
-Firestore lives in a **named database, `expense-tracker`, in `asia-southeast2`**
-— not `(default)`. `personal-web-app-projects`'s `(default)` database slot is
-permanently pinned to `nam5` (US) by its App Engine location, which can't be
-changed once set, so `packages/shared/src/firebase.ts` calls
-`getFirestore(app, 'expense-tracker')` explicitly and `firebase.json`'s
-`firestore.database` field points deploys at the same database. Deploy
-rules/indexes with
-`npx firebase-tools deploy --only firestore:rules,firestore:indexes --database expense-tracker`
-before first use against a live project — the series delete query
-(`seriesId ASC, date ASC`) is the first thing that surfaces a missing composite
-index.
+Firestore lives in a **named database, `personal-finance-dashboard-db`, in
+`asia-southeast2`** — not `(default)`. `personal-web-app-projects`'s `(default)`
+slot lands in `nam5` (US), so `packages/shared/src/firebase.ts` calls
+`getFirestore(app, 'personal-finance-dashboard-db')` explicitly and
+`firebase.json`'s `firestore[].database` field points deploys at the same
+database. Deploy rules/indexes with
+
+```bash
+npx firebase-tools deploy --only firestore:rules,firestore:indexes
+```
+
+before first use against a live project — the target database comes from
+`firebase.json`; there is **no** `--database` flag on `deploy` (firebase-tools
+rejects it). The series delete query (`seriesId ASC, date ASC`) is the first
+thing that surfaces a missing composite index.
+
+**This database must be created from the Firebase console**, not via the CLI or
+the Firebase MCP tools. A predecessor named `expense-tracker`, created through
+the API, silently refused to enforce the security rules released to it: every
+authenticated client request failed with `PERMISSION_DENIED` ("Missing or
+insufficient permissions") even though the correct ruleset was provably
+released to `cloud.firestore/expense-tracker` and bound via `attachmentPoint`.
+A control test on a console-created database, using the identical ruleset and
+token, allowed the same reads — so if that error reappears across the board,
+suspect the database, not the rules.
 
 ## Architecture
 
@@ -175,8 +189,8 @@ than a share of zero.
 - The Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`) is now wired
   against the live `personal-web-app-projects` project — Auth (anonymous,
   Email/Password, Google Sign-in) and Firestore (named database
-  `expense-tracker`, `asia-southeast2`) are both live and rules/indexes are
-  deployed. Email/Password sign-in is exercised end to end from the login
+  `personal-finance-dashboard-db`, `asia-southeast2`) are both live and
+  rules/indexes are deployed. Email/Password sign-in is exercised end to end from the login
   screens in both apps; Google Sign-in is wired but uses `signInWithPopup`,
   which a real native webview commonly blocks — it works in a desktop browser
   and would need the redirect flow to be reliable inside the mobile webview.

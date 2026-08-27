@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "expense-tracker",
+      "database": "personal-finance-dashboard-db",
       "rules": "firebase/firestore.rules",
       "indexes": "firebase/firestore.indexes.json"
     }
