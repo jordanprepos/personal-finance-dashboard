@@ -62,6 +62,9 @@ export class AuthController {
   private state: AuthState = initialState;
   private listeners = new Set<() => void>();
   private auth: Auth | null = null;
+  /** Unsubscribe for the auth-state watch, kept as `start`'s re-entrancy
+   * guard. Nothing tears the watch down — both apps construct the controller
+   * at module scope and it lives as long as the page. */
   private stopWatching: (() => void) | null = null;
 
   /* ------------------------------------------------------ subscription */
@@ -108,12 +111,6 @@ export class AuthController {
     } catch (error) {
       this.set({ status: 'unavailable', ...describe(error) });
     }
-  }
-
-  /** Stops the auth-state watch. Only needed when a host tears the app down. */
-  stop(): void {
-    this.stopWatching?.();
-    this.stopWatching = null;
   }
 
   private adopt(user: User | null): void {

@@ -74,6 +74,13 @@ export class ExpenseStore {
   private listeners = new Set<() => void>();
   private source: ExpenseDataSource | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Bumped by every `reset()`, so each load can tell whether it still owns the
+   * store. Awaited work captures the value it started under and drops its
+   * result if it no longer matches — without this a slow read for the previous
+   * account can land after a new one has signed in.
+   */
+  private generation = 0;
 
   constructor(today: string = todayISO()) {
     this.state = initialState(currentYearMonth(), today);
@@ -106,22 +113,32 @@ export class ExpenseStore {
    */
   async init(env: EnvRecord | undefined, userId?: string): Promise<void> {
     this.reset();
+    const generation = this.generation;
     try {
       const session = await resolveSession(env, userId);
+      if (generation !== this.generation) return;
       this.source = session.source;
       this.set({
         mode: session.mode,
         userId: session.userId,
         warning: session.warning ?? null,
       });
-      await this.reload();
+      await this.reloadFor(generation);
     } catch (error) {
+      if (generation !== this.generation) return;
       this.set({ status: 'error', error: message(error) });
     }
   }
 
-  /** Drops every loaded row and the data source. Called on sign-out. */
+  /**
+   * Drops every loaded row and the data source. Called on sign-out.
+   *
+   * Bumping the generation is what actually orphans work already in flight —
+   * clearing the state alone would be undone by the next `set` from a read
+   * that started under the previous account.
+   */
   reset(): void {
+    this.generation += 1;
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = null;
     this.source = null;
@@ -131,6 +148,11 @@ export class ExpenseStore {
 
   /** Re-reads the month, the year and the categories for `yearMonth`. */
   async reload(): Promise<void> {
+    await this.reloadFor(this.generation);
+  }
+
+  /** `reload`, pinned to the generation the caller started under. */
+  private async reloadFor(generation: number): Promise<void> {
     const source = this.source;
     if (!source) return;
 
@@ -145,6 +167,7 @@ export class ExpenseStore {
         source.getBudget(yearMonth),
         source.getProfile(),
       ]);
+      if (generation !== this.generation) return;
       this.set({
         status: 'ready',
         error: null,
@@ -155,6 +178,7 @@ export class ExpenseStore {
         profile,
       });
     } catch (error) {
+      if (generation !== this.generation) return;
       this.set({ status: 'error', error: message(error) });
     }
   }
@@ -180,16 +204,22 @@ export class ExpenseStore {
 
   private async mutate(work: () => Promise<string>): Promise<void> {
     if (!this.source) return;
+    const generation = this.generation;
     this.set({ busy: true });
     try {
       const note = await work();
-      await this.reload();
+      if (generation !== this.generation) return;
+      await this.reloadFor(generation);
+      if (generation !== this.generation) return;
       this.showToast(note);
     } catch (error) {
+      if (generation !== this.generation) return;
       this.set({ error: message(error) });
       this.showToast(`Could not save — ${message(error)}`);
     } finally {
-      this.set({ busy: false });
+      // A reset already cleared `busy`; setting it here would resurrect the
+      // orphaned write's state on top of the new account's.
+      if (generation === this.generation) this.set({ busy: false });
     }
   }
 

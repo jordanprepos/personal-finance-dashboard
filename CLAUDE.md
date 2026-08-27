@@ -116,12 +116,17 @@ project (deployed via `firebase deploy --only auth`, configured under the
 
 Authentication is deliberately **not** done inside `resolveSession`: it takes
 an already-resolved `userId`, so a signed-out state exists for the login
-screens to render. Anonymous sign-in is still available
-(`signInAnonymousUser`) but is no longer the path every startup walks — making
-it automatic again would mean the gate never renders, since there would always
-be a user. With no Firebase config there is nothing to sign in to, so
-`AuthController` reports `status: 'unavailable'` and the apps skip the gate and
-run on seed data as before.
+screens to render. There is **no anonymous sign-in path** — it was removed
+once the login gate landed, because signing in automatically means the gate
+never renders. Every identity is a real account. With no Firebase config there
+is nothing to sign in to, so `AuthController` reports `status: 'unavailable'`
+and the apps skip the gate and run on seed data as before.
+
+`ExpenseStore` guards loads with a generation counter: `reset()` bumps it, and
+any awaited read that finds the counter changed drops its result rather than
+calling `set`. Without it a slow read for the previous account can land after a
+new one has signed in — rendering one user's rows under another's uid, where an
+edit would write to the wrong collection.
 `VITE_FIREBASE_*` values are intentionally inlined into the client bundle —
 that's public identification, not a secret; access control lives entirely in
 the rules file, not in hiding config.
@@ -187,8 +192,8 @@ than a share of zero.
   display name.
 - Month lengths are computed from the date, not a hardcoded table.
 - The Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`) is now wired
-  against the live `personal-web-app-projects` project — Auth (anonymous,
-  Email/Password, Google Sign-in) and Firestore (named database
+  against the live `personal-web-app-projects` project — Auth (Email/Password,
+  Google Sign-in) and Firestore (named database
   `personal-finance-dashboard-db`, `asia-southeast2`) are both live and
   rules/indexes are deployed. Email/Password sign-in is exercised end to end from the login
   screens in both apps; Google Sign-in is wired but uses `signInWithPopup`,

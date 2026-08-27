@@ -1,8 +1,6 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  onAuthStateChanged,
-  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -75,40 +73,9 @@ export async function resolveSession(
 }
 
 /**
- * Resolves with the current user, or null when nobody is signed in. Unlike the
- * anonymous-by-default helper it replaces, this never creates a session as a
- * side effect of asking whether one exists.
- */
-export function currentUser(auth: Auth): Promise<User | null> {
-  return new Promise<User | null>((resolve, reject) => {
-    const stop = onAuthStateChanged(
-      auth,
-      (user) => {
-        stop();
-        resolve(user);
-      },
-      (error) => {
-        stop();
-        reject(error);
-      },
-    );
-  });
-}
-
-/**
- * Anonymous sign-in, now an explicit opt-in rather than the path every startup
- * walked. Firestore rules still accept it — it's how a session existed before
- * either app had a login screen.
- */
-export function signInAnonymousUser(auth: Auth): Promise<User> {
-  return signInAnonymously(auth).then((cred) => cred.user);
-}
-
-/**
  * Permanent-account sign-in, driven by the login screens through
- * `AuthController`. Each either upgrades the existing anonymous session (if
- * signed in anonymously) or starts a new one — Firestore data written under
- * the anonymous uid does not automatically move to the linked account.
+ * `AuthController`. `AuthController.start` is what observes the session; there
+ * is deliberately no anonymous path — every identity here is a real account.
  */
 export function signUpWithEmail(auth: Auth, email: string, password: string): Promise<User> {
   return createUserWithEmailAndPassword(auth, email, password).then((cred) => cred.user);
