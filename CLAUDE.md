@@ -115,7 +115,9 @@ Workspace layout (pnpm workspaces, `packages/*`):
     trimming, which let `" Groceries"` take the canonical colour while the
     seeding dedupe missed it and created a second one. Also
     `nextCategoryOrder` — always use it to assign `order`, never
-    `categories.length`, which collides after a delete (see below).
+    `categories.length`, which collides after a delete (see below) — and
+    `collidingCategoryOrders`, the invariant check `addDefaultCategories`
+    runs before its bulk write.
   - `src/styles/tokens.css` — design tokens/component classes from the design
     prototype.
 - **`packages/desktop`** and **`packages/mobile-webview`** — React 19 + Vite +
@@ -235,6 +237,14 @@ Deleting deliberately does **not** renumber the survivors. That would keep
 `order` dense, but since colour derives from it, every remaining category
 would change colour whenever one was deleted. Gaps are harmless — `order` is a
 sort key, not an index.
+
+`addDefaultCategories` — the only bulk write — checks the invariant with
+`collidingCategoryOrders` and **reports** rather than repairs, appending the
+warning to whichever toast it ends on. There is deliberately no migration:
+since `nextCategoryOrder` landed, nothing can produce a collision, so a hit
+means documents written before it, and silently rewriting `order` would
+recolour those categories without being asked. As of the last check the live
+account has 11 categories with unique orders 0–10, so this has never fired.
 
 ### Recurring entries — `seriesId`
 
