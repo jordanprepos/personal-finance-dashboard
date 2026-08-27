@@ -112,3 +112,28 @@ export const CATEGORY_TYPES: { value: CategoryType; label: string }[] = [
   { value: 'variable', label: 'Variable' },
   { value: 'savings', label: 'Savings' },
 ];
+
+/* ------------------------------------------------------------ credentials */
+
+export type CredentialField = 'email' | 'password';
+
+export interface CredentialError {
+  /** the input to mark, so the view never has to sniff the message text */
+  field: CredentialField;
+  message: string;
+}
+
+/**
+ * Login form validation, matching the design's thresholds and wording. Firebase
+ * checks both again server-side; this is the local pass that keeps an obvious
+ * typo from costing a round trip.
+ */
+export function validateCredentials(email: string, password: string): CredentialError | null {
+  if (!email.includes('@')) {
+    return { field: 'email', message: 'Enter a valid email address.' };
+  }
+  if (password.length < 6) {
+    return { field: 'password', message: 'Password must be at least 6 characters.' };
+  }
+  return null;
+}

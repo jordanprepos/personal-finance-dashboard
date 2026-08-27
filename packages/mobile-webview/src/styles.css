@@ -124,3 +124,225 @@ body {
   border-color: var(--cf-blue);
   background: var(--cf-blue-pale);
 }
+
+/* ------------------------------------------------------------------ login */
+/* Ported from the design's Login artboard, phone column: dark header block
+   over a single form column. Reuses the .cf-phone shell, so on a real device
+   it fills the viewport and on desktop it renders in the device frame. */
+
+.login {
+  height: auto;
+  min-height: 812px;
+  /* The design's phone container is white behind the form; .cf-phone defaults
+     to the page tint because the dashboard's cards supply their own surface. */
+  background: var(--cf-surface);
+}
+
+.login__hero {
+  background: var(--cf-ink);
+  color: #fff;
+  padding: 38px 26px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: none;
+}
+
+.login__logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.login__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--cf-blue);
+  display: block;
+}
+
+.login__wordmark {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.login__headline {
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+}
+
+.login__form {
+  padding: 26px 24px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.login__title {
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: -0.025em;
+}
+
+.login__titlesub {
+  font-size: 13px;
+  color: var(--cf-muted);
+  margin-top: 4px;
+}
+
+.login__google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.login__or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--cf-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.login__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--cf-border);
+}
+
+.login__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login__label {
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cf-slate);
+}
+
+.login__input {
+  height: 48px;
+  padding: 0 18px;
+  border-radius: var(--cf-r-pill);
+  border: 1px solid var(--cf-border-strong);
+  background: var(--cf-surface-2);
+  font-size: 15px;
+  color: var(--cf-ink);
+  caret-color: var(--cf-blue);
+}
+
+.login__pwtoggle,
+.login__link {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cf-blue);
+}
+
+.login__link {
+  font-size: 13px;
+}
+
+.login__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login__remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--cf-slate);
+}
+
+.login__checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid var(--cf-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.login__muted {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cf-muted);
+}
+
+.login__error {
+  background: var(--cf-blue-pale);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-chip);
+  padding: 11px 15px;
+  font-size: 13px;
+  color: var(--cf-ink);
+}
+
+.login__submit {
+  padding: 15px;
+  font-size: 15px;
+}
+
+.login__footer {
+  font-size: 13px;
+  color: var(--cf-muted);
+  text-align: center;
+}
+
+/* On a real phone the shell fills the viewport, so the form scrolls instead. */
+@media (max-width: 520px) {
+  .login {
+    height: 100dvh;
+    min-height: 0;
+  }
+}
+
+.phone__signout {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--cf-muted);
+}

@@ -1,5 +1,8 @@
 rules_version = '2';
 
+// Released to the named database `expense-tracker` — firebase.json uses the
+// multi-database (array) form, which binds this file to the
+// `cloud.firestore/expense-tracker` release rather than the default one.
 service cloud.firestore {
   match /databases/{database}/documents {
 

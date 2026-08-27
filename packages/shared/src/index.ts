@@ -7,3 +7,4 @@ export * from './lib/forms.js';
 export * as queries from './lib/queries.js';
 export * from './data/index.js';
 export * from './store.js';
+export * from './auth.js';

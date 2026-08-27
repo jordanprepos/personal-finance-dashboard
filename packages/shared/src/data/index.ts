@@ -29,13 +29,18 @@ export interface Session {
 }
 
 /**
- * Picks the data source for this environment.
+ * Picks the data source for an already-resolved identity.
  *
- * With Firebase config present it signs in (anonymously, if no session
- * exists) and returns a live Firestore source. Without it — or if sign-in
- * fails — it returns the seed source plus a warning explaining which.
+ * Authentication is deliberately *not* done here: `AuthController` owns it, so
+ * that a signed-out state exists for the login screens to render. Given a
+ * `userId` and Firebase config, this returns a live Firestore source; without
+ * config — the case where there is nothing to sign in to — it returns the seed
+ * source plus a warning saying so.
  */
-export async function resolveSession(env: EnvRecord | undefined): Promise<Session> {
+export async function resolveSession(
+  env: EnvRecord | undefined,
+  userId?: string,
+): Promise<Session> {
   const config = readFirebaseConfig(env);
 
   if (!config) {
@@ -47,33 +52,40 @@ export async function resolveSession(env: EnvRecord | undefined): Promise<Sessio
     };
   }
 
-  try {
-    const { auth, db } = initFirebase(config);
-    const user = await currentUser(auth);
+  if (!userId) {
     return {
-      source: createFirestoreDataSource(db, user.uid),
-      mode: 'firestore',
-      userId: user.uid,
+      source: createSeedDataSource(),
+      mode: 'seed',
+      userId: 'demo-user',
+      warning: 'Not signed in — showing demo data.',
     };
+  }
+
+  try {
+    const { db } = initFirebase(config);
+    return { source: createFirestoreDataSource(db, userId), mode: 'firestore', userId };
   } catch (error) {
     return {
       source: createSeedDataSource(),
       mode: 'seed',
       userId: 'demo-user',
-      warning: `Firebase sign-in failed (${describe(error)}) — showing demo data.`,
+      warning: `Firestore unavailable (${describe(error)}) — showing demo data.`,
     };
   }
 }
 
-/** Resolves with the signed-in user, signing in anonymously if there is none. */
-export function currentUser(auth: Auth): Promise<User> {
-  return new Promise<User>((resolve, reject) => {
+/**
+ * Resolves with the current user, or null when nobody is signed in. Unlike the
+ * anonymous-by-default helper it replaces, this never creates a session as a
+ * side effect of asking whether one exists.
+ */
+export function currentUser(auth: Auth): Promise<User | null> {
+  return new Promise<User | null>((resolve, reject) => {
     const stop = onAuthStateChanged(
       auth,
       (user) => {
         stop();
-        if (user) resolve(user);
-        else signInAnonymously(auth).then((cred) => resolve(cred.user), reject);
+        resolve(user);
       },
       (error) => {
         stop();
@@ -84,10 +96,19 @@ export function currentUser(auth: Auth): Promise<User> {
 }
 
 /**
- * Permanent-account sign-in, for when the apps grow a login screen. Each
- * either upgrades the existing anonymous session (if signed in anonymously)
- * or starts a new one — Firestore data written under the anonymous uid does
- * not automatically move to the linked account.
+ * Anonymous sign-in, now an explicit opt-in rather than the path every startup
+ * walked. Firestore rules still accept it — it's how a session existed before
+ * either app had a login screen.
+ */
+export function signInAnonymousUser(auth: Auth): Promise<User> {
+  return signInAnonymously(auth).then((cred) => cred.user);
+}
+
+/**
+ * Permanent-account sign-in, driven by the login screens through
+ * `AuthController`. Each either upgrades the existing anonymous session (if
+ * signed in anonymously) or starts a new one — Firestore data written under
+ * the anonymous uid does not automatically move to the linked account.
  */
 export function signUpWithEmail(auth: Auth, email: string, password: string): Promise<User> {
   return createUserWithEmailAndPassword(auth, email, password).then((cred) => cred.user);
