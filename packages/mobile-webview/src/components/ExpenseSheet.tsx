@@ -12,6 +12,7 @@ import {
   type MoneyFormat,
   type Transaction,
 } from '@expense-tracker/shared';
+import { DefaultCategoriesButton } from './DefaultCategoriesButton';
 
 import { catStyle } from '../catStyle';
 
@@ -115,15 +116,7 @@ export function ExpenseSheet({
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* Fills the account from the spreadsheet's set; the chips then
                     appear in place, so the entry being typed isn't lost. */}
-                <button
-                  type="button"
-                  className="cf-ghostbtn"
-                  style={{ borderColor: 'var(--cf-blue)', color: 'var(--cf-blue)' }}
-                  disabled={state.busy}
-                  onClick={() => void store.addDefaultCategories()}
-                >
-                  Use my default categories
-                </button>
+                <DefaultCategoriesButton store={store} state={state} />
                 <button type="button" className="cf-ghostbtn" onClick={onManageCategories}>
                   Add my own
                 </button>

@@ -11,7 +11,8 @@ import {
   sumAmounts,
 } from '@expense-tracker/shared';
 
-import { catStyle, type ViewProps } from '../appTypes';
+import { type ViewProps } from '../appTypes';
+import { catStyle } from '../catStyle';
 
 export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
   const { monthTransactions, categories, budget, yearMonth, today } = state;

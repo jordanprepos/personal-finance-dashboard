@@ -105,6 +105,15 @@ Workspace layout (pnpm workspaces, `packages/*`):
     this package entirely.
   - `src/data/` — `ExpenseDataSource` interface with two implementations:
     Firestore (`firestoreSource.ts`) and in-memory seed (`seedSource.ts`).
+    `watchMonth` is the **only** read on it; the one-shot `list*`/`get*`
+    methods were removed once every view rendered from the pushed snapshot,
+    rather than being maintained in three places with nothing calling them.
+    `queries.fetch*` is still exported for a genuinely one-off read.
+  - `src/data/defaultCategories.ts` — the spreadsheet's category set, plus
+    `normalizeCategoryName`, the single way category names are compared
+    anywhere (trim + lowercase). Three call sites once disagreed about
+    trimming, which let `" Groceries"` take the canonical colour while the
+    seeding dedupe missed it and created a second one.
   - `src/styles/tokens.css` — design tokens/component classes from the design
     prototype.
 - **`packages/desktop`** and **`packages/mobile-webview`** — React 19 + Vite +

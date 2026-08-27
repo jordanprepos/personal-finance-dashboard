@@ -113,10 +113,6 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       };
     },
 
-    async listCategories(): Promise<Category[]> {
-      return readCategories();
-    },
-
     async createCategory(input: CategoryInput): Promise<Category> {
       const category: Category = { ...input, id: newCategoryId() };
       categories = [...categories, category];
@@ -130,18 +126,6 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       categories = categories.filter((c) => c.id !== categoryId);
       notify();
       return removed;
-    },
-
-    async listTransactionsByDate(date: string): Promise<Transaction[]> {
-      return clone(transactions.filter((t) => t.date === date));
-    },
-
-    async listTransactionsByMonth(yearMonth: string): Promise<Transaction[]> {
-      return readMonth(yearMonth);
-    },
-
-    async listTransactionsByYear(year: string): Promise<Transaction[]> {
-      return readYear(year);
     },
 
     async createTransaction(input: TransactionInput): Promise<Transaction> {
@@ -191,17 +175,22 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       return removed;
     },
 
-    async getBudget(yearMonth: string): Promise<Budget> {
-      return readBudget(yearMonth);
-    },
-
     async saveBudget(budget: Budget): Promise<void> {
       budgets[budget.id] = { ...budget, categoryBudgets: { ...budget.categoryBudgets } };
       notify();
     },
 
-    async getProfile(): Promise<Profile> {
-      return { ...profile };
+    async setIncome(yearMonth: string, income: number): Promise<void> {
+      await this.saveBudget({ ...readBudget(yearMonth), income });
     },
+
+    async setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void> {
+      const current = readBudget(yearMonth);
+      await this.saveBudget({
+        ...current,
+        categoryBudgets: { ...current.categoryBudgets, [categoryId]: amount },
+      });
+    },
+
   };
 }
