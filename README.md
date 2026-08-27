@@ -48,16 +48,32 @@ environment they fall back to an in-memory seed dataset (see
    One `.env` at the workspace root serves both apps — each `vite.config.ts`
    sets `envDir: '../..'`.
 
-2. Enable **Anonymous** sign-in under Authentication → Sign-in method. The apps
-   sign in anonymously when no session exists, so `request.auth.uid` is
-   populated and the security rules apply. Swap `currentUser()` in
-   `packages/shared/src/data/index.ts` for a real sign-in flow when you add one.
+2. Enable **Email/Password** (and optionally **Google**) under Authentication →
+   Sign-in method. Both apps open on a login screen; every identity is a real
+   account, so `request.auth.uid` is populated and the security rules apply.
+   There is no anonymous sign-in — it was removed once the login gate landed,
+   because signing in automatically means the gate never renders.
 
-3. Deploy the rules and indexes:
+   Add `localhost` under Authentication → Settings → Authorized domains, or
+   Google Sign-in's popup is refused in local development. (Email/Password is
+   unaffected; it doesn't use OAuth redirects.)
+
+3. Create the Firestore database **from the Firebase console** — Firestore →
+   Create database — with database ID `personal-finance-dashboard-db` and
+   location `asia-southeast2`. Not `(default)`, which lands in `nam5` (US), and
+   not via the CLI or the Firebase MCP tools: a database created through the
+   API silently refused to enforce the rules released to it, failing every
+   authenticated request with `PERMISSION_DENIED`. See CLAUDE.md for the full
+   symptom.
+
+4. Deploy the rules and indexes:
 
    ```bash
    npx firebase-tools deploy --only firestore:rules,firestore:indexes
    ```
+
+   The target database comes from `firebase.json`; `deploy` has no
+   `--database` flag.
 
 The `VITE_FIREBASE_*` values are inlined into the client bundle by design.
 Firebase web config is public identification, not a secret — access control is
@@ -191,17 +207,27 @@ so, rather than reporting a share of zero.
 ## Status
 
 The seed path is exercised end to end — derived values, writes, recurring
-detection, series expansion and clamping, and the zero-budget state. The
-Firestore path (`lib/queries.ts`, `data/firestoreSource.ts`, anonymous sign-in)
-typechecks and is wired, but has not been run against a live project; deploy the
-indexes before first use, since the series delete
-(`seriesId ASC, date ASC`) is the query a missing composite index surfaces
-first.
+detection, series expansion and clamping, and the zero-budget state.
+
+The Firestore path now runs against the live `personal-web-app-projects`
+project. Email/Password sign-in works end to end from the login screens in both
+apps and the dashboards render live data. Google Sign-in is wired but uses
+`signInWithPopup`, which a real native webview commonly blocks — fine in a
+desktop browser, and it would need the redirect flow to be reliable inside the
+mobile webview. "Forgot password?" is inert by design;
+`sendPasswordResetEmail` is not wired up in `shared`.
+
+Deploy the indexes before first use — the series delete (`seriesId ASC,
+date ASC`) is the query a missing composite index surfaces first.
+
+The Monthly view is live: it subscribes rather than re-reading, so a write in
+one tab or app repaints the other. Daily and Yearly still use one-shot reads.
 
 ## Notes on the port
 
 * **Recurring entries.** The prototype's `recurring: boolean` becomes
-  `seriesId?: string` — see [Recurring entries](#recurring-entries--seriesid).
+  `seriesId: string | null`, always written — see
+  [Recurring entries](#recurring-entries--seriesid).
   This is the one addition to the schema you specified, and it was made at your
   request. It reproduces the prototype's behaviour exactly: only the five
   monthly charges are flagged, and Token Listrik and Gojek read as the one-offs
