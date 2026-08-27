@@ -134,7 +134,17 @@ export const CATEGORY_RAMP = [
 export const colorForOrder = (order: number): string =>
   CATEGORY_RAMP[order % CATEGORY_RAMP.length] as string;
 
-const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [c.name.trim().toLowerCase(), c.color]));
+/**
+ * The one way a category name is compared, anywhere.
+ *
+ * Three call sites previously disagreed — some trimmed, some didn't — so a
+ * category stored as " Groceries" took the canonical colour (this function
+ * trims) while the "use my defaults" dedupe (which didn't) missed it and
+ * created a second Groceries.
+ */
+export const normalizeCategoryName = (name: string): string => name.trim().toLowerCase();
+
+const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [normalizeCategoryName(c.name), c.color]));
 
 /**
  * The colour to show a category in.
@@ -153,7 +163,7 @@ const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [c.name.trim().toLowerCa
  * to invert and read the stored value first.
  */
 export const colorForName = (name: string, order = 0): string =>
-  CANONICAL.get(name.trim().toLowerCase()) ?? colorForOrder(order);
+  CANONICAL.get(normalizeCategoryName(name)) ?? colorForOrder(order);
 
 /**
  * `hex` mixed toward white by `amount` (0-1).

@@ -39,8 +39,14 @@ export interface ExpenseDataSource {
    *
    * The Firestore implementation fans out to five listeners and emits only
    * once all five have reported, so the first callback is a complete month
-   * rather than five partial repaints. The seed implementation emits once and
-   * never again — there is nothing to observe in memory.
+   * rather than five partial repaints. The seed implementation re-emits after
+   * every write, so demo mode behaves the same way rather than going stale
+   * after the first paint.
+   *
+   * This is the **only** read path. Reads used to be six one-shot methods on
+   * this interface; every view now renders from the pushed snapshot, so they
+   * were removed rather than left to rot in three places. `queries.fetch*`
+   * remains exported for a genuinely one-off read.
    */
   watchMonth(
     yearMonth: string,
@@ -48,17 +54,9 @@ export interface ExpenseDataSource {
     onError: (error: Error) => void,
   ): Unsubscribe;
 
-  listCategories(): Promise<Category[]>;
   createCategory(input: CategoryInput): Promise<Category>;
   /** Hard delete — also removes every transaction in the category. Returns that count. */
   deleteCategory(categoryId: string): Promise<number>;
-
-  /** Equality query on the denormalized `date`. */
-  listTransactionsByDate(date: string): Promise<Transaction[]>;
-  /** Equality query on the denormalized `yearMonth`. */
-  listTransactionsByMonth(yearMonth: string): Promise<Transaction[]>;
-  /** Equality query on the denormalized `year`. */
-  listTransactionsByYear(year: string): Promise<Transaction[]>;
 
   createTransaction(input: TransactionInput): Promise<Transaction>;
   /** One document per month, from `input.date` through `throughYearMonth`. */
@@ -68,8 +66,9 @@ export interface ExpenseDataSource {
   /** "This and future months" — matches on categoryId + item + date >= fromDate. */
   deleteTransactionSeries(key: TransactionSeriesKey): Promise<number>;
 
-  getBudget(yearMonth: string): Promise<Budget>;
   saveBudget(budget: Budget): Promise<void>;
-
-  getProfile(): Promise<Profile>;
+  /** Read-modify-write of one month's income; the rest of the budget is kept. */
+  setIncome(yearMonth: string, income: number): Promise<void>;
+  /** Read-modify-write of one category's allocation for one month. */
+  setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void>;
 }

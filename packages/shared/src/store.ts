@@ -2,6 +2,7 @@ import type { EnvRecord } from './firebase.js';
 import {
   DEFAULT_CATEGORIES,
   colorForName,
+  normalizeCategoryName,
   resolveSession,
   type ExpenseDataSource,
 } from './data/index.js';
@@ -228,6 +229,16 @@ export class ExpenseStore {
     this.set({ toast: null });
   }
 
+  /**
+   * The month's budget, or an empty one to merge into. A fresh month has no
+   * `budgets/{yearMonth}` document at all, and four call sites were each
+   * spelling this fallback out.
+   */
+  private budgetBase(): Budget {
+    const { budget, yearMonth } = this.state;
+    return budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
+  }
+
   private async mutate(work: () => Promise<string>): Promise<void> {
     if (!this.source) return;
     const generation = this.generation;
@@ -332,7 +343,7 @@ export class ExpenseStore {
     const trimmed = name.trim();
     const { categories, yearMonth, budget } = this.state;
     if (!trimmed) return;
-    if (categories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+    if (categories.some((c) => normalizeCategoryName(c.name) === normalizeCategoryName(trimmed))) {
       this.showToast(`${trimmed} already exists`);
       return;
     }
@@ -347,7 +358,7 @@ export class ExpenseStore {
         archived: false,
       });
       if (allocation > 0) {
-        const base: Budget = budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
+        const base = this.budgetBase();
         await source.saveBudget({
           ...base,
           categoryBudgets: { ...base.categoryBudgets, [created.id]: allocation },
@@ -372,8 +383,8 @@ export class ExpenseStore {
     if (!source) return;
 
     const { categories, yearMonth, budget } = this.state;
-    const taken = new Set(categories.map((c) => c.name.toLowerCase()));
-    const missing = DEFAULT_CATEGORIES.filter((c) => !taken.has(c.name.toLowerCase()));
+    const taken = new Set(categories.map((c) => normalizeCategoryName(c.name)));
+    const missing = DEFAULT_CATEGORIES.filter((c) => !taken.has(normalizeCategoryName(c.name)));
 
     if (missing.length === 0) {
       this.showToast('Default categories are already set up');
@@ -399,7 +410,7 @@ export class ExpenseStore {
       }
 
       if (Object.keys(allocations).length > 0) {
-        const base: Budget = budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
+        const base = this.budgetBase();
         await source.saveBudget({
           ...base,
           categoryBudgets: { ...base.categoryBudgets, ...allocations },
@@ -424,10 +435,12 @@ export class ExpenseStore {
   async setIncome(income: number): Promise<void> {
     const source = this.source;
     if (!source) return;
-    const { yearMonth, budget } = this.state;
+    const { yearMonth } = this.state;
     await this.mutate(async () => {
-      const base: Budget = budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
-      await source.saveBudget({ ...base, income });
+      // Delegated rather than merged here: the data source reads the stored
+      // budget first, so a concurrent allocation change isn't clobbered by
+      // whatever this tab last rendered.
+      await source.setIncome(yearMonth, income);
       return 'Income updated';
     });
   }
@@ -435,13 +448,9 @@ export class ExpenseStore {
   async setCategoryBudget(categoryId: string, amount: number): Promise<void> {
     const source = this.source;
     if (!source) return;
-    const { yearMonth, budget } = this.state;
+    const { yearMonth } = this.state;
     await this.mutate(async () => {
-      const base: Budget = budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
-      await source.saveBudget({
-        ...base,
-        categoryBudgets: { ...base.categoryBudgets, [categoryId]: amount },
-      });
+      await source.setCategoryBudget(yearMonth, categoryId, amount);
       return 'Allocation updated';
     });
   }

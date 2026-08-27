@@ -26,16 +26,8 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
       onError: (error: Error) => void,
     ): Unsubscribe => watchMonth(db, userId, yearMonth, onChange, onError),
 
-    listCategories: (): Promise<Category[]> => q.fetchCategories(db, userId),
     createCategory: (input: CategoryInput): Promise<Category> => q.createCategory(db, userId, input),
     deleteCategory: (categoryId: string): Promise<number> => q.deleteCategory(db, userId, categoryId),
-
-    listTransactionsByDate: (date: string): Promise<Transaction[]> =>
-      q.fetchTransactionsByDate(db, userId, date),
-    listTransactionsByMonth: (yearMonth: string): Promise<Transaction[]> =>
-      q.fetchTransactionsByMonth(db, userId, yearMonth),
-    listTransactionsByYear: (year: string): Promise<Transaction[]> =>
-      q.fetchTransactionsByYear(db, userId, year),
 
     createTransaction: (input: TransactionInput): Promise<Transaction> =>
       q.createTransaction(db, userId, input),
@@ -47,10 +39,11 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
     deleteTransactionSeries: (key: TransactionSeriesKey): Promise<number> =>
       q.deleteTransactionSeries(db, userId, key),
 
-    getBudget: (yearMonth: string): Promise<Budget> => q.fetchBudget(db, userId, yearMonth),
     saveBudget: (budget: Budget): Promise<void> => q.saveBudget(db, userId, budget),
-
-    getProfile: (): Promise<Profile> => q.fetchProfile(db, userId),
+    setIncome: (yearMonth: string, income: number): Promise<void> =>
+      q.setIncome(db, userId, yearMonth, income),
+    setCategoryBudget: (yearMonth: string, categoryId: string, amount: number): Promise<void> =>
+      q.setCategoryBudget(db, userId, yearMonth, categoryId, amount),
   };
 }
 
@@ -74,10 +67,21 @@ function watchMonth(
   onChange: (snapshot: MonthSnapshot) => void,
   onError: (error: Error) => void,
 ): Unsubscribe {
-  // `let` + push, not a const array literal: `fail` can run during setup, and
-  // it calls stop() — which must see whatever has been subscribed so far.
   const unsubscribes: Unsubscribe[] = [];
   let failed = false;
+
+  /**
+   * Registers each listener the moment it exists.
+   *
+   * Passing all five to one `push(...)` would evaluate every argument before
+   * pushing any, leaving `unsubscribes` empty for the whole of setup — so a
+   * listener that threw partway (`assertYearMonth` on a malformed
+   * `yearMonth`, say) would strand the ones already registered, with the
+   * exception unwinding past any cleanup below.
+   */
+  const track = (unsubscribe: Unsubscribe): void => {
+    unsubscribes.push(unsubscribe);
+  };
 
   const parts: Partial<MonthSnapshot> = {};
 
@@ -113,59 +117,74 @@ function watchMonth(
     onError(error);
   };
 
-  unsubscribes.push(
-    q.watchCategories(
-      db,
-      userId,
-      (categories) => {
-        parts.categories = categories;
-        emit();
-      },
-      fail,
-    ),
-    q.watchTransactionsByMonth(
-      db,
-      userId,
-      yearMonth,
-      (rows) => {
-        parts.monthTransactions = rows;
-        emit();
-      },
-      fail,
-    ),
-    q.watchTransactionsByYear(
-      db,
-      userId,
-      yearOfMonth(yearMonth),
-      (rows) => {
-        parts.yearTransactions = rows;
-        emit();
-      },
-      fail,
-    ),
-    q.watchBudget(
-      db,
-      userId,
-      yearMonth,
-      (budget) => {
-        parts.budget = budget;
-        emit();
-      },
-      fail,
-    ),
-    q.watchProfile(
-      db,
-      userId,
-      (profile) => {
-        parts.profile = profile;
-        emit();
-      },
-      fail,
-    ),
-  );
+  try {
+    track(
+      q.watchCategories(
+        db,
+        userId,
+        (categories) => {
+          parts.categories = categories;
+          emit();
+        },
+        fail,
+      ),
+    );
+    track(
+      q.watchTransactionsByMonth(
+        db,
+        userId,
+        yearMonth,
+        (rows) => {
+          parts.monthTransactions = rows;
+          emit();
+        },
+        fail,
+      ),
+    );
+    track(
+      q.watchTransactionsByYear(
+        db,
+        userId,
+        yearOfMonth(yearMonth),
+        (rows) => {
+          parts.yearTransactions = rows;
+          emit();
+        },
+        fail,
+      ),
+    );
+    track(
+      q.watchBudget(
+        db,
+        userId,
+        yearMonth,
+        (budget) => {
+          parts.budget = budget;
+          emit();
+        },
+        fail,
+      ),
+    );
+    track(
+      q.watchProfile(
+        db,
+        userId,
+        (profile) => {
+          parts.profile = profile;
+          emit();
+        },
+        fail,
+      ),
+    );
+  } catch (error) {
+    // The caller never receives an unsubscribe when setup throws, so nothing
+    // else can ever tear these down.
+    stop();
+    throw error;
+  }
 
-  // A synchronous failure during setup already tore down what existed then;
-  // anything pushed after that would leak, so sweep again.
+  // A synchronous `fail` during setup tore down only what existed at that
+  // moment; anything registered after it would otherwise leak.
   if (failed) stop();
 
   return stop;

@@ -113,8 +113,12 @@ function toBudget(id: string, d: DocumentData | undefined): Budget {
 
 /* ------------------------------------------------------------- categories */
 
+/** Shared by `fetchCategories` and `watchCategories`, same reason as above. */
+const categoriesQuery = (db: Firestore, userId: string) =>
+  query(categoriesCollection(db, userId), orderBy('order', 'asc'));
+
 export async function fetchCategories(db: Firestore, userId: string): Promise<Category[]> {
-  const snap = await getDocs(query(categoriesCollection(db, userId), orderBy('order', 'asc')));
+  const snap = await getDocs(categoriesQuery(db, userId));
   return snap.docs.map(toCategory);
 }
 
@@ -125,7 +129,7 @@ export function watchCategories(
   onError?: (error: Error) => void,
 ): () => void {
   return onSnapshot(
-    query(categoriesCollection(db, userId), orderBy('order', 'asc')),
+    categoriesQuery(db, userId),
     (snap) => onChange(snap.docs.map(toCategory)),
     onError,
   );
@@ -151,7 +155,14 @@ export async function updateCategory(
   await updateDoc(doc(categoriesCollection(db, userId), categoryId), patch);
 }
 
-/** Soft delete — keeps historical transactions readable. Prefer this. */
+/**
+ * Soft delete — keeps historical transactions readable.
+ *
+ * Not wired to any UI: the only delete path either app offers is the hard
+ * `deleteCategory` below. Because nothing sets `archived`, the
+ * `.filter(c => !c.archived)` guards in the views are currently no-ops kept
+ * for the day this is offered.
+ */
 export async function archiveCategory(db: Firestore, userId: string, categoryId: string): Promise<void> {
   await updateDoc(doc(categoriesCollection(db, userId), categoryId), { archived: true });
 }
@@ -185,17 +196,28 @@ export async function fetchTransactionsByDate(
   return runTransactionQuery(db, userId, [where('date', '==', date), orderBy('createdAt', 'desc')]);
 }
 
+/*
+ * One definition per rollup, shared by the `fetch*` and `watch*` pair below.
+ * Written out twice, the ordering could drift between them and the live rows
+ * would sort differently from anything that re-read the same month.
+ */
+const monthConstraints = (yearMonth: string): QueryConstraint[] => {
+  assertYearMonth(yearMonth);
+  return [where('yearMonth', '==', yearMonth), orderBy('date', 'desc')];
+};
+
+const yearConstraints = (year: string): QueryConstraint[] => [
+  where('year', '==', year),
+  orderBy('date', 'desc'),
+];
+
 /** Monthly: `yearMonth == "YYYY-MM"`. */
 export async function fetchTransactionsByMonth(
   db: Firestore,
   userId: string,
   yearMonth: string,
 ): Promise<Transaction[]> {
-  assertYearMonth(yearMonth);
-  return runTransactionQuery(db, userId, [
-    where('yearMonth', '==', yearMonth),
-    orderBy('date', 'desc'),
-  ]);
+  return runTransactionQuery(db, userId, monthConstraints(yearMonth));
 }
 
 /** Yearly: `year == "YYYY"`. */
@@ -204,7 +226,7 @@ export async function fetchTransactionsByYear(
   userId: string,
   year: string,
 ): Promise<Transaction[]> {
-  return runTransactionQuery(db, userId, [where('year', '==', year), orderBy('date', 'desc')]);
+  return runTransactionQuery(db, userId, yearConstraints(year));
 }
 
 /** Monthly, narrowed to one category. */
@@ -237,14 +259,7 @@ export function watchTransactionsByMonth(
   onChange: (transactions: Transaction[]) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  assertYearMonth(yearMonth);
-  return watchTransactionQuery(
-    db,
-    userId,
-    [where('yearMonth', '==', yearMonth), orderBy('date', 'desc')],
-    onChange,
-    onError,
-  );
+  return watchTransactionQuery(db, userId, monthConstraints(yearMonth), onChange, onError);
 }
 
 /** Yearly, live. Mirrors `fetchTransactionsByYear`. */
@@ -255,13 +270,7 @@ export function watchTransactionsByYear(
   onChange: (transactions: Transaction[]) => void,
   onError?: (error: Error) => void,
 ): () => void {
-  return watchTransactionQuery(
-    db,
-    userId,
-    [where('year', '==', year), orderBy('date', 'desc')],
-    onChange,
-    onError,
-  );
+  return watchTransactionQuery(db, userId, yearConstraints(year), onChange, onError);
 }
 
 /** The watch counterpart of `runTransactionQuery` — same query, pushed. */

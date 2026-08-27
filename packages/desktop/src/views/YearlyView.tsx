@@ -11,7 +11,8 @@ import {
   yearSummary,
 } from '@expense-tracker/shared';
 
-import { catStyle, type ViewProps } from '../appTypes';
+import { type ViewProps } from '../appTypes';
+import { catStyle } from '../catStyle';
 
 const CHART_WIDTH = 1120;
 const CHART_HEIGHT = 240;

@@ -209,6 +209,11 @@ function Dashboard({
             setExpenseOpen(false);
             setEditing(null);
           }}
+          onManageCategories={() => {
+            setExpenseOpen(false);
+            setEditing(null);
+            setCategoriesOpen(true);
+          }}
         />
       ) : null}
 

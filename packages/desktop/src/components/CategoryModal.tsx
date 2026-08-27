@@ -12,6 +12,8 @@ import {
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
+import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton';
+
 interface Props {
   store: ExpenseStore;
   state: ExpenseState;
@@ -58,17 +60,10 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
             }}
           >
             <div style={{ flex: 1, fontSize: 13, color: 'var(--cf-slate)' }}>
-              Start with the 11 categories from your spreadsheet, with their monthly allocations.
+              Start with the {DEFAULT_CATEGORY_COUNT} categories from your spreadsheet, with their
+              monthly allocations.
             </div>
-            <button
-              type="button"
-              className="cf-ghostbtn"
-              style={{ flex: 'none', borderColor: 'var(--cf-blue)', color: 'var(--cf-blue)' }}
-              disabled={state.busy}
-              onClick={() => void store.addDefaultCategories()}
-            >
-              Use my default categories
-            </button>
+            <DefaultCategoriesButton store={store} state={state} style={{ flex: 'none' }} />
           </div>
         ) : null}
 
