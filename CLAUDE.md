@@ -113,7 +113,9 @@ Workspace layout (pnpm workspaces, `packages/*`):
     `normalizeCategoryName`, the single way category names are compared
     anywhere (trim + lowercase). Three call sites once disagreed about
     trimming, which let `" Groceries"` take the canonical colour while the
-    seeding dedupe missed it and created a second one.
+    seeding dedupe missed it and created a second one. Also
+    `nextCategoryOrder` — always use it to assign `order`, never
+    `categories.length`, which collides after a delete (see below).
   - `src/styles/tokens.css` — design tokens/component classes from the design
     prototype.
 - **`packages/desktop`** and **`packages/mobile-webview`** — React 19 + Vite +
@@ -222,6 +224,17 @@ consult the stored value first. Until then, changing `color` in Firestore has
 no visible effect, which is worth knowing before debugging why it "won't
 save". Matching is by name because ids are Firestore-assigned on the live
 path; only the name is stable between the template and an account.
+
+A name outside the template falls back to `colorForOrder(order)`, so **`order`
+must be unique** — assign it with `nextCategoryOrder` (one past the highest in
+use), never `categories.length`. With A(0) B(1) C(2), deleting B leaves length
+2, so the next category also takes 2: two categories sharing a ramp slot, and
+a tie under `orderBy('order')`.
+
+Deleting deliberately does **not** renumber the survivors. That would keep
+`order` dense, but since colour derives from it, every remaining category
+would change colour whenever one was deleted. Gaps are harmless — `order` is a
+sort key, not an index.
 
 ### Recurring entries — `seriesId`
 

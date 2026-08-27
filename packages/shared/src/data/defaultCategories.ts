@@ -144,6 +144,22 @@ export const colorForOrder = (order: number): string =>
  */
 export const normalizeCategoryName = (name: string): string => name.trim().toLowerCase();
 
+/**
+ * The `order` to give the next category: one past the highest in use.
+ *
+ * Not `categories.length`, which collides after any delete — with A(0) B(1)
+ * C(2), removing B leaves length 2, so the next category also takes 2. Two
+ * categories then share a ramp slot (identical colour) and tie under
+ * `orderBy('order')`.
+ *
+ * Deleting deliberately does **not** renumber the survivors. It would keep
+ * `order` dense, but colour is derived from it, so every remaining category
+ * would change colour whenever one was deleted. Sparse gaps are harmless —
+ * this is a sort key, not an index.
+ */
+export const nextCategoryOrder = (categories: readonly { order: number }[]): number =>
+  categories.reduce((highest, c) => Math.max(highest, c.order), -1) + 1;
+
 const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [normalizeCategoryName(c.name), c.color]));
 
 /**

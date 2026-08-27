@@ -2,6 +2,7 @@ import type { EnvRecord } from './firebase.js';
 import {
   DEFAULT_CATEGORIES,
   colorForName,
+  nextCategoryOrder,
   normalizeCategoryName,
   resolveSession,
   type ExpenseDataSource,
@@ -348,13 +349,14 @@ export class ExpenseStore {
       return;
     }
 
+    const order = nextCategoryOrder(categories);
     await this.mutate(async () => {
       const created = await source.createCategory({
         name: trimmed,
         type,
-        color: colorForName(trimmed, categories.length),
+        color: colorForName(trimmed, order),
         icon: '',
-        order: categories.length,
+        order,
         archived: false,
       });
       if (allocation > 0) {
@@ -396,8 +398,9 @@ export class ExpenseStore {
 
       // Sequential, so `order` follows the sheet's order rather than
       // whichever write happens to land first.
+      const base = nextCategoryOrder(categories);
       for (const [i, c] of missing.entries()) {
-        const order = categories.length + i;
+        const order = base + i;
         const created = await source.createCategory({
           name: c.name,
           type: c.type,
