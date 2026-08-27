@@ -95,7 +95,18 @@ body {
 
 .phone__navgroup {
   display: flex;
+  align-items: center;
   gap: 16px;
+}
+
+/* Divides the month/year views from the Categories manager — they do
+   different jobs, and the rule says so without adding a label. */
+.phone__navsep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 0;
+  background: var(--cf-border);
+  flex: none;
 }
 
 .phone__empty {
@@ -339,10 +350,14 @@ body {
 
 .phone__signout {
   border: 0;
-  background: none;
-  padding: 0;
+  background: var(--cf-danger-pale);
+  border-radius: var(--cf-r-pill);
+  padding: 4px 12px;
   cursor: pointer;
   font-family: inherit;
   font-size: 11px;
-  color: var(--cf-muted);
+  font-weight: 600;
+  color: var(--cf-danger);
+  /* the status row is baseline-aligned text; keep the pill from stretching it */
+  margin: -4px 0;
 }

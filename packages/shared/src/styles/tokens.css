@@ -28,6 +28,8 @@
   --cf-border: #dde5f4;
   --cf-border-strong: #c9d6ee;
   --cf-danger: #c8553d;
+  /* pale wash for danger-tinted fills, mirroring --cf-blue-pale */
+  --cf-danger-pale: #fbe7e2;
 
   --cf-r-pill: 99px;
   --cf-r-phone: 34px;
@@ -144,6 +146,69 @@ input {
 
 .cf-back:hover {
   color: var(--cf-ink);
+}
+
+/* ------------------------------------------------------- category colour */
+
+/*
+ * One category, one colour, so a row can be placed without reading its label.
+ *
+ * The colour arrives as an inline `--cat` on whichever element shows it, and
+ * stays solid only on dots, bars and rules. Anything with a label on top gets
+ * `--cat-wash` instead — the same hue mixed toward white by `tintColor` — so
+ * the text can stay `--cf-ink` and hold its contrast across a palette whose
+ * hues range from a pale mustard to a dark purple.
+ */
+
+.cf-catdot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--cf-r-pill);
+  background: var(--cat, var(--cf-muted));
+  flex: none;
+}
+
+/* Category name with its dot — inline, so it sits inside a grid cell. */
+.cf-catname {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * Filter chip. Separate from `.cf-cat` rather than a modifier of it: the
+ * selected state here is a colour ring and a wash, not the solid blue fill,
+ * and the two can't share a hover rule.
+ */
+.cf-catchip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: var(--cf-r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--cf-surface);
+  color: var(--cf-slate);
+  border: 1px solid var(--cf-border);
+  font-family: inherit;
+}
+
+.cf-catchip:hover {
+  background: var(--cat-wash, var(--cf-blue-pale));
+  color: var(--cf-ink);
+}
+
+.cf-catchip--on {
+  font-weight: 600;
+  color: var(--cf-ink);
+  background: var(--cat-wash, var(--cf-blue-pale));
+  border-color: var(--cat, var(--cf-blue));
+  box-shadow: inset 0 0 0 1px var(--cat, var(--cf-blue));
 }
 
 /* ----------------------------------------------------------------- chips */
@@ -447,6 +512,17 @@ input {
 .cf-tile--soft {
   background: var(--cf-surface-2);
   box-shadow: none;
+}
+
+/* Envelope tile flagged with its category's colour down the leading edge. */
+.cf-tile--cat {
+  box-shadow:
+    inset 3px 0 0 var(--cat, var(--cf-border)),
+    var(--cf-shadow-item);
+}
+
+.cf-tile--soft.cf-tile--cat {
+  box-shadow: inset 3px 0 0 var(--cat, var(--cf-border));
 }
 
 .cf-line {

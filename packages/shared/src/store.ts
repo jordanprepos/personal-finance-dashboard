@@ -1,5 +1,10 @@
 import type { EnvRecord } from './firebase.js';
-import { resolveSession, type ExpenseDataSource } from './data/index.js';
+import {
+  DEFAULT_CATEGORIES,
+  colorForName,
+  resolveSession,
+  type ExpenseDataSource,
+} from './data/index.js';
 import { currentYearMonth, dateInMonth, todayISO, toYear, yearOfMonth } from './lib/dates.js';
 import type { Budget, Category, CategoryType, Profile, Transaction } from './types.js';
 import { DEFAULT_PROFILE } from './lib/queries.js';
@@ -81,6 +86,8 @@ export class ExpenseStore {
    * account can land after a new one has signed in.
    */
   private generation = 0;
+  /** Tears down the live month subscription. Null when nothing is watched. */
+  private stopWatching: (() => void) | null = null;
 
   constructor(today: string = todayISO()) {
     this.state = initialState(currentYearMonth(), today);
@@ -123,7 +130,7 @@ export class ExpenseStore {
         userId: session.userId,
         warning: session.warning ?? null,
       });
-      await this.reloadFor(generation);
+      this.watchCurrentMonth(generation);
     } catch (error) {
       if (generation !== this.generation) return;
       this.set({ status: 'error', error: message(error) });
@@ -139,6 +146,7 @@ export class ExpenseStore {
    */
   reset(): void {
     this.generation += 1;
+    this.unwatch();
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = null;
     this.source = null;
@@ -146,41 +154,59 @@ export class ExpenseStore {
     for (const listener of this.listeners) listener();
   }
 
-  /** Re-reads the month, the year and the categories for `yearMonth`. */
+  /**
+   * Points the live subscription at the current `yearMonth`.
+   *
+   * Kept as `reload` because callers still mean "make the view current" — but
+   * nothing is re-read here. The month arrives by subscription and keeps
+   * arriving, so writes from another tab, another device or the other app
+   * repaint without anyone asking.
+   */
   async reload(): Promise<void> {
-    await this.reloadFor(this.generation);
+    this.watchCurrentMonth(this.generation);
   }
 
-  /** `reload`, pinned to the generation the caller started under. */
-  private async reloadFor(generation: number): Promise<void> {
+  /**
+   * (Re)subscribes to `yearMonth`, tearing down any previous subscription
+   * first.
+   *
+   * `generation` pins this to the account that asked. A listener outliving its
+   * account is worse than a stale one-shot read — it keeps firing — so every
+   * callback checks the generation before touching state, and `reset()` both
+   * bumps the generation and unsubscribes.
+   */
+  private watchCurrentMonth(generation: number): void {
     const source = this.source;
     if (!source) return;
 
+    this.unwatch();
     const { yearMonth } = this.state;
-    const year = yearOfMonth(yearMonth);
 
-    try {
-      const [categories, monthTransactions, yearTransactions, budget, profile] = await Promise.all([
-        source.listCategories(),
-        source.listTransactionsByMonth(yearMonth),
-        source.listTransactionsByYear(year),
-        source.getBudget(yearMonth),
-        source.getProfile(),
-      ]);
-      if (generation !== this.generation) return;
-      this.set({
-        status: 'ready',
-        error: null,
-        categories,
-        monthTransactions,
-        yearTransactions,
-        budget,
-        profile,
-      });
-    } catch (error) {
-      if (generation !== this.generation) return;
-      this.set({ status: 'error', error: message(error) });
-    }
+    this.stopWatching = source.watchMonth(
+      yearMonth,
+      (snapshot) => {
+        if (generation !== this.generation) return;
+        this.set({
+          status: 'ready',
+          error: null,
+          categories: snapshot.categories,
+          monthTransactions: snapshot.monthTransactions,
+          yearTransactions: snapshot.yearTransactions,
+          budget: snapshot.budget,
+          profile: snapshot.profile,
+        });
+      },
+      (error) => {
+        if (generation !== this.generation) return;
+        this.set({ status: 'error', error: message(error) });
+      },
+    );
+  }
+
+  /** Drops the live subscription, if any. */
+  private unwatch(): void {
+    this.stopWatching?.();
+    this.stopWatching = null;
   }
 
   /* ----------------------------------------------------------- actions */
@@ -209,8 +235,8 @@ export class ExpenseStore {
     try {
       const note = await work();
       if (generation !== this.generation) return;
-      await this.reloadFor(generation);
-      if (generation !== this.generation) return;
+      // No reload: the subscription delivers the write. Firestore's latency
+      // compensation has usually already painted it before this line runs.
       this.showToast(note);
     } catch (error) {
       if (generation !== this.generation) return;
@@ -315,7 +341,7 @@ export class ExpenseStore {
       const created = await source.createCategory({
         name: trimmed,
         type,
-        color: nextColor(categories),
+        color: colorForName(trimmed, categories.length),
         icon: '',
         order: categories.length,
         archived: false,
@@ -328,6 +354,59 @@ export class ExpenseStore {
         });
       }
       return `${trimmed} added as a ${type} category`;
+    });
+  }
+
+  /**
+   * Writes the spreadsheet's category set (`DEFAULT_CATEGORIES`) into the
+   * account in one go, with each one's monthly allocation for the month in
+   * view. Only ever runs when the user asks for it — nothing seeds itself.
+   *
+   * Names already present are skipped rather than duplicated, so running it
+   * against a half-populated account tops it up instead of creating a second
+   * "Groceries". Allocations go in a single `saveBudget` at the end, once the
+   * created ids are known.
+   */
+  async addDefaultCategories(): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+
+    const { categories, yearMonth, budget } = this.state;
+    const taken = new Set(categories.map((c) => c.name.toLowerCase()));
+    const missing = DEFAULT_CATEGORIES.filter((c) => !taken.has(c.name.toLowerCase()));
+
+    if (missing.length === 0) {
+      this.showToast('Default categories are already set up');
+      return;
+    }
+
+    await this.mutate(async () => {
+      const allocations: Record<string, number> = {};
+
+      // Sequential, so `order` follows the sheet's order rather than
+      // whichever write happens to land first.
+      for (const [i, c] of missing.entries()) {
+        const order = categories.length + i;
+        const created = await source.createCategory({
+          name: c.name,
+          type: c.type,
+          color: colorForName(c.name, order),
+          icon: c.icon,
+          order,
+          archived: false,
+        });
+        if (c.allocation > 0) allocations[created.id] = c.allocation;
+      }
+
+      if (Object.keys(allocations).length > 0) {
+        const base: Budget = budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
+        await source.saveBudget({
+          ...base,
+          categoryBudgets: { ...base.categoryBudgets, ...allocations },
+        });
+      }
+
+      return `${missing.length} ${missing.length === 1 ? 'category' : 'categories'} added`;
     });
   }
 
@@ -368,10 +447,7 @@ export class ExpenseStore {
   }
 }
 
-const RAMP = ['#1157d9', '#182338', '#5f6c85', '#c9d6ee', '#8b98ae'];
 
-const nextColor = (categories: readonly Category[]): string =>
-  RAMP[categories.length % RAMP.length] as string;
 
 /** The calendar year of the month in view — the yearly tab's scope. */
 export const yearInView = (state: ExpenseState): string => yearOfMonth(state.yearMonth);

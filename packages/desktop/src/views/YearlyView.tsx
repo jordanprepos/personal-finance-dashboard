@@ -11,7 +11,7 @@ import {
   yearSummary,
 } from '@expense-tracker/shared';
 
-import type { ViewProps } from '../appTypes';
+import { catStyle, type ViewProps } from '../appTypes';
 
 const CHART_WIDTH = 1120;
 const CHART_HEIGHT = 240;
@@ -166,7 +166,13 @@ export function YearlyView({ state, store, fmt, year }: Props): JSX.Element {
             const color = row.total === 0 ? 'var(--cf-muted)' : 'var(--cf-ink)';
             return (
               <div key={row.categoryId} className="dash__yearrow">
-                <span style={{ fontWeight: 500, color }}>{row.name}</span>
+                <span
+                  className="cf-catname"
+                  style={{ ...catStyle(row.color), fontWeight: 500, color }}
+                >
+                  <span className="cf-catdot" />
+                  {row.name}
+                </span>
                 <span className="tnum" style={{ textAlign: 'right', color: 'var(--cf-muted)' }}>
                   {row.count}
                 </span>

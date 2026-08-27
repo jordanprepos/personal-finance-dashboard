@@ -14,6 +14,8 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
+import { catStyle } from '../appTypes';
+
 interface Props {
   store: ExpenseStore;
   state: ExpenseState;
@@ -104,9 +106,11 @@ export function ExpenseModal({
                 <button
                   key={c.id}
                   type="button"
-                  className={`cf-opt ${values.categoryId === c.id ? 'cf-opt--on' : 'cf-opt--off'}`}
+                  className={`cf-catchip${values.categoryId === c.id ? ' cf-catchip--on' : ''}`}
+                  style={catStyle(c.color)}
                   onClick={() => setValues({ ...values, categoryId: c.id })}
                 >
+                  <span className="cf-catdot" />
                   {c.name}
                 </button>
               ))}

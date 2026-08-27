@@ -40,6 +40,36 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
           </button>
         </div>
 
+        {/* Offered only while the account is empty — once there are categories
+            this would just be a second, redundant way to bulk-add. */}
+        {state.categories.length === 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 8,
+              flex: 'none',
+              padding: 12,
+              border: '1px solid var(--cf-border)',
+              borderRadius: 'var(--cf-r-tile)',
+            }}
+          >
+            <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
+              Start with the 11 categories from your spreadsheet, with their monthly allocations.
+            </div>
+            <button
+              type="button"
+              className="cf-ghostbtn"
+              style={{ borderColor: 'var(--cf-blue)', color: 'var(--cf-blue)' }}
+              disabled={state.busy}
+              onClick={() => void store.addDefaultCategories()}
+            >
+              Use my default categories
+            </button>
+          </div>
+        ) : null}
+
         <div style={{ flex: 'none' }}>
           <div className="cf-fieldlabel">New category</div>
           <input

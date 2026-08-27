@@ -13,6 +13,8 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
+import { catStyle } from '../catStyle';
+
 interface Props {
   store: ExpenseStore;
   state: ExpenseState;
@@ -21,6 +23,8 @@ interface Props {
   transaction: Transaction | null;
   isRecurring: boolean;
   onClose: () => void;
+  /** Close this sheet and open the Categories sheet. */
+  onManageCategories: () => void;
 }
 
 const shortName = (name: string): string => name.split(/[\s&]+/)[0] ?? name;
@@ -32,12 +36,14 @@ export function ExpenseSheet({
   transaction,
   isRecurring,
   onClose,
+  onManageCategories,
 }: Props): JSX.Element {
   const defaultDay = state.yearMonth === state.today.slice(0, 7) ? parseISODate(state.today).day : 1;
   const [values, setValues] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
 
+  const selectable = state.categories.filter((c) => !c.archived);
   const result = evaluateExpenseForm(values, state.yearMonth);
   const editing = transaction !== null;
 
@@ -98,20 +104,47 @@ export function ExpenseSheet({
 
         <div>
           <div className="cf-fieldlabel">Category</div>
-          <div className="cf-opts">
-            {state.categories
-              .filter((c) => !c.archived)
-              .map((c) => (
+          {/* A fresh account has no categories, and an expense can't be saved
+              without one. Left as an empty row this is a dead end: Save stays
+              dimmed with nothing on screen saying why. */}
+          {selectable.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
+                No categories yet — every expense needs one.
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {/* Fills the account from the spreadsheet's set; the chips then
+                    appear in place, so the entry being typed isn't lost. */}
+                <button
+                  type="button"
+                  className="cf-ghostbtn"
+                  style={{ borderColor: 'var(--cf-blue)', color: 'var(--cf-blue)' }}
+                  disabled={state.busy}
+                  onClick={() => void store.addDefaultCategories()}
+                >
+                  Use my default categories
+                </button>
+                <button type="button" className="cf-ghostbtn" onClick={onManageCategories}>
+                  Add my own
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="cf-opts">
+              {selectable.map((c) => (
                 <button
                   key={c.id}
                   type="button"
-                  className={`cf-opt ${values.categoryId === c.id ? 'cf-opt--on' : 'cf-opt--off'}`}
+                  className={`cf-catchip${values.categoryId === c.id ? ' cf-catchip--on' : ''}`}
+                  style={{ ...catStyle(c.color), minHeight: 44 }}
                   onClick={() => setValues({ ...values, categoryId: c.id })}
                 >
+                  <span className="cf-catdot" />
                   {shortName(c.name)}
                 </button>
               ))}
-          </div>
+            </div>
+          )}
         </div>
 
         <div>

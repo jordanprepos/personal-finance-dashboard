@@ -17,6 +17,7 @@ export type { ExpenseDataSource } from './source.js';
 export { createFirestoreDataSource } from './firestoreSource.js';
 export { createSeedDataSource } from './seedSource.js';
 export * from './seedData.js';
+export * from './defaultCategories.js';
 
 export interface Session {
   source: ExpenseDataSource;
