@@ -9,8 +9,17 @@ import {
   type ExpenseDataSource,
 } from './data/index.js';
 import { currentYearMonth, dateInMonth, todayISO, toYear, yearOfMonth } from './lib/dates.js';
-import type { Budget, Category, CategoryType, Profile, Transaction } from './types.js';
-import { DEFAULT_PROFILE } from './lib/queries.js';
+import type {
+  AlertSettings,
+  Budget,
+  Category,
+  CategoryType,
+  Income,
+  Profile,
+  Transaction,
+  WarnPct,
+} from './types.js';
+import { DEFAULT_PROFILE, defaultAlerts } from './lib/queries.js';
 
 /**
  * Framework-agnostic application state.
@@ -69,7 +78,7 @@ const initialState = (yearMonth: string, today: string): ExpenseState => ({
   monthTransactions: [],
   yearTransactions: [],
   budget: null,
-  profile: DEFAULT_PROFILE,
+  profile: { ...DEFAULT_PROFILE, alerts: defaultAlerts() },
   busy: false,
   toast: null,
 });
@@ -238,7 +247,7 @@ export class ExpenseStore {
    */
   private budgetBase(): Budget {
     const { budget, yearMonth } = this.state;
-    return budget ?? { id: yearMonth, income: 0, categoryBudgets: {} };
+    return budget ?? { id: yearMonth, income: 0, incomes: [], categoryBudgets: {} };
   }
 
   private async mutate(work: () => Promise<string>): Promise<void> {
@@ -455,17 +464,147 @@ export class ExpenseStore {
     });
   }
 
-  async setIncome(income: number): Promise<void> {
+  /* ---------------------------------------------------------- income */
+
+  /**
+   * Writes the month's income list.
+   *
+   * Delegated rather than merged here: the data source reads the stored
+   * budget first, so a concurrent allocation change isn't clobbered by
+   * whatever this tab last rendered.
+   */
+  private async writeIncomes(incomes: Income[], note: string): Promise<void> {
     const source = this.source;
     if (!source) return;
     const { yearMonth } = this.state;
     await this.mutate(async () => {
-      // Delegated rather than merged here: the data source reads the stored
-      // budget first, so a concurrent allocation change isn't clobbered by
-      // whatever this tab last rendered.
-      await source.setIncome(yearMonth, income);
-      return 'Income updated';
+      await source.setIncomes(yearMonth, incomes);
+      return note;
     });
+  }
+
+  async addIncome(name: string, amount: number, note?: string): Promise<void> {
+    const trimmed = name.trim();
+    // Name and amount are both required; the forms disable their submit, but
+    // the rule belongs here too so it holds for every caller.
+    if (!trimmed || amount <= 0) return;
+    const income: Income = {
+      id: newIncomeId(),
+      name: trimmed,
+      amount,
+      ...(note?.trim() ? { note: note.trim() } : {}),
+    };
+    await this.writeIncomes([...this.budgetBase().incomes, income], `${trimmed} added`);
+  }
+
+  async updateIncome(
+    incomeId: string,
+    patch: { name?: string; amount?: number; note?: string },
+  ): Promise<void> {
+    const incomes = this.budgetBase().incomes;
+    const current = incomes.find((i) => i.id === incomeId);
+    if (!current) return;
+
+    const name = patch.name === undefined ? current.name : patch.name.trim();
+    const amount = patch.amount === undefined ? current.amount : patch.amount;
+    const rawNote = patch.note === undefined ? current.note : patch.note.trim();
+    if (!name) return;
+
+    const next: Income = {
+      id: current.id,
+      name,
+      amount,
+      // Kept optional rather than stored as "": an empty note is no note, and
+      // Firestore would otherwise hold an empty string forever.
+      ...(rawNote ? { note: rawNote } : {}),
+    };
+    await this.writeIncomes(
+      incomes.map((i) => (i.id === incomeId ? next : i)),
+      `${name} updated`,
+    );
+  }
+
+  /**
+   * Removes a source, unless it is the last one.
+   *
+   * The guard lives here and not only on the button: two tabs can each be
+   * showing the same two sources, and both delete buttons are enabled. Each
+   * write replaces the whole list from the tab's own snapshot, so as long as
+   * every writer refuses to go below one, the month keeps a source.
+   */
+  async deleteIncome(incomeId: string): Promise<void> {
+    const incomes = this.budgetBase().incomes;
+    const target = incomes.find((i) => i.id === incomeId);
+    if (!target) return;
+    if (incomes.length <= 1) {
+      this.showToast('Keep at least one income source');
+      return;
+    }
+    await this.writeIncomes(
+      incomes.filter((i) => i.id !== incomeId),
+      `${target.name} removed`,
+    );
+  }
+
+  /* ---------------------------------------------------------- alerts */
+
+  /**
+   * Writes alert settings, which live on the profile rather than the month —
+   * one set of caps, evaluated against whichever month is in view.
+   */
+  private async writeAlerts(patch: Partial<AlertSettings>, note: string): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const next: AlertSettings = { ...this.state.profile.alerts, ...patch };
+    await this.mutate(async () => {
+      await source.setAlerts(next);
+      return note;
+    });
+  }
+
+  async setAlertsEnabled(enabled: boolean): Promise<void> {
+    await this.writeAlerts({ enabled }, enabled ? 'Alerts on' : 'Alerts off');
+  }
+
+  async setMonthlyLimit(monthlyLimit: number): Promise<void> {
+    await this.writeAlerts(
+      { monthlyLimit },
+      monthlyLimit > 0 ? 'Monthly limit updated' : 'Monthly limit cleared',
+    );
+  }
+
+  async setWarnPct(warnPct: WarnPct): Promise<void> {
+    await this.writeAlerts({ warnPct }, `Warning at ${warnPct}%`);
+  }
+
+  /**
+   * Sets one category's cap. An amount of 0 clears it.
+   *
+   * The key is canonicalised to the category's own `name` and any key that
+   * differs only by case or padding is dropped on the way through, so a cap
+   * can never end up stored twice under two spellings of one category.
+   */
+  async setCategoryLimit(categoryName: string, amount: number): Promise<void> {
+    const wanted = normalizeCategoryName(categoryName);
+    if (!wanted) return;
+
+    const match = this.state.categories.find((c) => normalizeCategoryName(c.name) === wanted);
+    const key = match?.name ?? categoryName.trim();
+
+    const next: Record<string, number> = {};
+    for (const [name, limit] of Object.entries(this.state.profile.alerts.categoryLimits)) {
+      if (normalizeCategoryName(name) !== wanted) next[name] = limit;
+    }
+    if (amount > 0) next[key] = amount;
+
+    await this.writeAlerts(
+      { categoryLimits: next },
+      amount > 0 ? `${key} limit set` : `${key} limit cleared`,
+    );
+  }
+
+  clearCategoryLimit(categoryName: string): Promise<void> {
+    return this.setCategoryLimit(categoryName, 0);
   }
 
   async setCategoryBudget(categoryId: string, amount: number): Promise<void> {
@@ -480,6 +619,16 @@ export class ExpenseStore {
 }
 
 
+
+/*
+ * Income ids are minted on the client: sources are elements of an array on the
+ * budget document, not documents of their own, so Firestore never assigns one.
+ * The counter is what keeps two sources added in the same millisecond apart —
+ * the same collision `newCategoryId` guards against in the seed source.
+ */
+let incomeSeq = 0;
+const newIncomeId = (): string =>
+  `income-${Date.now().toString(36)}-${(++incomeSeq).toString(36)}`;
 
 /** The calendar year of the month in view — the yearly tab's scope. */
 export const yearInView = (state: ExpenseState): string => yearOfMonth(state.yearMonth);

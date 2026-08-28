@@ -96,8 +96,9 @@ Workspace layout (pnpm workspaces, `packages/*`):
     and a one-shot caller can't disagree about the same data.
   - `src/lib/derive.ts` — **all** derived values (Budget Left, Expense Per
     Bulan, category totals, envelope fill, donut shares, pace, yearly
-    rollups) as pure functions over `(transactions, categories, budget)`. No
-    rollup documents exist anywhere in Firestore.
+    rollups, `totalIncome`/`incomeShares`, and `evaluateAlerts`) as pure
+    functions over `(transactions, categories, budget)`. No rollup documents
+    exist anywhere in Firestore.
   - `src/lib/dates.ts`, `format.ts`, `forms.ts` — date helpers (leap-year
     correct), IDR-first money formatting, framework-free form validation.
   - `src/store.ts` — `ExpenseStore`: framework-agnostic app state exposing
@@ -137,7 +138,10 @@ users/{userId}
 ```ts
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
 Transaction { id, categoryId, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
-Budget      { id, income, categoryBudgets: { [categoryId]: number } }
+Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
+Income      { id, name, amount, note? }          // amount is per month
+Profile     { displayName, currency, locale, alerts: AlertSettings }
+AlertSettings { enabled, monthlyLimit, warnPct: 70|80|90, categoryLimits: { [name]: number } }
 ```
 
 `amount` is in the smallest currency unit (IDR has no decimals).
@@ -286,14 +290,55 @@ re-derives both).
 
 `Budget` is data, not a constant — nothing is seeded on a fresh project.
 
-- **Income**: Income card on desktop Monthly tab / top of mobile Month tab.
-  Commits on blur/Enter to `budgets/{yearMonth}.income`.
+- **Income**: a *list* of sources on `budgets/{yearMonth}.incomes`, edited in
+  the Income panel (desktop Monthly tab / mobile Month tab). Add, edit and
+  delete all write the whole array through `setIncomes`, since a merge
+  replaces an array rather than merging it element-wise.
 - **Allocations**: per-category field in desktop Categories modal, or the
   allocation input when creating a category on mobile. Writes to
   `budgets/{yearMonth}.categoryBudgets[categoryId]`.
 
-Until income is set, the Budget Left card shows raw spend for the month rather
-than a share of zero.
+Everything that spends income reads `derive.totalIncome(budget)` — Budget
+Left, spent %, envelope bars, the recurring share, the yearly reference line
+and `pace` all go through `monthSummary`, so there is one definition of "the
+month's income". Until it is set, the Budget Left card shows raw spend rather
+than a share of zero, and every percentage renders `—` rather than NaN.
+
+**A month always keeps at least one source.** `ExpenseStore.deleteIncome`
+refuses the last one and the views stop offering a Delete button for it — the
+rule is in the store because two tabs can each still be showing two sources.
+
+`budgets/{yearMonth}.income`, the old single number, is still **read** as a
+fallback: `queries.resolveIncomes` synthesises a one-source list from it when
+a document has no `incomes` array, so an account written before this change
+keeps its income with no migration. Nothing writes it any more. This is the
+same trick `colorForName` plays with the palette.
+
+### Spending alerts
+
+Settings live on `profile/main.alerts` — one set per account, already carried
+by the profile arm of the `watchMonth` fan-out, so they need no new listener.
+They are *evaluated* against whichever month is in view, by
+`derive.evaluateAlerts`, which both apps render as banners above the
+dashboard on every tab.
+
+Two rules, applied to the monthly cap and to each per-category cap alike:
+over the limit is a breach, at or past `warnPct` of it is a warning. A limit
+of 0 is unset and evaluates to nothing — an unset cap is silent, not
+permanently breached. A breach takes the dark ink surface, a warning the pale
+accent; no colour is introduced beyond the existing tokens.
+
+`categoryLimits` is keyed by **category name**, not id — the alert copy reads
+the key back out ("Groceries is over its limit"). Keys are canonicalised to
+the category's own `name` on write and compared with `normalizeCategoryName`
+on read, so one category can never hold two caps under two spellings. A key
+whose category was renamed or deleted keeps its settings row, so it can be
+cleared, but matches no spend and never fires.
+
+Note the month *name* in alert copy is en-US ("for August"), matching
+`monthLabel` in the month nav, while the amounts in the same sentence are
+formatted in the profile's locale. Passing the money locale through would put
+"for Agustus" under a header reading "August 2026".
 
 ## Notable porting decisions (vs. the original prototype)
 

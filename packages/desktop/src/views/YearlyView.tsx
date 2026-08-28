@@ -7,6 +7,7 @@ import {
   formatPercent,
   formatShare,
   splitByType,
+  totalIncome,
   yearBars,
   yearSummary,
 } from '@expense-tracker/shared';
@@ -26,7 +27,8 @@ export function YearlyView({ state, store, fmt, year }: Props): JSX.Element {
 
   const buckets = bucketByMonth(year, yearTransactions);
   const summary = yearSummary(year, buckets);
-  const income = budget?.income ?? 0;
+  // The reference line is the month's whole income, every source summed.
+  const income = totalIncome(budget);
   const { bars, ceilingY } = yearBars(buckets, {
     chartWidth: CHART_WIDTH,
     chartHeight: CHART_HEIGHT,
@@ -75,7 +77,7 @@ export function YearlyView({ state, store, fmt, year }: Props): JSX.Element {
           }}
         >
           <span style={{ width: 18, height: 0, borderTop: '1.5px dashed var(--cf-blue)' }} />
-          <span>Income line · {formatMoney(income, fmt)}</span>
+          <span>Income line · {income > 0 ? formatMoney(income, fmt) : '—'}</span>
         </div>
 
         <svg

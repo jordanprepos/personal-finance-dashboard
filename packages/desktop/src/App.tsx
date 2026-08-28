@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
+  evaluateAlerts,
   monthLabel,
   shiftMonth,
   yearOfMonth,
@@ -19,6 +20,8 @@ import { DailyView } from './views/DailyView';
 import { YearlyView } from './views/YearlyView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { CategoryModal } from './components/CategoryModal';
+import { AlertBanners } from './components/AlertBanners';
+import { AlertSettingsModal } from './components/AlertSettingsModal';
 
 export function App({
   store,
@@ -76,6 +79,7 @@ function Dashboard({
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const fmt: MoneyFormat = useMemo(
     () => ({ currency: state.profile.currency, locale: state.profile.locale }),
@@ -116,6 +120,17 @@ function Dashboard({
       </div>
     );
   }
+
+  const alerts = evaluateAlerts({
+    yearMonth: state.yearMonth,
+    transactions: state.monthTransactions,
+    categories: state.categories,
+    alerts: state.profile.alerts,
+    // Money is formatted in the profile's locale; the month *name* is not.
+    // `monthLabel` in the month nav above is en-US, so a banner saying
+    // "for Agustus" under a header saying "August 2026" would read as a bug.
+    fmt,
+  });
 
   const viewProps = { store, state, fmt, onEdit: openEdit, onAdd: openAdd };
 
@@ -192,6 +207,13 @@ function Dashboard({
               </button>
               <button
                 type="button"
+                className="cf-ghostbtn dash__alertsbtn"
+                onClick={() => setAlertsOpen(true)}
+              >
+                Alerts
+              </button>
+              <button
+                type="button"
                 className="cf-add dash__addbtn"
                 aria-label="Add expense"
                 onClick={openAdd}
@@ -201,6 +223,14 @@ function Dashboard({
               </button>
             </div>
           </div>
+
+          {/*
+            Above the dashboard and outside the tab switch, so the same alerts
+            are in view on Daily, Monthly and Yearly alike. They are derived
+            straight from the current snapshot, so they follow every edit and
+            every month change without anything having to invalidate them.
+          */}
+          <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
 
           {tab === 'monthly' ? <MonthlyView {...viewProps} /> : null}
           {tab === 'daily' ? <DailyView {...viewProps} /> : null}
@@ -235,6 +265,15 @@ function Dashboard({
           state={state}
           fmt={fmt}
           onClose={() => setCategoriesOpen(false)}
+        />
+      ) : null}
+
+      {alertsOpen ? (
+        <AlertSettingsModal
+          store={store}
+          state={state}
+          fmt={fmt}
+          onClose={() => setAlertsOpen(false)}
         />
       ) : null}
 

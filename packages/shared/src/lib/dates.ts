@@ -117,6 +117,15 @@ export function monthLabel(yearMonth: string, locale = 'en-US'): string {
   return `${name} ${year}`;
 }
 
+/** "2026-08" -> "August" — the month on its own, for prose. */
+export function monthNameLabel(yearMonth: string, locale = 'en-US'): string {
+  const { year, month } = parseYearMonth(yearMonth);
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(locale, {
+    month: 'long',
+    timeZone: 'UTC',
+  });
+}
+
 export function shortMonthLabel(yearMonth: string, locale = 'en-US'): string {
   const { year, month } = parseYearMonth(yearMonth);
   return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(locale, {

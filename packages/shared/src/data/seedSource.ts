@@ -3,16 +3,25 @@ import { Timestamp } from 'firebase/firestore';
 import { seriesDates } from '../lib/queries.js';
 import { toYear, toYearMonth, yearOfMonth } from '../lib/dates.js';
 import type {
+  AlertSettings,
   Budget,
   Category,
   CategoryInput,
+  Income,
   Profile,
   Transaction,
   TransactionInput,
   TransactionPatch,
   TransactionSeriesKey,
 } from '../types.js';
-import { seedBudgets, seedCategories, seedProfile, seedTransactions, SEED_INCOME } from './seedData.js';
+import {
+  seedBudgets,
+  seedCategories,
+  seedIncomes,
+  seedProfile,
+  seedTransactions,
+  SEED_INCOME,
+} from './seedData.js';
 import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
 
 /**
@@ -25,7 +34,7 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
   let categories = seedCategories();
   let transactions = seedTransactions();
   const budgets = seedBudgets();
-  const profile = seedProfile();
+  let profile = seedProfile();
   let nextId = transactions.length + 1;
 
   const newId = (): string => `seed-${String(++nextId).padStart(4, '0')}`;
@@ -63,8 +72,8 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
   const readBudget = (yearMonth: string): Budget => {
     const budget = budgets[yearMonth];
     return budget
-      ? { ...budget, categoryBudgets: { ...budget.categoryBudgets } }
-      : { id: yearMonth, income: SEED_INCOME, categoryBudgets: {} };
+      ? { ...budget, incomes: budget.incomes.map((i) => ({ ...i })), categoryBudgets: { ...budget.categoryBudgets } }
+      : { id: yearMonth, income: SEED_INCOME, incomes: seedIncomes(), categoryBudgets: {} };
   };
   const monthSnapshot = (yearMonth: string): MonthSnapshot => ({
     categories: readCategories(),
@@ -176,12 +185,23 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     },
 
     async saveBudget(budget: Budget): Promise<void> {
-      budgets[budget.id] = { ...budget, categoryBudgets: { ...budget.categoryBudgets } };
+      budgets[budget.id] = {
+        ...budget,
+        incomes: budget.incomes.map((i) => ({ ...i })),
+        categoryBudgets: { ...budget.categoryBudgets },
+      };
       notify();
     },
 
-    async setIncome(yearMonth: string, income: number): Promise<void> {
-      await this.saveBudget({ ...readBudget(yearMonth), income });
+    async setIncomes(yearMonth: string, incomes: Income[]): Promise<void> {
+      await this.saveBudget({ ...readBudget(yearMonth), incomes });
+    },
+
+    async setAlerts(alerts: AlertSettings): Promise<void> {
+      // Replaced whole, matching the Firestore path — a cleared category cap
+      // has to disappear rather than linger from the previous settings.
+      profile = { ...profile, alerts: { ...alerts, categoryLimits: { ...alerts.categoryLimits } } };
+      notify();
     },
 
     async setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void> {

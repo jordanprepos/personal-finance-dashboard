@@ -2,6 +2,7 @@ import {
   Timestamp,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -23,10 +24,13 @@ import {
 } from 'firebase/firestore';
 
 import type {
+  AlertSettings,
   Budget,
   Category,
   CategoryInput,
+  Income,
   Profile,
+  WarnPct,
   Transaction,
   TransactionInput,
   TransactionPatch,
@@ -103,10 +107,47 @@ function toTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transaction {
   return tx;
 }
 
+/** The id given to the source synthesised from a pre-`incomes` document. */
+export const LEGACY_INCOME_ID = 'legacy-income';
+
+function toIncome(value: unknown, i: number): Income {
+  const d = (value ?? {}) as Record<string, unknown>;
+  const income: Income = {
+    id: String(d['id'] ?? `income-${i}`),
+    name: String(d['name'] ?? 'Income'),
+    amount: Number(d['amount'] ?? 0),
+  };
+  const note = d['note'];
+  if (typeof note === 'string' && note !== '') income.note = note;
+  return income;
+}
+
+/**
+ * The month's income sources, from whichever shape the document is in.
+ *
+ * A budget written before income became a list carries a single `income`
+ * number and no array. Synthesising one source from it means every existing
+ * month keeps its income without a migration pass — the same move
+ * `colorForName` makes for the palette. Once anything writes `incomes` the
+ * array wins, and `income` is never read again.
+ *
+ * Exported because this is the one piece of the mapper with a behaviour worth
+ * pinning down: it is what stands between a live account and a blank income.
+ */
+export function resolveIncomes(stored: unknown, legacyIncome: number): Income[] {
+  if (Array.isArray(stored)) return stored.map(toIncome);
+  if (legacyIncome > 0) {
+    return [{ id: LEGACY_INCOME_ID, name: 'Income', amount: legacyIncome }];
+  }
+  return [];
+}
+
 function toBudget(id: string, d: DocumentData | undefined): Budget {
+  const legacy = Number(d?.['income'] ?? 0);
   return {
     id,
-    income: Number(d?.['income'] ?? 0),
+    income: legacy,
+    incomes: resolveIncomes(d?.['incomes'], legacy),
     categoryBudgets: (d?.['categoryBudgets'] ?? {}) as Record<string, number>,
   };
 }
@@ -514,26 +555,79 @@ export async function setCategoryBudget(
   });
 }
 
-export async function setIncome(
+/**
+ * Replaces the month's income sources.
+ *
+ * Whole-list writes rather than per-source edits: `incomes` is an array, and
+ * a merge replaces an array outright instead of merging it element-wise, so
+ * add, edit and delete are all the same write. Reading the budget first keeps
+ * a concurrent allocation change from being clobbered, as above.
+ */
+export async function setIncomes(
   db: Firestore,
   userId: string,
   yearMonth: string,
-  income: number,
+  incomes: Income[],
 ): Promise<void> {
   const current = await fetchBudget(db, userId, yearMonth);
-  await saveBudget(db, userId, { ...current, income });
+  await saveBudget(db, userId, { ...current, incomes });
 }
 
 /* ----------------------------------------------------------------- profile */
 
-export const DEFAULT_PROFILE: Profile = { displayName: '', currency: 'IDR', locale: 'id-ID' };
+export const DEFAULT_ALERTS: AlertSettings = {
+  enabled: true,
+  monthlyLimit: 8_000_000,
+  warnPct: 80,
+  categoryLimits: {},
+};
+
+/** Fresh copy — `categoryLimits` is mutable and must not be shared. */
+export const defaultAlerts = (): AlertSettings => ({ ...DEFAULT_ALERTS, categoryLimits: {} });
+
+export const DEFAULT_PROFILE: Profile = {
+  displayName: '',
+  currency: 'IDR',
+  locale: 'id-ID',
+  alerts: DEFAULT_ALERTS,
+};
+
+const isWarnPct = (value: number): value is WarnPct =>
+  value === 70 || value === 80 || value === 90;
+
+function toCategoryLimits(value: unknown): Record<string, number> {
+  if (typeof value !== 'object' || value === null) return {};
+  const out: Record<string, number> = {};
+  for (const [name, raw] of Object.entries(value as Record<string, unknown>)) {
+    const amount = Number(raw);
+    // A zero or malformed cap is the same as no cap; dropping it here keeps
+    // the settings list from showing a row that can never fire.
+    if (Number.isFinite(amount) && amount > 0) out[name] = amount;
+  }
+  return out;
+}
+
+function toAlerts(d: unknown): AlertSettings {
+  if (typeof d !== 'object' || d === null) return defaultAlerts();
+  const raw = d as Record<string, unknown>;
+  const warnPct = Number(raw['warnPct'] ?? DEFAULT_ALERTS.warnPct);
+  return {
+    enabled: typeof raw['enabled'] === 'boolean' ? raw['enabled'] : DEFAULT_ALERTS.enabled,
+    // `?? ` and not `||`: 0 is "unset", a value the user can choose, and
+    // falling back to the default there would silently re-arm the cap.
+    monthlyLimit: Number(raw['monthlyLimit'] ?? DEFAULT_ALERTS.monthlyLimit),
+    warnPct: isWarnPct(warnPct) ? warnPct : DEFAULT_ALERTS.warnPct,
+    categoryLimits: toCategoryLimits(raw['categoryLimits']),
+  };
+}
 
 function toProfile(d: DocumentData | undefined): Profile {
-  if (!d) return DEFAULT_PROFILE;
+  if (!d) return { ...DEFAULT_PROFILE, alerts: defaultAlerts() };
   return {
     displayName: String(d['displayName'] ?? DEFAULT_PROFILE.displayName),
     currency: String(d['currency'] ?? DEFAULT_PROFILE.currency),
     locale: String(d['locale'] ?? DEFAULT_PROFILE.locale),
+    alerts: toAlerts(d['alerts']),
   };
 }
 
@@ -558,4 +652,30 @@ export function watchProfile(
 
 export async function saveProfile(db: Firestore, userId: string, profile: Partial<Profile>): Promise<void> {
   await setDoc(profileDoc(db, userId), profile, { merge: true });
+}
+
+/**
+ * Replaces the account's alert settings.
+ *
+ * `categoryLimits` is a map, and `merge: true` merges maps key by key — so a
+ * plain write adds and updates caps but can never remove one, and "Clear"
+ * would appear to work until the next snapshot arrived. The cleared keys are
+ * therefore named explicitly with `deleteField()`, which means reading the
+ * stored settings first to know which keys went away.
+ */
+export async function saveAlerts(
+  db: Firestore,
+  userId: string,
+  alerts: AlertSettings,
+): Promise<void> {
+  const current = await fetchProfile(db, userId);
+  const limits: Record<string, number | ReturnType<typeof deleteField>> = { ...alerts.categoryLimits };
+  for (const name of Object.keys(current.alerts.categoryLimits)) {
+    if (!(name in alerts.categoryLimits)) limits[name] = deleteField();
+  }
+  await setDoc(
+    profileDoc(db, userId),
+    { alerts: { ...alerts, categoryLimits: limits } },
+    { merge: true },
+  );
 }

@@ -286,6 +286,191 @@
   text-align: right;
 }
 
+.dash__alertsbtn {
+  order: 3;
+}
+
+/* ----------------------------------------------------------------- alerts */
+/*
+ * Banners above the dashboard, on every tab. The two levels reuse the
+ * design's existing surfaces rather than introducing a colour: a breach is
+ * the dark ink card (`--cf-ink`, white text) the Budget Left hero already
+ * uses, a warning the pale accent (`--cf-blue-pale`) `.cf-banner` uses.
+ */
+
+.dash__alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash__alert {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  border-radius: var(--cf-r-tile);
+  border: 1px solid transparent;
+}
+
+.dash__alert--breach {
+  background: var(--cf-ink);
+  color: var(--cf-surface);
+}
+
+.dash__alert--warning {
+  background: var(--cf-blue-pale);
+  border-color: var(--cf-border-strong);
+  color: var(--cf-ink);
+}
+
+.dash__alertbody {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash__alerttitle {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.dash__alertsub {
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
+.dash__alert--breach .dash__alertsub {
+  color: var(--cf-on-dark-soft);
+}
+
+.dash__alert--warning .dash__alertsub {
+  color: var(--cf-slate);
+}
+
+.dash__alertlink {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dash__alert--breach .dash__alertlink {
+  color: var(--cf-surface);
+}
+
+.dash__alert--warning .dash__alertlink {
+  color: var(--cf-blue);
+}
+
+/* A settings row: label on the left, control hard right. */
+.dash__alertrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+}
+
+.dash__limitform {
+  display: grid;
+  grid-template-columns: 1fr 140px auto;
+  gap: 10px;
+}
+
+/* ----------------------------------------------------------------- income */
+
+.dash__income {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 18px;
+}
+
+.dash__incometotal {
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.dash__incomelist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash__incomerow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash__incomemain {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Editable in place: no border until it is hovered or focused, so the list
+   reads as text rather than as a form. */
+.dash__incomename {
+  width: 100%;
+  min-height: 34px;
+  font-size: 14px;
+  font-weight: 600;
+  border-color: transparent;
+  background: transparent;
+}
+
+.dash__incomename:hover {
+  border-color: var(--cf-border);
+}
+
+.dash__incomenote {
+  font-size: 11.5px;
+  color: var(--cf-muted);
+  padding: 0 12px;
+  margin-top: 1px;
+}
+
+.dash__incomeamount {
+  width: 130px;
+  min-height: 34px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.dash__incomeshare {
+  width: 52px;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cf-slate);
+}
+
+.dash__incomedel {
+  width: 52px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.dash__incomeform {
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr auto;
+  gap: 8px;
+  border-top: 1px solid var(--cf-border);
+  padding-top: 12px;
+}
+
 .dash__empty {
   padding: 40px;
   text-align: center;
@@ -874,5 +1059,102 @@
     flex: 1 1 120px;
     width: auto;
     text-align: left;
+  }
+
+  /* --- alerts --- */
+  /* The bottom bar styles Categories as plain text; Alerts sits beside it. */
+  .dash__bar .cf-cat,
+  .dash__catsbtn,
+  .dash__alertsbtn {
+    flex: none;
+    margin-left: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cf-muted);
+  }
+
+  .dash__alertsbtn:hover {
+    background: transparent;
+    color: var(--cf-ink);
+  }
+
+  .dash__alert {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 13px 15px;
+  }
+
+  /* The link is the banner's only control, so it gets the full tap target. */
+  .dash__alertlink {
+    align-self: flex-start;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .dash__alertrow {
+    gap: 10px;
+  }
+
+  .dash__limitform {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash__limitform > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* --- income --- */
+  /*
+   * Name and note take a row of their own, with amount / share / delete
+   * beneath, so nothing is squeezed below a thumb-sized target.
+   */
+  .dash__incomerow {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .dash__incomemain {
+    flex: 1 1 100%;
+  }
+
+  .dash__incomename,
+  .dash__incomeamount {
+    min-height: 44px;
+  }
+
+  .dash__incomeamount {
+    flex: 1 1 auto;
+    width: auto;
+    text-align: left;
+  }
+
+  .dash__incomeshare,
+  .dash__incomedel {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .dash__incomeform {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash__incomeform > :first-child,
+  .dash__incomeform > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .dash__incomeform .cf-input--pos,
+  .dash__limitform .cf-input--pos,
+  .dash__incomeform .cf-add,
+  .dash__limitform .cf-add {
+    min-height: 44px;
   }
 }

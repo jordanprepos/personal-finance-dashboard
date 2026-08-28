@@ -195,14 +195,30 @@ import view models from `shared` and render them.
 `Budget` is data, not a constant — nothing is seeded on a fresh project, so both
 apps can write it:
 
-* **Income** — the Income card on the desktop Monthly tab, and the top of the
-  mobile Month tab. Commits on blur or Enter to `budgets/{yearMonth}.income`.
+* **Income** — a list of sources (`{ id, name, amount, note? }`, amount per
+  month) on `budgets/{yearMonth}.incomes`, edited in the Income panel on the
+  desktop Monthly tab and the mobile Month tab. Each source shows its share of
+  the total, and a month always keeps at least one.
 * **Allocations** — the per-category field in the desktop Categories modal, and
   the allocation input when creating a category on mobile. Writes to
   `budgets/{yearMonth}.categoryBudgets[categoryId]`.
 
-Until an income is set, the Budget Left card shows spend for the month and says
-so, rather than reporting a share of zero.
+Everything downstream of income — Budget Left, spent %, envelope bars, the
+recurring share, the yearly reference line, pace — reads `totalIncome`, the sum
+of the sources. Until an income is set, the Budget Left card shows spend for the
+month and says so, and percentages render `—` rather than a share of zero.
+
+An account written before income became a list keeps working: a lone
+`budgets/{yearMonth}.income` number is read as a single source, with no
+migration.
+
+## Spending alerts
+
+Per-account settings on `profile/main.alerts` — an on/off switch, a monthly
+limit, a 70/80/90% warning threshold, and per-category limits — evaluated
+against the month in view and rendered as banners above the dashboard on every
+tab. Over the limit is a breach (dark ink surface), at or past the threshold is
+a warning (pale accent). A limit of 0 is unset and evaluates to nothing.
 
 ## Status
 
