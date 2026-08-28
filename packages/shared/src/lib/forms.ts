@@ -1,5 +1,5 @@
 import type { ExpenseDraft } from '../store.js';
-import type { Category, CategoryType, Transaction } from '../types.js';
+import type { Category, CategoryType, PaymentMethod, Transaction } from '../types.js';
 import { clampDay, parseISODate } from './dates.js';
 import { parseAmountInput } from './format.js';
 
@@ -13,6 +13,11 @@ export interface ExpenseFormValues {
   /** digits only, as typed */
   amountText: string;
   categoryId: string;
+  /**
+   * How it was paid — `''` is unset, and stays valid. A separate dimension
+   * from `categoryId`: neither field constrains the other's options.
+   */
+  paymentMethod: PaymentMethod | '';
   item: string;
   /** day of month, as typed */
   dayText: string;
@@ -24,6 +29,7 @@ export interface ExpenseFormValues {
 export const emptyExpenseForm = (day: number): ExpenseFormValues => ({
   amountText: '',
   categoryId: '',
+  paymentMethod: '',
   item: '',
   dayText: String(day),
   repeat: false,
@@ -33,6 +39,7 @@ export const emptyExpenseForm = (day: number): ExpenseFormValues => ({
 export const expenseFormFrom = (transaction: Transaction): ExpenseFormValues => ({
   amountText: transaction.amount > 0 ? String(transaction.amount) : '',
   categoryId: transaction.categoryId,
+  paymentMethod: transaction.paymentMethod ?? '',
   item: transaction.item,
   dayText: String(parseISODate(transaction.date).day),
   repeat: false,
@@ -53,6 +60,8 @@ export function evaluateExpenseForm(
   const amount = parseAmountInput(values.amountText);
   const day = clampDay(yearMonth, parseInt(values.dayText || '1', 10) || 1);
   const item = values.item.trim();
+  // `paymentMethod` is deliberately absent from this predicate: it is optional
+  // and must never block a save.
   const valid = amount > 0 && item !== '' && values.categoryId !== '';
 
   return {
@@ -62,6 +71,10 @@ export function evaluateExpenseForm(
     draft: valid
       ? {
           categoryId: values.categoryId,
+          // Always carried, `undefined` included — that is how an edit that
+          // clears the selector reaches `updateTransaction`'s unset path. A
+          // conditional spread would read as "leave it alone" instead.
+          paymentMethod: values.paymentMethod || undefined,
           item,
           amount,
           day,

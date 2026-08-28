@@ -8,9 +8,12 @@ import {
   formatMoney,
   monthLabel,
   parseISODate,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABELS,
   type ExpenseState,
   type ExpenseStore,
   type MoneyFormat,
+  type PaymentMethod,
   type Transaction,
 } from '@expense-tracker/shared';
 
@@ -181,6 +184,33 @@ export function ExpenseModal({
               {values.repeat ? 'Monthly' : 'One-off'}
             </button>
           </div>
+        </div>
+
+        {/* Its own field block, deliberately not a fourth column of
+            .dash__formrow (that grid positions children by nth-child at the
+            mobile fold) and deliberately not a chip row like Category — a
+            second chip row would read as a nested or derived category
+            control. Payment method is a separate dimension: every option
+            stays available whatever category is picked, and nothing here
+            touches values.categoryId. */}
+        <div>
+          <div className="cf-fieldlabel">Paid with</div>
+          <select
+            className="cf-input--pos"
+            style={{ width: '100%', cursor: 'pointer' }}
+            aria-label="Payment method"
+            value={values.paymentMethod}
+            onChange={(e) =>
+              setValues({ ...values, paymentMethod: e.target.value as PaymentMethod | '' })
+            }
+          >
+            <option value="">Not set</option>
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {PAYMENT_METHOD_LABELS[m]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>

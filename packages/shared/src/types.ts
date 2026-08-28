@@ -11,6 +11,10 @@ import type { Timestamp } from 'firebase/firestore';
  *
  * Field names here are load-bearing: dashboard queries are written against
  * them. Do not rename without updating firestore.indexes.json too.
+ *
+ * A transaction carries two independent dimensions: `categoryId` (what the
+ * expense is for) and `paymentMethod` (how it was paid). Neither is ever
+ * derived from the other.
  */
 
 export type CategoryType = 'fixed' | 'variable' | 'savings';
@@ -26,9 +30,54 @@ export interface Category {
   archived: boolean;
 }
 
+/**
+ * How an expense was paid — a dimension of its own, independent of
+ * `categoryId`. See the note on `Transaction.paymentMethod`.
+ */
+export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other';
+
+/** Menu order for the payment-method selector — both apps read this list. */
+export const PAYMENT_METHODS: readonly PaymentMethod[] = [
+  'credit_card',
+  'bank_transfer',
+  'e_wallet',
+  'cash',
+  'other',
+];
+
+/** Display labels, so both apps render identical option text. */
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  credit_card: 'Credit card',
+  bank_transfer: 'Bank transfer',
+  e_wallet: 'E-wallet',
+  cash: 'Cash',
+  other: 'Other',
+};
+
+/** Narrows an arbitrary stored value to the union; anything else reads as unset. */
+export const isPaymentMethod = (value: unknown): value is PaymentMethod =>
+  typeof value === 'string' && (PAYMENT_METHODS as readonly string[]).includes(value);
+
 export interface Transaction {
   id: string;
+  /**
+   * **What** the expense is for. Never derived from, or constrained by,
+   * `paymentMethod` — a card-paid subscription belongs in Subscription, not in
+   * Bills.
+   */
   categoryId: string;
+  /**
+   * **How** it was paid. The second, fully independent dimension: any category
+   * can be paid by any method, and nothing anywhere infers one from the other.
+   *
+   * Optional and *omitted* when unset — unlike `seriesId` below, which is
+   * written as an explicit `null`. Equality queries
+   * (`where('paymentMethod', '==', 'credit_card')`) are the intended use and
+   * work fine; the trade is that `!=`/`not-in` filters and "everything with no
+   * method" match no document that omits the field, which includes every row
+   * written before this field existed.
+   */
+  paymentMethod?: PaymentMethod;
   item: string;
   /** smallest currency unit — no decimals for IDR */
   amount: number;

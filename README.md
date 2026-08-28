@@ -99,11 +99,47 @@ and are the contract dashboard queries are written against.
 
 ```ts
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
-Transaction { id, categoryId, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+Transaction { id, categoryId, paymentMethod?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+PaymentMethod 'credit_card'|'bank_transfer'|'e_wallet'|'cash'|'other'
 Budget      { id, income, categoryBudgets: { [categoryId]: number } }
 ```
 
 `amount` is in the smallest currency unit — for IDR that means no decimals.
+
+### Category and payment method are two dimensions
+
+`categoryId` says **what** an expense is for. `paymentMethod` says **how** it
+was paid. They are independent, and nothing in the codebase derives one from
+the other.
+
+This is a correction, not just an addition. Subscriptions like Claude Pro or
+YouTube Premium were being filed under **Bills** purely because they went on a
+credit card, when by nature they belong under **Subscription**. Paying by card
+is not a category; it is a second, orthogonal fact about the same transaction.
+A card-paid expense is free to sit in any category, and a category holds
+expenses paid every which way.
+
+Concretely: `derive.ts` — category totals, envelope fill, donut shares, pace,
+the yearly rollups, `evaluateAlerts` — knows nothing about `paymentMethod`, and
+`denormalize` in `lib/queries.ts` passes both fields straight through without
+either consulting the other. In both apps' add/edit form the selector is its
+own labelled control, separate from the category chips; every method stays
+available whatever category is picked.
+
+The point of keeping the axes apart is reconciliation. `queries.fetchTransactionsByPaymentMethod(db, userId, method, yearMonth?)`
+answers "everything paid by credit card this month" — a figure to check against
+a card statement, arrived at without disturbing, or being disturbed by,
+category totals. It needs the `paymentMethod, date` and
+`yearMonth, paymentMethod, date` composite indexes deployed first.
+
+`paymentMethod` is **optional and omitted when unset** — the opposite of the
+`seriesId` decision below, deliberately. Equality (`where('paymentMethod', '==', 'credit_card')`)
+is the query this exists for and works fine, and every transaction written
+before this field existed stays valid with no migration. The trade is the one
+`seriesId` avoids: `!=`/`not-in` filters and "show me everything with no
+method" match no document that omits the field, which includes all of that
+history. Clearing the selector on an existing entry therefore removes the field
+with `deleteField()` rather than writing an empty value.
 
 ### Recurring entries — `seriesId`
 
