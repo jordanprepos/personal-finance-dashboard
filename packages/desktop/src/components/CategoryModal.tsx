@@ -33,7 +33,7 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
     <div className="cf-modal-scrim" style={{ zIndex: 55 }} onClick={onClose} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
-        style={{ width: 580 }}
+        style={{ width: '100%', maxWidth: 580 }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -81,7 +81,7 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
           <div className="cf-fieldlabel" style={{ margin: 0 }}>
             Add a category
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10 }}>
+          <div className="dash__catform">
             <input
               className="cf-input--pos"
               style={{ width: '100%' }}
@@ -136,22 +136,12 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
             const allocation = state.budget?.categoryBudgets[c.id] ?? 0;
             const pending = pendingDelete === c.id;
             return (
-              <div
-                key={c.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '11px 14px',
-                  border: '1px solid var(--cf-border)',
-                  borderRadius: 'var(--cf-r-tile)',
-                }}
-              >
+              <div key={c.id} className="dash__catrow">
                 <span
                   className="dash__swatch"
                   style={{ background: c.color, width: 10, height: 10 }}
                 />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="dash__catnamecol">
                   <div style={{ fontWeight: 600, fontSize: 14.5 }}>{c.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 1 }}>
                     {count} {count === 1 ? 'entry' : 'entries'} this year
@@ -232,8 +222,7 @@ function AllocationField({
 
   return (
     <input
-      className="cf-input--pos tnum"
-      style={{ width: 140, minHeight: 34, fontSize: 13, textAlign: 'right' }}
+      className="cf-input--pos tnum dash__allocinput"
       inputMode="numeric"
       placeholder="no allocation"
       aria-label="Monthly allocation"

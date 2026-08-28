@@ -30,15 +30,14 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="dash__filters">
         <input
-          className="cf-input--pos"
-          style={{ maxWidth: 280, minHeight: 38 }}
+          className="cf-input--pos dash__search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search item or category…"
         />
-        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', flex: 1 }}>
+        <div className="dash__chips">
           <button
             type="button"
             className={`cf-catchip${categoryId === null ? ' cf-catchip--on' : ''}`}

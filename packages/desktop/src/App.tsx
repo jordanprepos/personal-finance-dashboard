@@ -140,23 +140,14 @@ function Dashboard({
 
       <div className="dash__panel cf-panel">
         <div className="dash__body">
+          {/*
+            One toolbar, laid out two ways. On desktop `.dash__bar` is
+            `display: contents`, so tabs / Categories / Add stay flex items of
+            the toolbar and `order` puts them back where they were. Below the
+            phone breakpoint the wrapper becomes the design's fixed bottom bar
+            and the month nav is left alone at the top.
+          */}
           <div className="dash__toolbar">
-            <div className="dash__tabs">
-              {(['daily', 'monthly', 'yearly'] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`cf-cat ${tab === t ? 'cf-cat--active' : 'cf-cat--idle'}`}
-                  style={{ border: 0, textTransform: 'capitalize' }}
-                  onClick={() => setTab(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <span className="cf-spacer" />
-
             <div className="dash__monthnav">
               <button
                 type="button"
@@ -177,17 +168,38 @@ function Dashboard({
               </button>
             </div>
 
-            <button type="button" className="cf-ghostbtn" onClick={() => setCategoriesOpen(true)}>
-              Categories
-            </button>
-            <button
-              type="button"
-              className="cf-add"
-              style={{ height: 36, fontSize: 13 }}
-              onClick={openAdd}
-            >
-              + Add expense
-            </button>
+            <div className="dash__bar">
+              <div className="dash__tabs">
+                {(['daily', 'monthly', 'yearly'] as Tab[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`cf-cat ${tab === t ? 'cf-cat--active' : 'cf-cat--idle'}`}
+                    style={{ border: 0, textTransform: 'capitalize' }}
+                    onClick={() => setTab(t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="cf-ghostbtn dash__catsbtn"
+                onClick={() => setCategoriesOpen(true)}
+              >
+                Categories
+              </button>
+              <button
+                type="button"
+                className="cf-add dash__addbtn"
+                aria-label="Add expense"
+                onClick={openAdd}
+              >
+                <span aria-hidden="true">+</span>
+                <span className="dash__addtext">Add expense</span>
+              </button>
+            </div>
           </div>
 
           {tab === 'monthly' ? <MonthlyView {...viewProps} /> : null}

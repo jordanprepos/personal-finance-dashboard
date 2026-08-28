@@ -79,6 +79,7 @@ export function YearlyView({ state, store, fmt, year }: Props): JSX.Element {
         </div>
 
         <svg
+          className="dash__chart"
           width="100%"
           height={CHART_HEIGHT}
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}

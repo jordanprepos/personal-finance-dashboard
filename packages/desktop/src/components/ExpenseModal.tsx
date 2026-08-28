@@ -58,7 +58,7 @@ export function ExpenseModal({
     <div className="cf-modal-scrim" onClick={onClose} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
-        style={{ width: 520 }}
+        style={{ width: '100%', maxWidth: 520 }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -140,7 +140,7 @@ export function ExpenseModal({
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 130px', gap: 12, alignItems: 'end' }}>
+        <div className="dash__formrow">
           <div>
             <div className="cf-fieldlabel">Item</div>
             <input
