@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 1180px;
+  width: min(1180px, 100%);
   margin: 0 auto 18px;
 }
 
@@ -21,7 +21,7 @@
 }
 
 .dash__panel {
-  width: 1180px;
+  width: min(1180px, 100%);
   margin: 0 auto;
 }
 
@@ -38,6 +38,34 @@
   gap: 12px;
 }
 
+/*
+ * `display: contents` dissolves the wrapper, so tabs / Categories / Add stay
+ * flex items of the toolbar and `order` restores the desktop arrangement the
+ * markup no longer has. Below the phone breakpoint the wrapper reappears as
+ * the design's fixed bottom bar.
+ */
+.dash__bar {
+  display: contents;
+}
+
+.dash__tabs {
+  order: 1;
+}
+
+.dash__catsbtn {
+  order: 3;
+}
+
+.dash__addbtn {
+  order: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  font-size: 13px;
+}
+
 .dash__tabs,
 .dash__segmented {
   display: flex;
@@ -48,10 +76,13 @@
   padding: 4px;
 }
 
+/* `margin-left: auto` stands in for the spacer the toolbar used to carry. */
 .dash__monthnav {
+  order: 2;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .dash__monthlabel {
@@ -199,6 +230,245 @@
   color: var(--cf-muted);
   padding-bottom: 6px;
   border-bottom: 1px solid var(--cf-border);
+}
+
+.dash__filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash__search {
+  max-width: 280px;
+  min-height: 38px;
+}
+
+.dash__chips {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* Item / Day / Repeat in the expense modal. */
+.dash__formrow {
+  display: grid;
+  grid-template-columns: 1fr 110px 130px;
+  gap: 12px;
+  align-items: end;
+}
+
+/* Name / allocation in the categories modal's add form. */
+.dash__catform {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 10px;
+}
+
+.dash__catrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+}
+
+.dash__catnamecol {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash__allocinput {
+  width: 140px;
+  min-height: 34px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.dash__alertsbtn {
+  order: 3;
+}
+
+/* ----------------------------------------------------------------- alerts */
+/*
+ * Banners above the dashboard, on every tab. The two levels reuse the
+ * design's existing surfaces rather than introducing a colour: a breach is
+ * the dark ink card (`--cf-ink`, white text) the Budget Left hero already
+ * uses, a warning the pale accent (`--cf-blue-pale`) `.cf-banner` uses.
+ */
+
+.dash__alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash__alert {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  border-radius: var(--cf-r-tile);
+  border: 1px solid transparent;
+}
+
+.dash__alert--breach {
+  background: var(--cf-ink);
+  color: var(--cf-surface);
+}
+
+.dash__alert--warning {
+  background: var(--cf-blue-pale);
+  border-color: var(--cf-border-strong);
+  color: var(--cf-ink);
+}
+
+.dash__alertbody {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash__alerttitle {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.dash__alertsub {
+  font-size: 12.5px;
+  margin-top: 2px;
+}
+
+.dash__alert--breach .dash__alertsub {
+  color: var(--cf-on-dark-soft);
+}
+
+.dash__alert--warning .dash__alertsub {
+  color: var(--cf-slate);
+}
+
+.dash__alertlink {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dash__alert--breach .dash__alertlink {
+  color: var(--cf-surface);
+}
+
+.dash__alert--warning .dash__alertlink {
+  color: var(--cf-blue);
+}
+
+/* A settings row: label on the left, control hard right. */
+.dash__alertrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+}
+
+.dash__limitform {
+  display: grid;
+  grid-template-columns: 1fr 140px auto;
+  gap: 10px;
+}
+
+/* ----------------------------------------------------------------- income */
+
+.dash__income {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 18px;
+}
+
+.dash__incometotal {
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.dash__incomelist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash__incomerow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash__incomemain {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Editable in place: no border until it is hovered or focused, so the list
+   reads as text rather than as a form. */
+.dash__incomename {
+  width: 100%;
+  min-height: 34px;
+  font-size: 14px;
+  font-weight: 600;
+  border-color: transparent;
+  background: transparent;
+}
+
+.dash__incomename:hover {
+  border-color: var(--cf-border);
+}
+
+.dash__incomenote {
+  font-size: 11.5px;
+  color: var(--cf-muted);
+  padding: 0 12px;
+  margin-top: 1px;
+}
+
+.dash__incomeamount {
+  width: 130px;
+  min-height: 34px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.dash__incomeshare {
+  width: 52px;
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cf-slate);
+}
+
+.dash__incomedel {
+  width: 52px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.dash__incomeform {
+  display: grid;
+  grid-template-columns: 1fr 120px 1fr auto;
+  gap: 8px;
+  border-top: 1px solid var(--cf-border);
+  padding-top: 12px;
 }
 
 .dash__empty {
@@ -482,5 +752,409 @@
 
   .login__form {
     padding: 30px 28px 34px;
+  }
+}
+
+/* ------------------------------------------------------------ responsive */
+/*
+ * Narrow widths follow `Expense Dashboard Mobile.dc.html`: one column, the
+ * month stepper alone at the top, tabs + Categories + a "+" FAB in a fixed
+ * bottom bar, and the modals as bottom sheets.
+ *
+ * Every override of a shared `cf-*` class is scoped under `.dash`, because
+ * `tokens.css` is also imported by mobile-webview — which is *always* phone
+ * width and must not pick these up.
+ */
+
+/* The side rail drops below the main column before it gets too narrow to read. */
+@media (max-width: 1100px) {
+  .dash__split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  /*
+   * Tabs + Categories + Add no longer fit on one line beside the month
+   * stepper, and `.cf-panel` clips the overflow — so the stepper takes a row
+   * of its own rather than pushing Add out of reach.
+   */
+  .dash__toolbar {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  .dash__catsbtn {
+    margin-left: auto;
+  }
+
+  .dash__monthnav {
+    order: 5;
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+
+  .dash__hero {
+    grid-template-columns: 1fr;
+  }
+
+  /* The chips wrap to two or three lines here; align the search box to their top. */
+  .dash__filters {
+    align-items: flex-start;
+  }
+
+  .dash__stats {
+    flex-wrap: wrap;
+    gap: 20px 28px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dash {
+    /* The bottom bar is fixed, so the last row of content needs room. */
+    padding: 12px 12px 92px;
+  }
+
+  .dash__header {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .dash__panel {
+    border-radius: var(--cf-r-card);
+  }
+
+  .dash__body {
+    padding: 14px 14px 20px;
+    gap: 16px;
+  }
+
+  /* Toolbar keeps only the month stepper; the rest is the bottom bar. */
+  .dash__toolbar {
+    display: block;
+  }
+
+  .dash__monthnav {
+    margin: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--cf-border);
+  }
+
+  .dash__monthlabel {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+  }
+
+  .dash__monthnav .cf-stepbtn {
+    flex: none;
+    width: 34px;
+    height: 34px;
+  }
+
+  .dash__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: var(--cf-surface);
+    border-top: 1px solid var(--cf-border);
+  }
+
+  /*
+   * In the bar the tabs are the design's plain text buttons — blue for the
+   * active one, muted for the rest. Four pill chips plus a FAB do not fit
+   * across 360px.
+   */
+  .dash__tabs {
+    flex: 1;
+    min-width: 0;
+    gap: 16px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    overflow-x: auto;
+  }
+
+  .dash__bar .cf-cat,
+  .dash__catsbtn {
+    flex: none;
+    margin-left: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cf-muted);
+  }
+
+  .dash__bar .cf-cat:hover,
+  .dash__catsbtn:hover {
+    background: transparent;
+    color: var(--cf-ink);
+  }
+
+  /* Listed after the hover rule so the active tab stays blue under the cursor. */
+  .dash__bar .cf-cat--active,
+  .dash__bar .cf-cat--active:hover {
+    background: transparent;
+    color: var(--cf-blue);
+  }
+
+  .dash__addbtn {
+    flex: none;
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    font-size: 22px;
+    font-weight: 500;
+    box-shadow: var(--cf-shadow-card);
+  }
+
+  .dash__addtext {
+    display: none;
+  }
+
+  /* Otherwise the toast lands underneath the bar. */
+  .dash .cf-toast {
+    bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  /* --- monthly --- */
+  .dash__donutcard {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .dash__donut {
+    width: 124px;
+    height: 124px;
+    align-self: center;
+  }
+
+  .dash__donut svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .dash__envelopes {
+    grid-template-columns: 1fr;
+  }
+
+  /* --- daily --- */
+  .dash__filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .dash__search {
+    max-width: none;
+  }
+
+  /* The design scrolls its category filters sideways rather than wrapping. */
+  .dash__chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .dash__chips > * {
+    flex: none;
+  }
+
+  /* Ledger row folds to two lines: item over category, amount alongside. */
+  .dash .cf-row.dash__ledgerrow {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'item amount'
+      'cat amount';
+    height: auto;
+    padding: 9px 8px;
+    column-gap: 12px;
+  }
+
+  .dash__ledgerrow > :nth-child(1) {
+    grid-area: item;
+    font-weight: 600;
+  }
+
+  .dash__ledgerrow > :nth-child(2) {
+    grid-area: cat;
+  }
+
+  .dash__ledgerrow > :nth-child(3) {
+    grid-area: amount;
+    align-self: center;
+  }
+
+  /* --- yearly --- */
+  .dash__chart {
+    height: 150px;
+  }
+
+  .dash__monthcells {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  /* Entry counts are the first thing to go; name / total / share stay. */
+  .dash__yearhead,
+  .dash__yearrow {
+    grid-template-columns: 1fr auto 52px;
+    column-gap: 10px;
+  }
+
+  .dash__yearhead > :nth-child(2),
+  .dash__yearrow > :nth-child(2) {
+    display: none;
+  }
+
+  .dash__yearrow {
+    font-size: 13px;
+  }
+
+  /* --- modals become bottom sheets --- */
+  .dash .cf-modal-scrim {
+    place-items: end center;
+    padding: 0;
+  }
+
+  .dash .cf-modal {
+    max-height: 92vh;
+    border-radius: var(--cf-r-panel) var(--cf-r-panel) 0 0;
+    padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .dash__formrow {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash__formrow > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .dash__catform {
+    grid-template-columns: 1fr;
+  }
+
+  .dash__catrow {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+
+  .dash__catnamecol {
+    flex: 1 1 60%;
+  }
+
+  .dash__allocinput {
+    flex: 1 1 120px;
+    width: auto;
+    text-align: left;
+  }
+
+  /* --- alerts --- */
+  /* The bottom bar styles Categories as plain text; Alerts sits beside it. */
+  .dash__bar .cf-cat,
+  .dash__catsbtn,
+  .dash__alertsbtn {
+    flex: none;
+    margin-left: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--cf-muted);
+  }
+
+  .dash__alertsbtn:hover {
+    background: transparent;
+    color: var(--cf-ink);
+  }
+
+  .dash__alert {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 13px 15px;
+  }
+
+  /* The link is the banner's only control, so it gets the full tap target. */
+  .dash__alertlink {
+    align-self: flex-start;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .dash__alertrow {
+    gap: 10px;
+  }
+
+  .dash__limitform {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash__limitform > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* --- income --- */
+  /*
+   * Name and note take a row of their own, with amount / share / delete
+   * beneath, so nothing is squeezed below a thumb-sized target.
+   */
+  .dash__incomerow {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .dash__incomemain {
+    flex: 1 1 100%;
+  }
+
+  .dash__incomename,
+  .dash__incomeamount {
+    min-height: 44px;
+  }
+
+  .dash__incomeamount {
+    flex: 1 1 auto;
+    width: auto;
+    text-align: left;
+  }
+
+  .dash__incomeshare,
+  .dash__incomedel {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .dash__incomeform {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash__incomeform > :first-child,
+  .dash__incomeform > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .dash__incomeform .cf-input--pos,
+  .dash__limitform .cf-input--pos,
+  .dash__incomeform .cf-add,
+  .dash__limitform .cf-add {
+    min-height: 44px;
   }
 }

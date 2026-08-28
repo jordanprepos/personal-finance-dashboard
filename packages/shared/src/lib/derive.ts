@@ -1,5 +1,14 @@
-import type { Budget, Category, Transaction } from '../types.js';
-import { dayLabel, daysInYearMonth, monthsOfYear, parseISODate, shortMonthLabel } from './dates.js';
+import type { AlertSettings, Budget, Category, Income, Transaction } from '../types.js';
+import { normalizeCategoryName } from '../data/defaultCategories.js';
+import {
+  dayLabel,
+  daysInYearMonth,
+  monthNameLabel,
+  monthsOfYear,
+  parseISODate,
+  shortMonthLabel,
+} from './dates.js';
+import { formatMoney, IDR, type MoneyFormat } from './format.js';
 
 /**
  * Every value the dashboard shows — Budget Left, Expense Per Bulan, category
@@ -12,12 +21,36 @@ export const sumAmounts = (transactions: readonly Transaction[]): number =>
 
 const safeDiv = (a: number, b: number): number => (b > 0 ? a / b : 0);
 
+/* ------------------------------------------------------------------ income */
+
+/**
+ * The month's income: the sum of its sources.
+ *
+ * Every consumer of income goes through here — Budget Left, spent %, the
+ * envelope bars, the recurring share, the yearly reference line, the pace
+ * target. Summing the list in each view instead would be the same expression
+ * written six times, and one of them would drift.
+ */
+export const totalIncome = (budget: Budget | null): number =>
+  (budget?.incomes ?? []).reduce((sum, i) => sum + i.amount, 0);
+
+export interface IncomeShare extends Income {
+  /** of total income, 0-1 — 0 when there is no income to take a share of */
+  share: number;
+}
+
+/** Each source with what it contributes, in the order the list holds them. */
+export function incomeShares(budget: Budget | null): IncomeShare[] {
+  const total = totalIncome(budget);
+  return (budget?.incomes ?? []).map((i) => ({ ...i, share: safeDiv(i.amount, total) }));
+}
+
 /* ----------------------------------------------------------- month summary */
 
 export interface MonthSummary {
   yearMonth: string;
   income: number;
-  /** false when budgets/{yearMonth}.income has not been set yet */
+  /** false when the month has no income sources, or they sum to zero */
   hasIncome: boolean;
   /** total spent across every category */
   spent: number;
@@ -37,7 +70,7 @@ export function monthSummary(
   transactions: readonly Transaction[],
   budget: Budget | null,
 ): MonthSummary {
-  const income = budget?.income ?? 0;
+  const income = totalIncome(budget);
   const hasIncome = income > 0;
   const spent = sumAmounts(transactions);
   // With no income set there is nothing to take a share of — reporting
@@ -513,4 +546,211 @@ export function recurringThisMonth(monthTransactions: readonly Transaction[]): {
 } {
   const rows = monthTransactions.filter((t) => t.amount > 0 && isRecurring(t));
   return { transactions: rows, total: sumAmounts(rows) };
+}
+
+/* ------------------------------------------------------------------ alerts */
+
+/**
+ * Spending alerts, evaluated against the month in view.
+ *
+ * Two rules, applied identically to the monthly cap and to each per-category
+ * cap: over the limit is a breach, at or past `warnPct` of it is a warning.
+ * Nothing at all is evaluated when alerts are off or the limit is 0, so an
+ * unset cap is silent rather than permanently breached.
+ *
+ * The copy is built here rather than in the views because both front ends
+ * must word an alert the same way, and the numbers in the sentence
+ * ("Rp350.000 above the Rp8.000.000 cap for August") are the same ones the
+ * rule just compared.
+ */
+
+export type AlertLevel = 'breach' | 'warning';
+export type AlertScope = 'month' | 'category';
+
+export interface SpendAlert {
+  /** stable across renders — the scope, plus the category for a category cap */
+  id: string;
+  level: AlertLevel;
+  scope: AlertScope;
+  /** the category this is about, or null for the monthly cap */
+  categoryName: string | null;
+  title: string;
+  body: string;
+  spent: number;
+  limit: number;
+  /** spent / limit — above 1 on a breach */
+  used: number;
+}
+
+export interface AlertInput {
+  yearMonth: string;
+  /** the month in view; the day rows and the yearly tab derive from these too */
+  transactions: readonly Transaction[];
+  categories: readonly Category[];
+  alerts: AlertSettings;
+  /** money formatting — the profile's currency and locale */
+  fmt?: MoneyFormat;
+  /**
+   * Locale for the month *name* only, and deliberately not the money locale:
+   * every other month label in both apps (`monthLabel`, `shortMonthLabel`,
+   * `dayLabel`) defaults to en-US while amounts render as id-ID, so passing
+   * "id-ID" here would put "for Agustus" under a header reading "August 2026".
+   */
+  locale?: string;
+}
+
+interface RuleInput {
+  id: string;
+  scope: AlertScope;
+  categoryName: string | null;
+  spent: number;
+  limit: number;
+  warnPct: number;
+  monthName: string;
+  fmt: MoneyFormat;
+  breachTitle: string;
+  /** takes the percent actually used, which is not `warnPct` */
+  warnTitle: (usedPct: number) => string;
+}
+
+/** The two thresholds, in one place so month and category can't diverge. */
+function applyRule(input: RuleInput): SpendAlert | null {
+  const { spent, limit, fmt } = input;
+  // An unset cap (0) is not a cap that everything breaches.
+  if (limit <= 0) return null;
+
+  const base = {
+    id: input.id,
+    scope: input.scope,
+    categoryName: input.categoryName,
+    spent,
+    limit,
+    used: spent / limit,
+  };
+
+  if (spent > limit) {
+    return {
+      ...base,
+      level: 'breach',
+      title: input.breachTitle,
+      body: `${formatMoney(spent - limit, fmt)} above the ${formatMoney(limit, fmt)} cap for ${input.monthName}.`,
+    };
+  }
+
+  if (spent >= (limit * input.warnPct) / 100) {
+    return {
+      ...base,
+      level: 'warning',
+      // The headline percent is how much is actually used, not the threshold
+      // that tripped it — at an 80% setting this reads "84%", not "80%".
+      title: input.warnTitle(Math.round(base.used * 100)),
+      body: `${formatMoney(limit - spent, fmt)} left before the ${formatMoney(limit, fmt)} cap.`,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Spend in the categories whose name matches `name`.
+ *
+ * Matched with `normalizeCategoryName` for the same reason every other name
+ * comparison in this codebase is: a cap set on "Groceries" has to keep
+ * matching after the category is re-saved as " groceries".
+ */
+export function spendForCategoryName(
+  transactions: readonly Transaction[],
+  categories: readonly Category[],
+  name: string,
+): number {
+  const wanted = normalizeCategoryName(name);
+  const ids = new Set(
+    categories.filter((c) => normalizeCategoryName(c.name) === wanted).map((c) => c.id),
+  );
+  return sumAmounts(transactions.filter((t) => ids.has(t.categoryId)));
+}
+
+const SEVERITY: Record<AlertLevel, number> = { breach: 0, warning: 1 };
+
+/** Every alert the month currently trips, breaches first. */
+export function evaluateAlerts({
+  yearMonth,
+  transactions,
+  categories,
+  alerts,
+  fmt = IDR,
+  locale = 'en-US',
+}: AlertInput): SpendAlert[] {
+  if (!alerts.enabled) return [];
+
+  const monthName = monthNameLabel(yearMonth, locale);
+  const out: SpendAlert[] = [];
+
+  const monthly = applyRule({
+    id: 'month',
+    scope: 'month',
+    categoryName: null,
+    spent: sumAmounts(transactions),
+    limit: alerts.monthlyLimit,
+    warnPct: alerts.warnPct,
+    monthName,
+    fmt,
+    breachTitle: 'Over the monthly limit',
+    warnTitle: (used) => `${used}% of the monthly limit`,
+  });
+  if (monthly) out.push(monthly);
+
+  for (const [name, limit] of Object.entries(alerts.categoryLimits)) {
+    const alert = applyRule({
+      id: `category:${name}`,
+      scope: 'category',
+      categoryName: name,
+      spent: spendForCategoryName(transactions, categories, name),
+      limit,
+      warnPct: alerts.warnPct,
+      monthName,
+      fmt,
+      breachTitle: `${name} is over its limit`,
+      warnTitle: () => `${name} is close to its limit`,
+    });
+    if (alert) out.push(alert);
+  }
+
+  // Breaches above warnings, and within each the one furthest along first.
+  return out.sort((a, b) => SEVERITY[a.level] - SEVERITY[b.level] || b.used - a.used);
+}
+
+export interface CategoryLimitRow {
+  /** the key as stored — what the settings row shows */
+  name: string;
+  limit: number;
+  spent: number;
+  /** spent / limit; null when there is no limit to take a share of */
+  used: number | null;
+  /** the cap names a category that no longer exists, so it can never fire */
+  orphan: boolean;
+}
+
+/**
+ * The per-category caps as the settings list renders them. Orphans are kept
+ * rather than hidden — a cap nothing can clear is worse than a stale row.
+ */
+export function categoryLimitRows(
+  alerts: AlertSettings,
+  transactions: readonly Transaction[],
+  categories: readonly Category[],
+): CategoryLimitRow[] {
+  const known = new Set(categories.map((c) => normalizeCategoryName(c.name)));
+  return Object.entries(alerts.categoryLimits)
+    .map(([name, limit]) => {
+      const spent = spendForCategoryName(transactions, categories, name);
+      return {
+        name,
+        limit,
+        spent,
+        used: limit > 0 ? spent / limit : null,
+        orphan: !known.has(normalizeCategoryName(name)),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

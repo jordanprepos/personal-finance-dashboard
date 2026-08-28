@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
-import type { Budget, Category, Profile, Transaction } from '../types.js';
+import type { Budget, Category, Income, Profile, Transaction } from '../types.js';
+import { defaultAlerts } from '../lib/queries.js';
 import { dateInMonth, monthsOfYear, toYear, toYearMonth } from '../lib/dates.js';
 import { DEFAULT_CATEGORIES } from './defaultCategories.js';
 
@@ -26,13 +27,28 @@ export const seedCategories = (): Category[] =>
     archived: false,
   }));
 
+/**
+ * The demo account's income sources. One to start with, which is also the
+ * minimum the app enforces — a month always has at least one source.
+ */
+export const seedIncomes = (): Income[] => [
+  { id: 'income-salary', name: 'Salary', amount: SEED_INCOME, note: 'Monthly · main job' },
+];
+
 export const seedBudgets = (): Record<string, Budget> => {
   const categoryBudgets: Record<string, number> = {};
   for (const c of DEFAULT_CATEGORIES) categoryBudgets[c.id] = c.allocation;
 
   const budgets: Record<string, Budget> = {};
   for (const yearMonth of monthsOfYear(SEED_YEAR)) {
-    budgets[yearMonth] = { id: yearMonth, income: SEED_INCOME, categoryBudgets: { ...categoryBudgets } };
+    budgets[yearMonth] = {
+      id: yearMonth,
+      // Written as the legacy field too, so the demo dataset exercises the
+      // same document shape a pre-`incomes` account has on disk.
+      income: SEED_INCOME,
+      incomes: seedIncomes(),
+      categoryBudgets: { ...categoryBudgets },
+    };
   }
   return budgets;
 };
@@ -41,6 +57,7 @@ export const seedProfile = (): Profile => ({
   displayName: 'Demo',
   currency: 'IDR',
   locale: 'id-ID',
+  alerts: defaultAlerts(),
 });
 
 interface Charge {

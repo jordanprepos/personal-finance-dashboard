@@ -1,23 +1,21 @@
-import { useEffect, useState, type JSX } from 'react';
+import type { JSX } from 'react';
 import {
   categoryTotals,
   donutSegments,
   envelopesByType,
-  formatAmountInput,
   formatMoney,
   formatPercent,
-  parseAmountInput,
   monthSummary,
   recurringThisMonth,
   sumAmounts,
   indexCategories,
   categoryOf,
   type Envelope,
-  type ExpenseStore,
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
 import { catStyle } from '../catStyle';
+import { IncomePanel } from '../components/IncomePanel';
 
 const DONUT_RADIUS = 54;
 
@@ -191,7 +189,8 @@ export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Elemen
               >
                 <span className="cf-benefits__k">Share of income</span>
                 <span className="cf-benefits__v cf-benefits__v--blue">
-                  {formatPercent(summary.income > 0 ? repeat.total / summary.income : 0)}
+                  {/* No income means no share to take — a dash, not 0% of nothing. */}
+                  {summary.hasIncome ? formatPercent(repeat.total / summary.income) : '—'}
                 </span>
               </div>
             </div>
@@ -211,6 +210,8 @@ export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Elemen
             </div>
           ) : null}
 
+          <IncomePanel store={store} state={state} fmt={fmt} />
+
           <div
             style={{
               background: 'var(--cf-surface-2)',
@@ -219,9 +220,7 @@ export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Elemen
               padding: 18,
             }}
           >
-            <div className="cf-group__label">Income</div>
-            <IncomeField store={store} income={summary.income} fmt={fmt} />
-            <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>
               Saved this month {formatMoney(savedThisMonth, fmt)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 6 }}>
@@ -333,52 +332,6 @@ function EnvelopeTile({
           </button>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-/**
- * Writes budgets/{yearMonth}.income. The prototype had income as a hardcoded
- * constant; here it is per-month data and something has to set it.
- */
-function IncomeField({
-  store,
-  income,
-  fmt,
-}: {
-  store: ExpenseStore;
-  income: number;
-  fmt: ViewProps['fmt'];
-}): JSX.Element {
-  const [text, setText] = useState(income > 0 ? String(income) : '');
-  useEffect(() => setText(income > 0 ? String(income) : ''), [income]);
-
-  const commit = (): void => {
-    const next = parseAmountInput(text);
-    if (next !== income) void store.setIncome(next);
-  };
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-      <span
-        className="tnum"
-        style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-.02em', color: 'var(--cf-muted)' }}
-      >
-        Rp
-      </span>
-      <input
-        className="tnum cf-amountinput"
-        style={{ fontSize: 22 }}
-        inputMode="numeric"
-        placeholder="0"
-        aria-label="Monthly income"
-        value={formatAmountInput(text, fmt)}
-        onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-        }}
-      />
     </div>
   );
 }

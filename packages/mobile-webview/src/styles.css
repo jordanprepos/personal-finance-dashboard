@@ -91,6 +91,14 @@ body {
   font-weight: 600;
   padding: 0;
   font-family: inherit;
+  /*
+   * The label is 15px tall on its own, well under the design's 44px minimum.
+   * The bar is already as tall as the 46px FAB beside it, so claiming the
+   * full height costs no layout and makes each tab an actual thumb target.
+   */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .phone__navgroup {
@@ -360,4 +368,147 @@ body {
   color: var(--cf-danger);
   /* the status row is baseline-aligned text; keep the pill from stretching it */
   margin: -4px 0;
+}
+
+/* ----------------------------------------------------------------- alerts */
+/*
+ * Banners above the tab content. The levels reuse the design's existing
+ * surfaces rather than adding a colour: a breach takes the dark ink card, a
+ * warning the pale accent that `.cf-banner` already uses.
+ */
+
+.phone__alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+
+.phone__alert {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  /* Comfortably past the 44px minimum on its own. */
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--cf-r-tile);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.phone__alert--breach {
+  background: var(--cf-ink);
+  color: var(--cf-surface);
+}
+
+.phone__alert--warning {
+  background: var(--cf-blue-pale);
+  border-color: var(--cf-border-strong);
+  color: var(--cf-ink);
+}
+
+.phone__alerttitle {
+  font-weight: 600;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+}
+
+.phone__alertsub {
+  font-size: 11.5px;
+}
+
+.phone__alert--breach .phone__alertsub {
+  color: var(--cf-on-dark-soft);
+}
+
+.phone__alert--warning .phone__alertsub {
+  color: var(--cf-slate);
+}
+
+.phone__alertlink {
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.phone__alert--breach .phone__alertlink {
+  color: var(--cf-surface);
+}
+
+.phone__alert--warning .phone__alertlink {
+  color: var(--cf-blue);
+}
+
+.phone__alertrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 9px 12px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+}
+
+/* ----------------------------------------------------------------- income */
+
+.phone__incomelist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.phone__incomerow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+}
+
+.phone__incomehead,
+.phone__incomefoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.phone__incomename {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.phone__incomeshare {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cf-slate);
+}
+
+.phone__incomenote {
+  font-size: 11.5px;
+  color: var(--cf-muted);
+}
+
+.phone__incomeform {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/*
+ * The phone design's minimum tap target. Applied to the controls that would
+ * otherwise inherit a text button's natural height.
+ */
+.phone__tap {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }

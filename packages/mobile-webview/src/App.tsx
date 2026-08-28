@@ -4,14 +4,13 @@ import {
   categoryOf,
   categoryTotals,
   envelopesByType,
+  evaluateAlerts,
   filterTransactions,
-  formatAmountInput,
   formatMoney,
   formatMoneyShort,
   indexCategories,
   monthLabel,
   monthSummary,
-  parseAmountInput,
   shortMonthLabel,
   stackSegments,
   yearOfMonth,
@@ -29,6 +28,9 @@ import { useAuth, useStore } from './useStore';
 import { LoginView } from './components/LoginView';
 import { ExpenseSheet } from './components/ExpenseSheet';
 import { CategorySheet } from './components/CategorySheet';
+import { AlertSheet } from './components/AlertSheet';
+import { IncomePanel } from './components/IncomePanel';
+import { AlertBanners } from './components/AlertBanners';
 
 type Tab = 'daily' | 'monthly' | 'yearly';
 
@@ -99,6 +101,7 @@ function Phone({
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const fmt: MoneyFormat = useMemo(
     () => ({ currency: state.profile.currency, locale: state.profile.locale }),
@@ -130,6 +133,16 @@ function Phone({
   const totals = categoryTotals(monthTransactions, categories);
   const segments = stackSegments(totals, Math.max(summary.income, summary.spent));
   const shown = filterTransactions(monthTransactions, categories, { categoryId, query: '' });
+  const alerts = evaluateAlerts({
+    yearMonth,
+    transactions: monthTransactions,
+    categories,
+    alerts: state.profile.alerts,
+    // Money is formatted in the profile's locale; the month *name* is not.
+    // `monthLabel` in the month nav above is en-US, so a banner saying
+    // "for Agustus" under a header saying "August 2026" would read as a bug.
+    fmt,
+  });
   const present = categories.filter((c) => monthTransactions.some((t) => t.categoryId === c.id));
 
   const openAdd = (): void => {
@@ -185,6 +198,10 @@ function Phone({
             <rect key={s.categoryId} x={s.x} y="0" width={s.width} height="10" fill={s.color} />
           ))}
         </svg>
+
+        {/* Above the tab content and outside the switch, so Today, Month and
+            Year all show the same alerts. */}
+        <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
 
         {tab === 'daily' ? (
           <>
@@ -285,6 +302,14 @@ function Phone({
           >
             Categories
           </button>
+          <button
+            type="button"
+            className="phone__navbtn"
+            style={{ color: 'var(--cf-muted)' }}
+            onClick={() => setAlertsOpen(true)}
+          >
+            Alerts
+          </button>
         </div>
         <span className="cf-spacer" />
         <button type="button" className="cf-fab" aria-label="Add expense" onClick={openAdd}>
@@ -320,6 +345,15 @@ function Phone({
         />
       ) : null}
 
+      {alertsOpen ? (
+        <AlertSheet
+          store={store}
+          state={state}
+          fmt={fmt}
+          onClose={() => setAlertsOpen(false)}
+        />
+      ) : null}
+
       {state.toast ? <div className="cf-toast cf-anim-in-fast">{state.toast}</div> : null}
     </div>
   );
@@ -345,10 +379,7 @@ function MonthTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 'none' }}>
-      <div>
-        <div className="cf-group__label">Income this month</div>
-        <IncomeField store={store} income={budget?.income ?? 0} fmt={fmt} />
-      </div>
+      <IncomePanel store={store} state={state} fmt={fmt} />
       {groups.map(([label, envelopes]) =>
         envelopes.length === 0 ? null : (
           <div key={label}>
@@ -426,39 +457,5 @@ function YearTab({
         </button>
       ))}
     </div>
-  );
-}
-
-/** Writes budgets/{yearMonth}.income. */
-function IncomeField({
-  store,
-  income,
-  fmt,
-}: {
-  store: ExpenseStore;
-  income: number;
-  fmt: MoneyFormat;
-}): JSX.Element {
-  const [text, setText] = useState(income > 0 ? String(income) : '');
-  useEffect(() => setText(income > 0 ? String(income) : ''), [income]);
-
-  const commit = (): void => {
-    const next = parseAmountInput(text);
-    if (next !== income) void store.setIncome(next);
-  };
-
-  return (
-    <input
-      className="cf-input--phone tnum"
-      inputMode="numeric"
-      placeholder="Rp0"
-      aria-label="Monthly income"
-      value={formatAmountInput(text, fmt)}
-      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-      }}
-    />
   );
 }

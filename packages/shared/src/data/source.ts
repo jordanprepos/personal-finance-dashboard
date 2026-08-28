@@ -1,7 +1,9 @@
 import type {
+  AlertSettings,
   Budget,
   Category,
   CategoryInput,
+  Income,
   Profile,
   Transaction,
   TransactionInput,
@@ -67,8 +69,13 @@ export interface ExpenseDataSource {
   deleteTransactionSeries(key: TransactionSeriesKey): Promise<number>;
 
   saveBudget(budget: Budget): Promise<void>;
-  /** Read-modify-write of one month's income; the rest of the budget is kept. */
-  setIncome(yearMonth: string, income: number): Promise<void>;
+  /**
+   * Replaces one month's income sources; the rest of the budget is kept.
+   * Add, edit and delete are all this one call — the list is written whole.
+   */
+  setIncomes(yearMonth: string, incomes: Income[]): Promise<void>;
+  /** Alert settings are per account, not per month — they live on the profile. */
+  setAlerts(alerts: AlertSettings): Promise<void>;
   /** Read-modify-write of one category's allocation for one month. */
   setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void>;
 }

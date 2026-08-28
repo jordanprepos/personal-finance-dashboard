@@ -2,9 +2,11 @@ import type { Firestore } from 'firebase/firestore';
 
 import * as q from '../lib/queries.js';
 import type {
+  AlertSettings,
   Budget,
   Category,
   CategoryInput,
+  Income,
   Profile,
   Transaction,
   TransactionInput,
@@ -40,8 +42,9 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
       q.deleteTransactionSeries(db, userId, key),
 
     saveBudget: (budget: Budget): Promise<void> => q.saveBudget(db, userId, budget),
-    setIncome: (yearMonth: string, income: number): Promise<void> =>
-      q.setIncome(db, userId, yearMonth, income),
+    setIncomes: (yearMonth: string, incomes: Income[]): Promise<void> =>
+      q.setIncomes(db, userId, yearMonth, incomes),
+    setAlerts: (alerts: AlertSettings): Promise<void> => q.saveAlerts(db, userId, alerts),
     setCategoryBudget: (yearMonth: string, categoryId: string, amount: number): Promise<void> =>
       q.setCategoryBudget(db, userId, yearMonth, categoryId, amount),
   };
