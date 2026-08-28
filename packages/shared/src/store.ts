@@ -15,6 +15,7 @@ import type {
   Category,
   CategoryType,
   Income,
+  PaymentMethod,
   Profile,
   Transaction,
   WarnPct,
@@ -56,7 +57,14 @@ export interface ExpenseState {
 }
 
 export interface ExpenseDraft {
+  /** what the expense is for */
   categoryId: string;
+  /**
+   * How it was paid — optional, and independent of `categoryId`. `undefined`
+   * on an update means "unset it", which is why the form always supplies the
+   * key rather than spreading it in conditionally.
+   */
+  paymentMethod?: PaymentMethod;
   item: string;
   amount: number;
   /** day of month; clamped into the visible month */
@@ -283,6 +291,9 @@ export class ExpenseStore {
       amount: draft.amount,
       date,
       ...(draft.note ? { note: draft.note } : {}),
+      // On a create there is nothing to unset, so omit it when there's no
+      // value rather than writing an empty field.
+      ...(draft.paymentMethod ? { paymentMethod: draft.paymentMethod } : {}),
     };
 
     await this.mutate(async () => {
@@ -311,6 +322,9 @@ export class ExpenseStore {
         amount: draft.amount,
         date,
         ...(draft.note ? { note: draft.note } : {}),
+        // Always sent, `undefined` included: the key's presence is what tells
+        // `updateTransaction` to remove a method the user just cleared.
+        paymentMethod: draft.paymentMethod,
       });
       return `${draft.item.trim()} updated`;
     });

@@ -137,7 +137,8 @@ users/{userId}
 
 ```ts
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
-Transaction { id, categoryId, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+Transaction { id, categoryId, paymentMethod?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+PaymentMethod 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other'
 Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
 Income      { id, name, amount, note? }          // amount is per month
 Profile     { displayName, currency, locale, alerts: AlertSettings }
@@ -249,6 +250,62 @@ since `nextCategoryOrder` landed, nothing can produce a collision, so a hit
 means documents written before it, and silently rewriting `order` would
 recolour those categories without being asked. As of the last check the live
 account has 11 categories with unique orders 0–10, so this has never fired.
+
+### Category and payment method are independent axes
+
+`categoryId` = **what** the expense is for. `paymentMethod` = **how** it was
+paid. Nothing derives one from the other, anywhere.
+
+The field exists because the two were being conflated: card-paid subscriptions
+(Claude Pro, YouTube/Gemini) were landing in **Bills** because of the card,
+when by nature they are **Subscription**. Any category can be paid by any
+method.
+
+What enforces the separation, and what to keep true when touching this:
+
+- `derive.ts` knows nothing about `paymentMethod` — not category totals,
+  envelope fill, donut shares, pace, the yearly rollups, or `evaluateAlerts`.
+  That is where conflation would creep in, so it stays out by design.
+- `denormalize` (`lib/queries.ts`) and its seed twin `build`
+  (`data/seedSource.ts`) both enumerate fields explicitly rather than
+  spreading, and pass the two through without either consulting the other.
+  **They must be edited together** or a new field silently vanishes in seed
+  mode only.
+- The add/edit form in both apps renders a `<select>` in its own field block,
+  never a second chip row — a chip row next to the category chips would read as
+  a nested or derived control. Options are never filtered by the picked
+  category. On desktop it sits *outside* `.dash__formrow`, whose children are
+  positioned by `nth-child` at the mobile fold.
+
+`queries.fetchTransactionsByPaymentMethod(db, userId, method, yearMonth?)` is
+the reconciliation read — "everything paid by credit card this month", to check
+against a card statement, independent of any category total. Like the other
+`fetch*`s it is a one-off read with no `watch*` twin and no `ExpenseDataSource`
+method, since `watchMonth` is deliberately the only read on that interface. It
+needs the `paymentMethod, date` and `yearMonth, paymentMethod, date` composite
+indexes.
+
+`paymentMethod` is **optional and omitted when unset** — deliberately the
+opposite of `seriesId` below. It follows the `note` pattern: attached only when
+present, never stored as `""`, and a stored value outside the union reads as
+unset rather than becoming a typed one. Equality queries are what it exists
+for and they work; the accepted trade is that `!=`/`not-in` and "everything
+unset" match no document that omits the field — including every row written
+before it existed, which is what makes the change need no migration. Because
+of that, clearing the field on an edit has to go through `deleteField()`:
+`updateTransaction` treats a patch carrying the key with no value as "unset"
+and a patch omitting the key as "leave alone". Writing `undefined` would throw.
+
+That contract is why `addExpense` and `updateExpense` are deliberately
+asymmetric: the create spreads the field in conditionally (nothing to unset on
+a new document), the update always sends the key. `evaluateExpenseForm`
+therefore emits `paymentMethod: values.paymentMethod || undefined` on every
+draft. Don't "simplify" `addExpense` into spreading the draft straight through
+— creates would start writing `paymentMethod: undefined`, which Firestore
+rejects.
+
+Series identity is `seriesId` + `date` and nothing else, so changing or
+clearing a method never affects what "this and future months" matches.
 
 ### Recurring entries — `seriesId`
 

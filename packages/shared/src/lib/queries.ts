@@ -23,12 +23,14 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 
+import { isPaymentMethod } from '../types.js';
 import type {
   AlertSettings,
   Budget,
   Category,
   CategoryInput,
   Income,
+  PaymentMethod,
   Profile,
   WarnPct,
   Transaction,
@@ -104,6 +106,11 @@ function toTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transaction {
   };
   const note = d['note'];
   if (typeof note === 'string' && note !== '') tx.note = note;
+  // Same conditional-attach as `note`: omitted rather than stored as "". A
+  // value outside the union (hand-written doc, retired method) reads as unset
+  // rather than becoming a typed one.
+  const paymentMethod = d['paymentMethod'];
+  if (isPaymentMethod(paymentMethod)) tx.paymentMethod = paymentMethod;
   return tx;
 }
 
@@ -285,6 +292,36 @@ export async function fetchTransactionsByMonthAndCategory(
   ]);
 }
 
+/**
+ * Everything paid one way — the reconciliation read ("all card spend in
+ * August", to check against a statement).
+ *
+ * Deliberately orthogonal to the category rollups: it filters on
+ * `paymentMethod` alone and never touches `categoryId`, so its total is not a
+ * slice of any category total and the two can be compared independently.
+ *
+ * Omitting `yearMonth` reads every month. Documents with no `paymentMethod` —
+ * every row written before the field existed — match no value, by design.
+ *
+ * Needs the composite indexes in `firebase/firestore.indexes.json`
+ * (`paymentMethod, date` and `yearMonth, paymentMethod, date`); deploy them
+ * before the first live call.
+ */
+export async function fetchTransactionsByPaymentMethod(
+  db: Firestore,
+  userId: string,
+  paymentMethod: PaymentMethod,
+  yearMonth?: string,
+): Promise<Transaction[]> {
+  const constraints: QueryConstraint[] = [where('paymentMethod', '==', paymentMethod)];
+  if (yearMonth !== undefined) {
+    assertYearMonth(yearMonth);
+    constraints.push(where('yearMonth', '==', yearMonth));
+  }
+  constraints.push(orderBy('date', 'desc'));
+  return runTransactionQuery(db, userId, constraints);
+}
+
 export async function fetchRecentTransactions(
   db: Firestore,
   userId: string,
@@ -358,6 +395,9 @@ function denormalize(
     yearMonth: toYearMonth(input.date),
     year: toYear(input.date),
     ...(input.note ? { note: input.note } : {}),
+    // Independent of `categoryId` — passed straight through, never inferred
+    // from it and never used to pick one. Omitted when unset, like `note`.
+    ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
     // Always written, null included — an absent field is not queryable.
     seriesId,
   };
@@ -438,7 +478,14 @@ export function seriesDates(startDate: string, throughYearMonth: string): string
   return dates;
 }
 
-/** Changing `date` re-derives `yearMonth` and `year` in the same write. */
+/**
+ * Changing `date` re-derives `yearMonth` and `year` in the same write.
+ *
+ * `paymentMethod` is optional and stored by omission, so clearing it has to
+ * remove the field rather than write `undefined` — which Firestore rejects.
+ * A patch that carries the key with no value means "unset"; a patch that omits
+ * the key entirely leaves whatever is stored alone.
+ */
 export async function updateTransaction(
   db: Firestore,
   userId: string,
@@ -446,6 +493,9 @@ export async function updateTransaction(
   patch: TransactionPatch,
 ): Promise<void> {
   const body: Record<string, unknown> = { ...patch };
+  if ('paymentMethod' in patch && !patch.paymentMethod) {
+    body['paymentMethod'] = deleteField();
+  }
   if (patch.date !== undefined) {
     body['yearMonth'] = toYearMonth(patch.date);
     body['year'] = toYear(patch.date);

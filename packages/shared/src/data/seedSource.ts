@@ -57,6 +57,10 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     yearMonth: toYearMonth(input.date),
     year: toYear(input.date),
     ...(input.note ? { note: input.note } : {}),
+    // Mirrors `denormalize` in lib/queries.ts — omitted when unset, and never
+    // derived from `categoryId`. Kept in step with it or the field vanishes in
+    // seed mode only.
+    ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
     seriesId,
     createdAt: Timestamp.now(),
   });
@@ -161,6 +165,10 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       transactions = transactions.map((t) => {
         if (t.id !== transactionId) return t;
         const next: Transaction = { ...t, ...patch };
+        // The seed twin of `deleteField()`: an explicit clear removes the key
+        // rather than leaving it present-but-undefined, so a round trip here
+        // looks exactly like one through Firestore.
+        if ('paymentMethod' in patch && !patch.paymentMethod) delete next.paymentMethod;
         if (patch.date !== undefined) {
           next.yearMonth = toYearMonth(patch.date);
           next.year = toYear(patch.date);
