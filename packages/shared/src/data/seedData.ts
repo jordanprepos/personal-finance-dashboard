@@ -28,11 +28,71 @@ export const seedCategories = (): Category[] =>
   }));
 
 /**
- * The demo account's income sources. One to start with, which is also the
- * minimum the app enforces — a month always has at least one source.
+ * The demo account's income sources.
+ *
+ * A month always keeps at least one source — that is the rule the store
+ * enforces — but the demo carries a spread of cadences and one paused source
+ * so the Income panel's composition, stability split and expected-next list
+ * all have something real to show. `SEED_INCOME` stays the salary alone, so
+ * the legacy `income` field on each budget still matches what a pre-`incomes`
+ * account would have held.
  */
 export const seedIncomes = (): Income[] => [
-  { id: 'income-salary', name: 'Salary', amount: SEED_INCOME, note: 'Monthly · main job' },
+  {
+    id: 'income-salary',
+    name: 'Salary',
+    amount: SEED_INCOME,
+    cadence: 'monthly',
+    kind: 'fixed',
+    day: 25,
+    received: true,
+    paused: false,
+    note: 'PT Nusantara Digital',
+  },
+  {
+    id: 'income-kos',
+    name: 'Kos rental',
+    amount: 2_500_000,
+    cadence: 'monthly',
+    kind: 'fixed',
+    day: 5,
+    received: true,
+    paused: false,
+    note: 'Two rooms, Jl. Kaliurang',
+  },
+  {
+    id: 'income-freelance',
+    name: 'Freelance design',
+    amount: 3_200_000,
+    cadence: 'monthly',
+    kind: 'variable',
+    day: 20,
+    received: false,
+    paused: false,
+    note: 'Averaged over six months',
+  },
+  {
+    id: 'income-dividends',
+    name: 'Dividends',
+    amount: 3_450_000,
+    cadence: 'quarterly',
+    kind: 'variable',
+    day: 15,
+    received: false,
+    paused: false,
+    note: 'Reksa dana · paid Mar, Jun, Sep, Dec',
+  },
+  {
+    id: 'income-royalties',
+    name: 'Course royalties',
+    amount: 480_000,
+    cadence: 'monthly',
+    kind: 'variable',
+    day: 10,
+    received: false,
+    paused: true,
+    note: 'Platform payout, on hold',
+  },
 ];
 
 export const seedBudgets = (): Record<string, Budget> => {

@@ -15,11 +15,14 @@ import type {
   Category,
   CategoryType,
   Income,
+  IncomeInput,
+  IncomePatch,
   PaymentMethod,
   Profile,
   Transaction,
   WarnPct,
 } from './types.js';
+import { MAX_INCOME_DAY } from './types.js';
 import { DEFAULT_PROFILE, defaultAlerts } from './lib/queries.js';
 
 /**
@@ -497,44 +500,83 @@ export class ExpenseStore {
     });
   }
 
-  async addIncome(name: string, amount: number, note?: string): Promise<void> {
-    const trimmed = name.trim();
+  async addIncome(input: IncomeInput): Promise<void> {
+    const trimmed = input.name.trim();
     // Name and amount are both required; the forms disable their submit, but
     // the rule belongs here too so it holds for every caller.
-    if (!trimmed || amount <= 0) return;
+    if (!trimmed || input.amount <= 0) return;
+    const note = input.note?.trim();
     const income: Income = {
       id: newIncomeId(),
       name: trimmed,
-      amount,
-      ...(note?.trim() ? { note: note.trim() } : {}),
+      amount: input.amount,
+      cadence: input.cadence,
+      kind: input.kind,
+      day: clampIncomeDay(input.day),
+      received: input.received,
+      paused: input.paused,
+      ...(note ? { note } : {}),
     };
-    await this.writeIncomes([...this.budgetBase().incomes, income], `${trimmed} added`);
+    await this.writeIncomes(
+      [...this.budgetBase().incomes, income],
+      `${trimmed} added to income`,
+    );
   }
 
-  async updateIncome(
-    incomeId: string,
-    patch: { name?: string; amount?: number; note?: string },
-  ): Promise<void> {
+  async updateIncome(incomeId: string, patch: IncomePatch): Promise<void> {
     const incomes = this.budgetBase().incomes;
     const current = incomes.find((i) => i.id === incomeId);
     if (!current) return;
 
     const name = patch.name === undefined ? current.name : patch.name.trim();
-    const amount = patch.amount === undefined ? current.amount : patch.amount;
     const rawNote = patch.note === undefined ? current.note : patch.note.trim();
     if (!name) return;
 
     const next: Income = {
+      ...current,
+      ...patch,
       id: current.id,
       name,
-      amount,
+      day: clampIncomeDay(patch.day === undefined ? current.day : patch.day),
       // Kept optional rather than stored as "": an empty note is no note, and
-      // Firestore would otherwise hold an empty string forever.
-      ...(rawNote ? { note: rawNote } : {}),
+      // Firestore would otherwise hold an empty string forever. The key is
+      // deleted rather than set to undefined — an array element carrying
+      // `undefined` is a value Firestore rejects outright.
+      note: rawNote || undefined,
     };
+    if (!next.note) delete next.note;
+
     await this.writeIncomes(
       incomes.map((i) => (i.id === incomeId ? next : i)),
       `${name} updated`,
+    );
+  }
+
+  /**
+   * Pauses or resumes a source.
+   *
+   * A separate method rather than an `updateIncome` call from the views
+   * because it is the one income edit that moves Budget Left, and the toast
+   * has to say so in the caller's words rather than "updated".
+   */
+  async setIncomePaused(incomeId: string, paused: boolean): Promise<void> {
+    const incomes = this.budgetBase().incomes;
+    const current = incomes.find((i) => i.id === incomeId);
+    if (!current || current.paused === paused) return;
+    await this.writeIncomes(
+      incomes.map((i) => (i.id === incomeId ? { ...i, paused } : i)),
+      `${current.name} ${paused ? 'paused' : 'resumed'}`,
+    );
+  }
+
+  /** Marks this month's payment as landed, or not yet. */
+  async setIncomeReceived(incomeId: string, received: boolean): Promise<void> {
+    const incomes = this.budgetBase().incomes;
+    const current = incomes.find((i) => i.id === incomeId);
+    if (!current || current.received === received) return;
+    await this.writeIncomes(
+      incomes.map((i) => (i.id === incomeId ? { ...i, received } : i)),
+      `${current.name} marked ${received ? 'received' : 'not received'}`,
     );
   }
 
@@ -640,6 +682,10 @@ export class ExpenseStore {
  * The counter is what keeps two sources added in the same millisecond apart —
  * the same collision `newCategoryId` guards against in the seed source.
  */
+/** Keeps a pay day inside the range every month can honour. */
+const clampIncomeDay = (day: number): number =>
+  Math.min(MAX_INCOME_DAY, Math.max(1, Math.trunc(day) || 1));
+
 let incomeSeq = 0;
 const newIncomeId = (): string =>
   `income-${Date.now().toString(36)}-${(++incomeSeq).toString(36)}`;

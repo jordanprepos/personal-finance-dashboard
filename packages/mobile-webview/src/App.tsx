@@ -29,10 +29,21 @@ import { LoginView } from './components/LoginView';
 import { ExpenseSheet } from './components/ExpenseSheet';
 import { CategorySheet } from './components/CategorySheet';
 import { AlertSheet } from './components/AlertSheet';
-import { IncomePanel } from './components/IncomePanel';
+import { IncomeTab } from './components/IncomeTab';
 import { AlertBanners } from './components/AlertBanners';
 
-type Tab = 'daily' | 'monthly' | 'yearly';
+type Tab = 'daily' | 'monthly' | 'yearly' | 'income';
+
+/**
+ * The nav's primary group. Income sits with them rather than beside
+ * Categories and Alerts because it is a page like these three, not a sheet.
+ */
+const TABS: [Tab, string][] = [
+  ['daily', 'Today'],
+  ['monthly', 'Month'],
+  ['yearly', 'Year'],
+  ['income', 'Income'],
+];
 
 /** "Health & Insurance" -> "Health" — chips are narrow on a phone. */
 const shortName = (name: string): string => {
@@ -270,19 +281,14 @@ function Phone({
           </>
         ) : null}
 
-        {tab === 'monthly' ? <MonthTab store={store} state={state} fmt={fmt} /> : null}
+        {tab === 'monthly' ? <MonthTab state={state} fmt={fmt} /> : null}
         {tab === 'yearly' ? <YearTab store={store} state={state} fmt={fmt} /> : null}
+        {tab === 'income' ? <IncomeTab store={store} state={state} fmt={fmt} /> : null}
       </div>
 
       <div className="phone__nav">
         <div className="phone__navgroup">
-          {(
-            [
-              ['daily', 'Today'],
-              ['monthly', 'Month'],
-              ['yearly', 'Year'],
-            ] as [Tab, string][]
-          ).map(([value, label]) => (
+          {TABS.map(([value, label]) => (
             <button
               key={value}
               type="button"
@@ -362,11 +368,9 @@ function Phone({
 /* ------------------------------------------------------------- month tab */
 
 function MonthTab({
-  store,
   state,
   fmt,
 }: {
-  store: ExpenseStore;
   state: ReturnType<typeof useStore>;
   fmt: MoneyFormat;
 }): JSX.Element {
@@ -379,7 +383,6 @@ function MonthTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 'none' }}>
-      <IncomePanel store={store} state={state} fmt={fmt} />
       {groups.map(([label, envelopes]) =>
         envelopes.length === 0 ? null : (
           <div key={label}>

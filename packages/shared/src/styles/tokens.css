@@ -249,6 +249,58 @@ input {
   color: var(--cf-blue);
 }
 
+/* Quiet inline label — the source's reliability beside its name. Softer than
+   `.cf-tier`, which is an accent; this one is only classifying. */
+.cf-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: var(--cf-r-pill);
+  padding: 3px 9px;
+  background: var(--cf-surface-3);
+  color: var(--cf-slate);
+}
+
+/* Status pill: a dot in the same ink as its text, so the two states read
+   apart at a glance without introducing a colour. */
+.cf-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--cf-r-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cf-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 6px;
+  background: currentColor;
+}
+
+.cf-status--received {
+  background: var(--cf-blue-pale);
+  color: var(--cf-blue);
+}
+
+.cf-status--expected {
+  background: var(--cf-surface-2);
+  color: var(--cf-slate);
+}
+
+.cf-status--paused {
+  background: var(--cf-surface-3);
+  color: var(--cf-muted);
+}
+
 .cf-opts {
   display: flex;
   flex-wrap: wrap;
@@ -310,6 +362,9 @@ input {
 }
 
 .cf-cta:disabled {
+  /* The design dims an unsubmittable CTA rather than hiding it, so the form
+     shows what it is waiting for instead of the button vanishing. */
+  opacity: 0.45;
   cursor: not-allowed;
 }
 

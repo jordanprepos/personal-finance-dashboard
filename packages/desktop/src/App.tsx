@@ -12,12 +12,13 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
-import type { Tab } from './appTypes';
+import { SPEND_TABS, type Tab } from './appTypes';
 import { useAuth, useStore } from './useStore';
 import { LoginView } from './views/LoginView';
 import { MonthlyView } from './views/MonthlyView';
 import { DailyView } from './views/DailyView';
 import { YearlyView } from './views/YearlyView';
+import { IncomeView } from './views/IncomeView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { CategoryModal } from './components/CategoryModal';
 import { AlertBanners } from './components/AlertBanners';
@@ -185,7 +186,7 @@ function Dashboard({
 
             <div className="dash__bar">
               <div className="dash__tabs">
-                {(['daily', 'monthly', 'yearly'] as Tab[]).map((t) => (
+                {SPEND_TABS.map((t) => (
                   <button
                     key={t}
                     type="button"
@@ -198,6 +199,20 @@ function Dashboard({
                 ))}
               </div>
 
+              {/*
+                Income is a page, not a modal — it is the one of these three
+                that has a list to work through rather than a form to fill in.
+                So it reads as pressed while you are on it, and the tab strip
+                beside it is the way back.
+              */}
+              <button
+                type="button"
+                className={`cf-ghostbtn dash__incomebtn${tab === 'income' ? ' dash__incomebtn--on' : ''}`}
+                aria-pressed={tab === 'income'}
+                onClick={() => setTab(tab === 'income' ? 'monthly' : 'income')}
+              >
+                Income
+              </button>
               <button
                 type="button"
                 className="cf-ghostbtn dash__catsbtn"
@@ -237,6 +252,7 @@ function Dashboard({
           {tab === 'yearly' ? (
             <YearlyView {...viewProps} year={yearOfMonth(state.yearMonth)} />
           ) : null}
+          {tab === 'income' ? <IncomeView {...viewProps} /> : null}
         </div>
       </div>
 

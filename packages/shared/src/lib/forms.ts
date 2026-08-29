@@ -1,5 +1,15 @@
 import type { ExpenseDraft } from '../store.js';
-import type { Category, CategoryType, PaymentMethod, Transaction } from '../types.js';
+import type {
+  Category,
+  CategoryType,
+  Income,
+  IncomeCadence,
+  IncomeInput,
+  IncomeKind,
+  PaymentMethod,
+  Transaction,
+} from '../types.js';
+import { MAX_INCOME_DAY } from '../types.js';
 import { clampDay, parseISODate } from './dates.js';
 import { parseAmountInput } from './format.js';
 
@@ -125,6 +135,85 @@ export const CATEGORY_TYPES: { value: CategoryType; label: string }[] = [
   { value: 'variable', label: 'Variable' },
   { value: 'savings', label: 'Savings' },
 ];
+
+/* ----------------------------------------------------------------- income */
+
+export interface IncomeFormValues {
+  name: string;
+  /** digits only, as typed — the amount of one payment, not of a month */
+  amountText: string;
+  /** day of month, as typed */
+  dayText: string;
+  cadence: IncomeCadence;
+  kind: IncomeKind;
+  received: boolean;
+  note: string;
+}
+
+export const emptyIncomeForm = (): IncomeFormValues => ({
+  name: '',
+  amountText: '',
+  dayText: '25',
+  cadence: 'monthly',
+  kind: 'fixed',
+  received: false,
+  note: '',
+});
+
+export const incomeFormFrom = (income: Income): IncomeFormValues => ({
+  name: income.name,
+  amountText: income.amount > 0 ? String(income.amount) : '',
+  dayText: String(income.day),
+  cadence: income.cadence,
+  kind: income.kind,
+  received: income.received,
+  note: income.note ?? '',
+});
+
+export interface IncomeFormResult {
+  amount: number;
+  day: number;
+  valid: boolean;
+  /**
+   * `paused` is absent from the form on purpose — pausing is a row action, not
+   * a field, so an edit never resumes a source behind the user's back. The
+   * store fills it from the source being edited.
+   */
+  draft: Omit<IncomeInput, 'paused'> | null;
+}
+
+/**
+ * Validates the add/edit income form. `day` is clamped to
+ * `MAX_INCOME_DAY` rather than to the month in view: a source promised on the
+ * 28th should stay on the 28th in February too.
+ */
+export function evaluateIncomeForm(values: IncomeFormValues): IncomeFormResult {
+  const amount = parseAmountInput(values.amountText);
+  const day = Math.min(MAX_INCOME_DAY, Math.max(1, parseInt(values.dayText || '1', 10) || 1));
+  const name = values.name.trim();
+  const valid = name !== '' && amount > 0;
+  const note = values.note.trim();
+
+  return {
+    amount,
+    day,
+    valid,
+    draft: valid
+      ? {
+          name,
+          amount,
+          day,
+          cadence: values.cadence,
+          kind: values.kind,
+          received: values.received,
+          // Unlike the expense form's `paymentMethod`, an absent note here is
+          // "no note" for both create and edit — `updateIncome` drops the key
+          // when the trimmed text is empty.
+          note,
+        }
+      : null,
+  };
+}
 
 /* ------------------------------------------------------------ credentials */
 
