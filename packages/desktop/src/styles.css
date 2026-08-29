@@ -52,6 +52,20 @@
   order: 1;
 }
 
+/* First of the toolbar's right-hand group, ahead of Categories and Alerts. */
+.dash__incomebtn {
+  order: 2;
+}
+
+/* Pressed state: this button is a destination, not an action, so while the
+   Income page is open it has to look held down the way the active tab does. */
+.dash__incomebtn--on,
+.dash__incomebtn--on:hover {
+  background: var(--cf-blue-pale);
+  border-color: var(--cf-blue-pale);
+  color: var(--cf-blue);
+}
+
 .dash__catsbtn {
   order: 3;
 }
@@ -387,88 +401,180 @@
 
 /* ----------------------------------------------------------------- income */
 
+/* The Income page's body. No surface of its own: it already sits on
+   `.dash__panel`, and a bordered white card on a white card reads as a nested
+   panel rather than as the page you navigated to. */
 .dash__income {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 22px;
+  min-width: 0;
+}
+
+.dash__incomehead {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.dash__incomebody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+/* The two arms wrap rather than sitting in a fixed grid, so the panel keeps
+   working at the narrow end without a second breakpoint. */
+.dash__incomelist {
+  flex: 1 1 460px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash__incomeside {
+  flex: 1 1 288px;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dash__incomecard {
   background: var(--cf-surface-2);
   border: 1px solid var(--cf-border);
   border-radius: var(--cf-r-card);
-  padding: 18px;
+  padding: 18px 20px;
 }
 
-.dash__incometotal {
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-}
-
-.dash__incomelist {
+.dash__incomebar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  height: 14px;
+  border-radius: var(--cf-r-pill);
+  overflow: hidden;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.dash__incomelegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.dash__incomekey {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--cf-slate);
+}
+
+.dash__incomedot {
+  width: 9px;
+  height: 9px;
+  border-radius: 9px;
 }
 
 .dash__incomerow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  flex-wrap: wrap;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 16px 18px;
+  background: var(--cf-surface);
+}
+
+/* The source's ramp colour, the same one its slice of the composition bar
+   takes — the row and the bar are two readings of one ordering. */
+.dash__incomerail {
+  width: 10px;
+  height: 34px;
+  border-radius: var(--cf-r-pill);
+  flex: none;
 }
 
 .dash__incomemain {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
 }
 
-/* Editable in place: no border until it is hovered or focused, so the list
-   reads as text rather than as a form. */
-.dash__incomename {
-  width: 100%;
-  min-height: 34px;
-  font-size: 14px;
-  font-weight: 600;
-  border-color: transparent;
-  background: transparent;
-}
-
-.dash__incomename:hover {
-  border-color: var(--cf-border);
-}
-
 .dash__incomenote {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--cf-muted);
-  padding: 0 12px;
-  margin-top: 1px;
+  margin-top: 3px;
 }
 
 .dash__incomeamount {
-  width: 130px;
-  min-height: 34px;
-  font-size: 13px;
   text-align: right;
+  flex: 0 1 auto;
+  min-width: 130px;
+}
+
+/* The row wraps rather than squeezing — four blocks of real text don't fit one
+   line at every width. When the actions are the block that wraps they keep to
+   the right edge, so the second line reads as this row's action bar instead of
+   as an orphan under the colour rail. */
+.dash__incomerow .cf-opts {
+  margin-left: auto;
+  flex: none;
+  align-items: center;
 }
 
 .dash__incomeshare {
-  width: 52px;
-  text-align: right;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--cf-slate);
+  font-size: 12px;
+  color: var(--cf-muted);
+  margin-top: 2px;
 }
 
-.dash__incomedel {
+.dash__incomesplit {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--cf-border);
+  font-size: 13px;
+}
+
+.dash__incomenext {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.dash__incomeday {
   width: 52px;
-  text-align: right;
+  flex: none;
+  white-space: nowrap;
+  color: var(--cf-muted);
   font-size: 12px;
 }
 
-.dash__incomeform {
-  display: grid;
-  grid-template-columns: 1fr 120px 1fr auto;
-  gap: 8px;
-  border-top: 1px solid var(--cf-border);
-  padding-top: 12px;
+.dash__incomenextname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash__incomeempty {
+  border: 1px dashed var(--cf-border-strong);
+  border-radius: var(--cf-r-card);
+  padding: 40px;
+  text-align: center;
+  color: var(--cf-muted);
+  font-size: 13.5px;
 }
 
 .dash__empty {
@@ -1065,6 +1171,7 @@
   /* The bottom bar styles Categories as plain text; Alerts sits beside it. */
   .dash__bar .cf-cat,
   .dash__catsbtn,
+  .dash__incomebtn,
   .dash__alertsbtn {
     flex: none;
     margin-left: 0;
@@ -1077,9 +1184,18 @@
     color: var(--cf-muted);
   }
 
-  .dash__alertsbtn:hover {
+  .dash__alertsbtn:hover,
+  .dash__incomebtn:hover {
     background: transparent;
     color: var(--cf-ink);
+  }
+
+  /* No pale fill in the bottom bar — the blue text is the pressed state, the
+     same signal the active tab uses there. */
+  .dash__incomebtn--on,
+  .dash__incomebtn--on:hover {
+    background: transparent;
+    color: var(--cf-blue);
   }
 
   .dash__alert {
@@ -1110,51 +1226,25 @@
   }
 
   /* --- income --- */
-  /*
-   * Name and note take a row of their own, with amount / share / delete
-   * beneath, so nothing is squeezed below a thumb-sized target.
-   */
+
+  /* At the fold the row's four blocks stack: name, amount, status, actions.
+     Wrapping them instead would leave the actions orphaned on their own line
+     with the status pill stranded above. */
   .dash__incomerow {
-    flex-wrap: wrap;
-    gap: 6px 10px;
-  }
-
-  .dash__incomemain {
-    flex: 1 1 100%;
-  }
-
-  .dash__incomename,
-  .dash__incomeamount {
-    min-height: 44px;
+    gap: 10px;
   }
 
   .dash__incomeamount {
+    min-width: 0;
     flex: 1 1 auto;
-    width: auto;
-    text-align: left;
   }
 
-  .dash__incomeshare,
-  .dash__incomedel {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
+  .dash__incomerow .cf-opts {
+    flex: 1 1 100%;
     justify-content: flex-end;
   }
 
-  .dash__incomeform {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .dash__incomeform > :first-child,
-  .dash__incomeform > :nth-child(3) {
-    grid-column: 1 / -1;
-  }
-
-  .dash__incomeform .cf-input--pos,
-  .dash__limitform .cf-input--pos,
-  .dash__incomeform .cf-add,
-  .dash__limitform .cf-add {
-    min-height: 44px;
+  .dash__incomehead {
+    align-items: flex-start;
   }
 }

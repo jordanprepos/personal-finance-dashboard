@@ -1,6 +1,7 @@
 import type { AlertSettings, Budget, Category, Income, Transaction } from '../types.js';
 import { normalizeCategoryName } from '../data/defaultCategories.js';
 import {
+  clampDay,
   dayLabel,
   daysInYearMonth,
   monthNameLabel,
@@ -24,26 +25,211 @@ const safeDiv = (a: number, b: number): number => (b > 0 ? a / b : 0);
 /* ------------------------------------------------------------------ income */
 
 /**
- * The month's income: the sum of its sources.
+ * What one source contributes to a single month.
+ *
+ * `Income.amount` is per *payment*, so a quarterly cheque counts for a third
+ * of itself each month; monthly and one-off sources count in full. Rounded,
+ * because every other amount in the app is a whole minor unit and a third of
+ * an odd number is not.
+ *
+ * This is the only place the cadence is turned into money. Everything that
+ * needs a per-month figure — the total, the shares, the stability split —
+ * goes through here.
+ */
+export const monthlyAmount = (income: Income): number =>
+  income.cadence === 'quarterly' ? Math.round(income.amount / 3) : income.amount;
+
+/** The sources actually funding the month: everything not paused. */
+export const activeIncomes = (budget: Budget | null): Income[] =>
+  (budget?.incomes ?? []).filter((i) => !i.paused);
+
+/**
+ * The month's income: what its active sources contribute.
  *
  * Every consumer of income goes through here — Budget Left, spent %, the
  * envelope bars, the recurring share, the yearly reference line, the pace
  * target. Summing the list in each view instead would be the same expression
  * written six times, and one of them would drift.
+ *
+ * Pausing a source therefore moves Budget Left, which is the point: a paused
+ * source is money that is not coming this month, and budgeting against it
+ * would be budgeting against nothing.
  */
 export const totalIncome = (budget: Budget | null): number =>
-  (budget?.incomes ?? []).reduce((sum, i) => sum + i.amount, 0);
+  activeIncomes(budget).reduce((sum, i) => sum + monthlyAmount(i), 0);
+
+/**
+ * The colour ramp for income sources, by rank — biggest source first.
+ *
+ * Ranked rather than stored: unlike a category, a source has no identity
+ * beyond the month's list, so a colour keyed to it would be arbitrary. Reading
+ * it off the composition bar's own order is what makes bar, legend and row
+ * agree with no field to keep in step.
+ */
+export const INCOME_COLORS: readonly string[] = [
+  '#182338',
+  '#2f6df6',
+  '#7093dd',
+  '#a3b9e6',
+  '#c9d6ee',
+];
+
+/** The same ramp for the dark card, where the ink shade would disappear. */
+export const INCOME_COLORS_ON_DARK: readonly string[] = [
+  '#ffffff',
+  '#8fb2ff',
+  '#6b8ed6',
+  '#4d6aa8',
+  '#33486f',
+];
 
 export interface IncomeShare extends Income {
-  /** of total income, 0-1 — 0 when there is no income to take a share of */
+  /** what it contributes to this month — `monthlyAmount` */
+  monthly: number;
+  /** of total income, 0-1 — 0 when paused, or when there is no income at all */
   share: number;
+  /** rank among active sources, biggest first; -1 when paused */
+  rank: number;
+  color: string;
+  colorOnDark: string;
 }
 
-/** Each source with what it contributes, in the order the list holds them. */
+/**
+ * Each source with what it contributes, in the order the list holds them.
+ *
+ * Paused sources are included — the panel still has to draw their row — but
+ * take no share and no ramp colour, since they fund nothing.
+ */
 export function incomeShares(budget: Budget | null): IncomeShare[] {
   const total = totalIncome(budget);
-  return (budget?.incomes ?? []).map((i) => ({ ...i, share: safeDiv(i.amount, total) }));
+  const incomes = budget?.incomes ?? [];
+  const ranked = incomes
+    .filter((i) => !i.paused)
+    .slice()
+    .sort((a, b) => monthlyAmount(b) - monthlyAmount(a))
+    .map((i) => i.id);
+
+  return incomes.map((i) => {
+    const monthly = monthlyAmount(i);
+    const rank = i.paused ? -1 : ranked.indexOf(i.id);
+    return {
+      ...i,
+      monthly,
+      share: i.paused ? 0 : safeDiv(monthly, total),
+      rank,
+      color: rank < 0 ? 'var(--cf-border-strong)' : (INCOME_COLORS[rank % INCOME_COLORS.length] as string),
+      colorOnDark:
+        rank < 0
+          ? 'var(--cf-border-strong)'
+          : (INCOME_COLORS_ON_DARK[rank % INCOME_COLORS_ON_DARK.length] as string),
+    };
+  });
 }
+
+export interface IncomeBreakdown {
+  /** every source, in list order, paused ones included */
+  sources: IncomeShare[];
+  /** the active ones, biggest first — the composition bar's order */
+  composition: IncomeShare[];
+  total: number;
+  activeCount: number;
+  pausedCount: number;
+  /** of the active sources, what has already landed */
+  received: number;
+  /** 0-1 */
+  receivedShare: number;
+  /** active, `kind: 'fixed'` */
+  fixed: number;
+  /** active, `kind: 'variable'` */
+  variable: number;
+  /** what the paused sources would have contributed */
+  paused: number;
+  /** fixed / total, 0-1 */
+  fixedShare: number;
+}
+
+/**
+ * Everything the Income panel shows, derived in one pass so the two apps
+ * cannot disagree about the split.
+ */
+export function incomeBreakdown(budget: Budget | null): IncomeBreakdown {
+  const sources = incomeShares(budget);
+  const active = sources.filter((s) => !s.paused);
+  const total = totalIncome(budget);
+  const sum = (list: readonly IncomeShare[]): number => list.reduce((t, s) => t + s.monthly, 0);
+  const fixed = sum(active.filter((s) => s.kind === 'fixed'));
+  const received = sum(active.filter((s) => s.received));
+
+  return {
+    sources,
+    composition: active.slice().sort((a, b) => b.monthly - a.monthly),
+    total,
+    activeCount: active.length,
+    pausedCount: sources.length - active.length,
+    received,
+    receivedShare: safeDiv(received, total),
+    fixed,
+    variable: total - fixed,
+    paused: sum(sources.filter((s) => s.paused)),
+    fixedShare: safeDiv(fixed, total),
+  };
+}
+
+/** The three states a source's row can be in — paused, landed, still to come. */
+export type IncomeStatusTone = 'paused' | 'received' | 'expected';
+
+export interface IncomeStatus {
+  tone: IncomeStatusTone;
+  label: string;
+}
+
+/**
+ * A source's status pill. Derived here rather than in each panel so the two
+ * apps cannot end up wording the same state differently; the tone maps to a
+ * `.cf-status--*` modifier, so no colour is decided here either.
+ */
+export function incomeStatus(income: Income): IncomeStatus {
+  if (income.paused) return { tone: 'paused', label: 'Paused' };
+  if (income.received) return { tone: 'received', label: 'Received' };
+  return { tone: 'expected', label: `Expected day ${income.day}` };
+}
+
+export interface UpcomingIncome {
+  id: string;
+  name: string;
+  /** e.g. "Aug 25" — the month in view, since that is the month being planned */
+  dateLabel: string;
+  /** the whole payment, which is what actually lands */
+  amount: number;
+}
+
+/**
+ * What is still expected in the month in view: the active sources that have
+ * not been marked received, soonest first.
+ *
+ * Scoped to the month in view on purpose. Nothing stored says *which* months a
+ * quarterly source pays — only how big the cheque is — so projecting the next
+ * payment into a future month would be a guess. A source is expected in the
+ * month you are looking at until you mark it received there.
+ */
+export function upcomingIncome(budget: Budget | null, yearMonth: string): UpcomingIncome[] {
+  return activeIncomes(budget)
+    .filter((i) => !i.received)
+    .slice()
+    .sort((a, b) => a.day - b.day)
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      dateLabel: `${shortMonthLabel(yearMonth)} ${clampDay(yearMonth, i.day)}`,
+      amount: i.amount,
+    }));
+}
+
+/** The sum of what `upcomingIncome` lists — "still to land". */
+export const upcomingIncomeTotal = (budget: Budget | null): number =>
+  activeIncomes(budget)
+    .filter((i) => !i.received)
+    .reduce((sum, i) => sum + i.amount, 0);
 
 /* ----------------------------------------------------------- month summary */
 

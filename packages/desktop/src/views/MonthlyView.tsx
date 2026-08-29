@@ -15,7 +15,6 @@ import {
 
 import { type ViewProps } from '../appTypes';
 import { catStyle } from '../catStyle';
-import { IncomePanel } from '../components/IncomePanel';
 
 const DONUT_RADIUS = 54;
 
@@ -209,8 +208,6 @@ export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Elemen
               </button>
             </div>
           ) : null}
-
-          <IncomePanel store={store} state={state} fmt={fmt} />
 
           <div
             style={{

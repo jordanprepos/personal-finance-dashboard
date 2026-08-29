@@ -347,23 +347,62 @@ re-derives both).
 
 `Budget` is data, not a constant — nothing is seeded on a fresh project.
 
-- **Income**: a *list* of sources on `budgets/{yearMonth}.incomes`, edited in
-  the Income panel (desktop Monthly tab / mobile Month tab). Add, edit and
-  delete all write the whole array through `setIncomes`, since a merge
-  replaces an array rather than merging it element-wise.
+- **Income**: a *list* of sources on `budgets/{yearMonth}.incomes`, edited on
+  the Income **page** — its own view in both apps (`desktop/views/IncomeView`,
+  `mobile-webview/components/IncomeTab`), not a block on the Monthly/Month tab.
+  Desktop reaches it from the toolbar's Income button, which is `tab: 'income'`
+  rather than a modal and so is deliberately absent from `SPEND_TABS`, the
+  segmented control's list; mobile gives it a fourth nav tab beside Today /
+  Month / Year. Add, edit and delete all write the whole array through
+  `setIncomes`, since a merge replaces an array rather than merging it
+  element-wise. Editing itself is a modal/sheet (`IncomeModal` /
+  `IncomeSheet`), not inline fields — a source carries six fields, and six
+  always-live inputs per row read as a form.
 - **Allocations**: per-category field in desktop Categories modal, or the
   allocation input when creating a category on mobile. Writes to
   `budgets/{yearMonth}.categoryBudgets[categoryId]`.
 
+`Income.amount` is **per payment, not per month**, and a source carries
+`cadence` (`monthly` | `quarterly` | `one_off`), `kind` (`fixed` | `variable`,
+a reporting axis only), `day` (1-`MAX_INCOME_DAY`, 28 — so a pay day survives
+February), `received` and `paused`. `derive.monthlyAmount` is the *only* place
+cadence becomes money: quarterly counts for a rounded third each month,
+everything else in full.
+
 Everything that spends income reads `derive.totalIncome(budget)` — Budget
 Left, spent %, envelope bars, the recurring share, the yearly reference line
 and `pace` all go through `monthSummary`, so there is one definition of "the
-month's income". Until it is set, the Budget Left card shows raw spend rather
-than a share of zero, and every percentage renders `—` rather than NaN.
+month's income". It sums `monthlyAmount` over the **non-paused** sources:
+pausing therefore moves Budget Left, which is the point — a paused source is
+money that is not coming. Until income is set, the Budget Left card shows raw
+spend rather than a share of zero, and every percentage renders `—` rather
+than NaN.
+
+The panel's other figures — composition segments and their rank-ordered colour
+ramp, the fixed/variable/paused split, received, the status pill, "Expected
+next" — are all `derive.ts` too (`incomeBreakdown`, `incomeStatus`,
+`upcomingIncome`), so the two apps only lay them out. Source colour is
+resolved from **rank among active sources**, biggest first: unlike a category,
+a source has no identity outside the month's list, so bar, legend and row
+agree with no stored field to keep in step.
+
+`queries.toIncome` defaults a document that predates these fields to
+`monthly` / `fixed` / day 1 / not received / **not paused** — chosen so a
+legacy month reads back with exactly the income it had. A `quarterly` or
+`paused` default would silently divide or erase a live account's income. Same
+narrowing rule as `paymentMethod`: a stored value outside the union reads as
+the default rather than becoming a typed one.
+
+"Expected next" is scoped to the month *in view*. Nothing stored says which
+months a quarterly source actually pays — only how big the cheque is — so
+projecting a payment into a future month would be a guess; a source is
+expected in the month you are looking at until you mark it received there.
 
 **A month always keeps at least one source.** `ExpenseStore.deleteIncome`
-refuses the last one and the views stop offering a Delete button for it — the
+refuses the last one and the views stop offering a Remove button for it — the
 rule is in the store because two tabs can each still be showing two sources.
+Remove sits on the row on desktop and inside the edit sheet on mobile, where a
+destructive third button a thumb-width from Pause would be the wrong place.
 
 `budgets/{yearMonth}.income`, the old single number, is still **read** as a
 fallback: `queries.resolveIncomes` synthesises a one-source list from it when

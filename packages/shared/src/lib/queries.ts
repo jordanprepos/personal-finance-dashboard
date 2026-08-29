@@ -23,7 +23,12 @@ import {
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 
-import { isPaymentMethod } from '../types.js';
+import {
+  isIncomeCadence,
+  isIncomeKind,
+  isPaymentMethod,
+  MAX_INCOME_DAY,
+} from '../types.js';
 import type {
   AlertSettings,
   Budget,
@@ -117,12 +122,44 @@ function toTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transaction {
 /** The id given to the source synthesised from a pre-`incomes` document. */
 export const LEGACY_INCOME_ID = 'legacy-income';
 
+/**
+ * The shape a source takes when the document says nothing about it.
+ *
+ * Chosen so a month written before cadence/kind/paused existed reads back with
+ * exactly the income it had: monthly and not paused both mean "counts in full
+ * this month", which is what the old single `amount` meant. A `quarterly` or
+ * `paused` default would silently divide or erase a live account's income.
+ */
+const INCOME_DEFAULTS = {
+  cadence: 'monthly',
+  kind: 'fixed',
+  day: 1,
+  received: false,
+  paused: false,
+} as const;
+
+/** Clamps a stored pay day into the range every month can honour. */
+const toIncomeDay = (value: unknown): number => {
+  const day = Math.trunc(Number(value));
+  if (!Number.isFinite(day) || day < 1) return INCOME_DEFAULTS.day;
+  return Math.min(MAX_INCOME_DAY, day);
+};
+
 function toIncome(value: unknown, i: number): Income {
   const d = (value ?? {}) as Record<string, unknown>;
+  // Same narrowing as `paymentMethod` above: a value outside the union reads
+  // as the default rather than becoming a typed one.
+  const cadence = d['cadence'];
+  const kind = d['kind'];
   const income: Income = {
     id: String(d['id'] ?? `income-${i}`),
     name: String(d['name'] ?? 'Income'),
     amount: Number(d['amount'] ?? 0),
+    cadence: isIncomeCadence(cadence) ? cadence : INCOME_DEFAULTS.cadence,
+    kind: isIncomeKind(kind) ? kind : INCOME_DEFAULTS.kind,
+    day: 'day' in d ? toIncomeDay(d['day']) : INCOME_DEFAULTS.day,
+    received: d['received'] === true,
+    paused: d['paused'] === true,
   };
   const note = d['note'];
   if (typeof note === 'string' && note !== '') income.note = note;
@@ -144,7 +181,7 @@ function toIncome(value: unknown, i: number): Income {
 export function resolveIncomes(stored: unknown, legacyIncome: number): Income[] {
   if (Array.isArray(stored)) return stored.map(toIncome);
   if (legacyIncome > 0) {
-    return [{ id: LEGACY_INCOME_ID, name: 'Income', amount: legacyIncome }];
+    return [{ id: LEGACY_INCOME_ID, name: 'Income', amount: legacyIncome, ...INCOME_DEFAULTS }];
   }
   return [];
 }

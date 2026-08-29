@@ -101,19 +101,89 @@ export interface Transaction {
 }
 
 /**
- * One source of monthly income — a salary, a side job, a rent cheque.
+ * How often a source pays. `monthlyAmount` in `lib/derive.ts` is the only
+ * place that turns this into a per-month figure — a quarterly source counts
+ * for a third of its payment each month, a one-off for its full amount in the
+ * month it lands.
+ */
+export type IncomeCadence = 'monthly' | 'quarterly' | 'one_off';
+
+/** Menu order for the cadence selector — both apps read this list. */
+export const INCOME_CADENCES: readonly IncomeCadence[] = ['monthly', 'quarterly', 'one_off'];
+
+export const INCOME_CADENCE_LABELS: Record<IncomeCadence, string> = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  one_off: 'One-off',
+};
+
+/** Narrows a stored value to the union; anything else reads as `'monthly'`. */
+export const isIncomeCadence = (value: unknown): value is IncomeCadence =>
+  typeof value === 'string' && (INCOME_CADENCES as readonly string[]).includes(value);
+
+/**
+ * How dependable a source is. Purely a reporting axis — the stability split on
+ * the Income panel — with no effect on what a source contributes to the month.
+ */
+export type IncomeKind = 'fixed' | 'variable';
+
+export const INCOME_KINDS: readonly IncomeKind[] = ['fixed', 'variable'];
+
+export const INCOME_KIND_LABELS: Record<IncomeKind, string> = {
+  fixed: 'Fixed',
+  variable: 'Variable',
+};
+
+/** Narrows a stored value to the union; anything else reads as `'fixed'`. */
+export const isIncomeKind = (value: unknown): value is IncomeKind =>
+  typeof value === 'string' && (INCOME_KINDS as readonly string[]).includes(value);
+
+/**
+ * The highest pay day a source can hold. Every month has 28 days, so a source
+ * clamped here lands in the month it was promised for regardless of which
+ * month it is read against.
+ */
+export const MAX_INCOME_DAY = 28;
+
+/**
+ * One source of income — a salary, a side job, a rent cheque.
  *
- * `amount` is per month, and the list hangs off the month's budget document,
- * so a raise or a contract that starts in March is just a different list on
- * March's budget rather than a change that rewrites history.
+ * `amount` is **per payment**, not per month: a quarterly dividend stores the
+ * whole cheque, and `derive.monthlyAmount` is what spreads it across the three
+ * months. The list hangs off the month's budget document, so a raise or a
+ * contract that starts in March is just a different list on March's budget
+ * rather than a change that rewrites history.
+ *
+ * Every field below `note` is required and always written. A source read from
+ * a document that predates them takes the defaults in `queries.toIncome`,
+ * which are chosen so a legacy month's total is unchanged: monthly, fixed, not
+ * paused.
  */
 export interface Income {
   id: string;
   name: string;
-  /** per month, smallest currency unit */
+  /** per payment, smallest currency unit */
   amount: number;
+  cadence: IncomeCadence;
+  kind: IncomeKind;
+  /** day of the month the payment lands, 1-`MAX_INCOME_DAY` */
+  day: number;
+  /** whether this month's payment has already landed */
+  received: boolean;
+  /**
+   * A paused source keeps its row and its settings but funds nothing: it is
+   * excluded from `totalIncome`, and so from Budget Left, the envelope bars
+   * and every other consumer of the month's income.
+   */
+  paused: boolean;
   note?: string;
 }
+
+/** Write shape for a source — the id is minted by the store. */
+export type IncomeInput = Omit<Income, 'id'>;
+
+/** Patch shape; absent fields are left as they are. */
+export type IncomePatch = Partial<IncomeInput>;
 
 export interface Budget {
   /** "YYYY-MM" — same as the document id */

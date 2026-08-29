@@ -75,7 +75,7 @@ body {
 
 .phone__nav {
   flex: none;
-  padding: 10px 20px 16px;
+  padding: 10px 14px 16px;
   background: var(--cf-surface);
   border-top: 1px solid var(--cf-border);
   display: flex;
@@ -87,7 +87,10 @@ body {
   border: 0;
   background: transparent;
   cursor: pointer;
-  font-size: 11.5px;
+  /* A hair under the design's 11.5px: Income makes six items, and this is what
+     buys the row enough slack to sit on one line at the design's 390px and
+     still clear the FAB on a 375px phone. */
+  font-size: 11px;
   font-weight: 600;
   padding: 0;
   font-family: inherit;
@@ -101,10 +104,25 @@ body {
   align-items: center;
 }
 
+/* Four destinations plus Categories and Alerts is more than the narrowest
+   phone fits. The group scrolls rather than shrinking the labels or letting
+   the FAB slide off the edge — from 390px up nothing moves, and below that a
+   nudge reaches the last item. */
 .phone__navgroup {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 11px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.phone__navgroup::-webkit-scrollbar {
+  display: none;
+}
+
+.phone__navgroup > * {
+  flex: none;
 }
 
 /* Divides the month/year views from the Categories manager — they do
@@ -454,52 +472,118 @@ body {
 
 /* ----------------------------------------------------------------- income */
 
-.phone__incomelist {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
-}
-
 .phone__incomerow {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--cf-surface);
   border: 1px solid var(--cf-border);
-  border-radius: var(--cf-r-tile);
+  border-radius: var(--cf-r-card);
 }
 
-.phone__incomehead,
+/* The source's ramp colour — the same slice it takes on the dark card's
+   composition bar, so the two read as one ordering. */
+.phone__incomerail {
+  width: 8px;
+  height: 26px;
+  border-radius: var(--cf-r-pill);
+  flex: none;
+}
+
 .phone__incomefoot {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cf-border);
 }
 
 .phone__incomename {
-  flex: 1;
-  min-width: 0;
   font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .phone__incomeshare {
-  flex: none;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--cf-slate);
-}
-
-.phone__incomenote {
   font-size: 11.5px;
   color: var(--cf-muted);
 }
 
-.phone__incomeform {
+.phone__incomenote {
+  font-size: 12px;
+  color: var(--cf-muted);
+  margin-top: 2px;
+}
+
+.phone__incomebar {
+  display: flex;
+  height: 12px;
+  border-radius: var(--cf-r-pill);
+  overflow: hidden;
+  gap: 2px;
+  margin-top: 18px;
+}
+
+.phone__incomereceivedline {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--cf-on-dark-soft);
+  margin-top: 10px;
+}
+
+.phone__incomecard {
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-card);
+  padding: 16px 18px;
+}
+
+.phone__incomenext {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.phone__incomeday {
+  width: 52px;
+  flex: none;
+  white-space: nowrap;
+  color: var(--cf-muted);
+  font-size: 12px;
+}
+
+.phone__incomenextname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The sheet's scrolling middle: header, month line and the save button stay
+   put while the fields move under them. */
+.phone__incomefields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 14px;
+}
+
+.phone__incomereceived {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--cf-surface-2);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-tile);
+  padding: 12px 14px;
 }
 
 /*
