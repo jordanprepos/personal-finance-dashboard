@@ -41,8 +41,15 @@
 `dash__alert*` lives only in the desktop stylesheet and `phone__alert*` only in the
 mobile one; `tokens.css` has neither. If the closure ever loses one, previews and
 the reference **both** render unstyled and every grade passes anyway — a false
-pass. After any CSS change, confirm `ds-bundle/_ds_bundle.css` is ~26 KB and that
-a breach banner computes `background: rgb(24, 35, 56)`.
+pass. A byte-count check on `_ds_bundle.css` is a brittle proxy — any legitimate
+CSS edit moves it. After any CSS or config change run the real assertion:
+
+```bash
+node .design-sync/verify-styling.mjs   # breach banners must compute rgb(24, 35, 56)
+```
+
+It fails loudly when the closure is empty, which is exactly the case the compare
+harness cannot catch on its own.
 
 `src/styles/index.css` carries an **app-shell neutralizer** resetting the `body`
 flex rule that `mobile.css` uses to centre the phone frame. It must stay last in
