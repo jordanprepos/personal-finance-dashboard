@@ -110,10 +110,21 @@ disabled control read as disabled:
 lighting up under the cursor, which reads as clickable more strongly than the
 dimming reads as disabled. Any new interactive class needs the pair.
 
+**And never dim at the call site.** An inline `opacity` beats the class, so it
+silently defeats `:disabled` in any state the inline expression does not
+anticipate — which is how a valid-but-busy CTA stayed lit. Let the class own
+the state and give the component a story for every disabled reason it has.
+
 Keep the state in the class, not at the call site. `CategoryModal` used to dim
 its own `.cf-add` with an inline opacity, which meant the same class looked
 disabled in one surface and enabled in two others; the inline rule is gone now
 that the class carries it.
+
+Changing a story that a component with an **owned** preview renders means
+editing `.design-sync/previews/<Name>.tsx` too — it enumerates the story
+exports by hand, so a new story is `[STORY_CHANGED] … preview is OWNED` and an
+`unpaired` compare failure until you add the export. Generated previews
+re-derive on the next build.
 
 A caveat learned while fixing this: a stylesheet-only change leaves every
 component's *source* untouched, so the re-sync diff reports every component
@@ -142,13 +153,13 @@ affects (`compare.mjs --force --components <Name>`), because nothing else will.
   otherwise grade as an empty-looking card.
 - A disabled-state audit found no remaining live gap: `.cf-stepbtn`, `.cf-back`
   and `.cf-opt` also lack `:disabled` rules but are never rendered disabled.
-- **`.cf-cta` call sites still carry an inline `opacity: result.valid ? 1 : 0.45`**
-  (`ExpenseModal`, `ExpenseSheet`, `CategorySheet`). It is not merely redundant
-  with `.cf-cta:disabled`: inline styles win, so when the form is *valid but
-  busy* the button is `disabled` while the inline rule forces `opacity: 1` —
-  the CTA looks enabled for the duration of a save. Deleting the three inline
-  opacities fixes it and lets the class own the state, exactly as
-  `CategoryModal` now does for `.cf-add`.
+- No call site overrides a disabled state any more. The three `.cf-cta` inline
+  `opacity: result.valid ? 1 : 0.45` rules are gone: inline styles beat
+  `.cf-cta:disabled`, so a *valid but busy* CTA stayed fully lit for the
+  duration of a save. `ExpenseModal`/`ExpenseSheet` carry a `Saving` story
+  (valid form, `busy: true`) that pins the case — it is the only story where
+  the form is valid *and* the button disabled, so without it the regression is
+  invisible.
 - Story fixtures for the modals/sheets (`src/fixtures.ts`) are hand-written and
   share one copy between reference and preview, so a drift in the underlying
   copy or shape grades as a match. Re-read the source when alert copy, income

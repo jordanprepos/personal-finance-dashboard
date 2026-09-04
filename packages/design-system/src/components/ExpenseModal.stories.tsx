@@ -24,3 +24,11 @@ export const EditRecurring: Story = { args: { transaction: recurringTransaction,
 
 /** A fresh account: the category row would be a dead end, so it offers a way out. */
 export const NoCategories: Story = { args: { categories: [] } };
+
+/**
+ * A valid form mid-save: the button is disabled, so it must read as disabled.
+ * This is the case an inline `opacity: result.valid ? 1 : 0.45` used to break —
+ * inline styles beat `.cf-cta:disabled`, so a valid-but-busy CTA stayed fully
+ * lit while the write was in flight.
+ */
+export const Saving: Story = { args: { transaction, busy: true } };

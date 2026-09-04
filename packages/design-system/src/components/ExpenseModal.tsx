@@ -274,7 +274,7 @@ export function ExpenseModal({
           <button
             type="button"
             className="cf-cta cf-cta--primary"
-            style={{ padding: 14, opacity: result.valid ? 1 : 0.45 }}
+            style={{ padding: 14 }}
             disabled={!result.valid || busy}
             onClick={submit}
           >

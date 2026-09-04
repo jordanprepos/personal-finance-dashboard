@@ -114,7 +114,7 @@ export function CategorySheet({
         <button
           type="button"
           className="cf-cta cf-cta--primary"
-          style={{ padding: 14, flex: 'none', opacity: result.valid ? 1 : 0.45 }}
+          style={{ padding: 14, flex: 'none' }}
           disabled={!result.valid || busy}
           onClick={() => {
             onAddCategory(result.name, values.type, result.allocation);

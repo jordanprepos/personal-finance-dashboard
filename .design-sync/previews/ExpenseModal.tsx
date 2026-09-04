@@ -61,3 +61,4 @@ export const Add = inFrame(compose(S, "Add"));
 export const Edit = inFrame(compose(S, "Edit"));
 export const EditRecurring = inFrame(compose(S, "EditRecurring"));
 export const NoCategories = inFrame(compose(S, "NoCategories"));
+export const Saving = inFrame(compose(S, "Saving"));

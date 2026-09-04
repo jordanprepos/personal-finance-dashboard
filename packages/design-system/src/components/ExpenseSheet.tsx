@@ -217,7 +217,7 @@ export function ExpenseSheet({
         <button
           type="button"
           className="cf-cta cf-cta--primary"
-          style={{ padding: 15, opacity: result.valid ? 1 : 0.45 }}
+          style={{ padding: 15 }}
           disabled={!result.valid || busy}
           onClick={submit}
         >
