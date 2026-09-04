@@ -400,7 +400,17 @@ input {
   cursor: pointer;
 }
 
-.cf-ghostbtn:hover {
+.cf-ghostbtn:disabled {
+  /* Same dimming as .cf-cta:disabled — a ghost button that stays fully lit
+     while it refuses clicks reads as broken rather than as busy. */
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* :not(:disabled) matters as much as the rule above — without it a disabled
+   button still lights up under the cursor, which is the louder half of the
+   bug. Mirrors .cf-cta--outline:hover:not(:disabled). */
+.cf-ghostbtn:hover:not(:disabled) {
   background: var(--cf-blue-pale);
 }
 

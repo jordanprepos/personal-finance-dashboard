@@ -96,6 +96,27 @@ Mobile sheets need the opposite: their scrim is `position: absolute`, so the
 **story** must wrap them in `.cf-phone` or they collapse to nothing
 (`[RENDER_BLANK]`). Every sheet story carries a `PhoneShell` decorator.
 
+## Disabled states
+
+`.cf-cta` and `.cf-ghostbtn` each carry the pair that makes a disabled control
+read as disabled:
+
+```css
+.cf-ghostbtn:disabled          { opacity: .45; cursor: not-allowed }
+.cf-ghostbtn:hover:not(:disabled) { background: var(--cf-blue-pale) }
+```
+
+**Both halves matter.** The `:disabled` rule alone still leaves the button
+lighting up under the cursor, which reads as clickable more strongly than the
+dimming reads as disabled. Any new interactive class needs the pair.
+
+A caveat learned while fixing this: a stylesheet-only change leaves every
+component's *source* untouched, so the re-sync diff reports every component
+`unchanged` and carries its grade forward — including a grade whose note
+described the pre-fix rendering. `styling: true` in the driver's upload
+partition is the signal to force a recapture of whatever the CSS actually
+affects (`compare.mjs --force --components <Name>`), because nothing else will.
+
 ## Re-sync risks
 
 - **The neutralizer is coupled to `mobile.css`.** If the `body` rule there changes
@@ -114,10 +135,18 @@ Mobile sheets need the opposite: their scrim is `position: absolute`, so the
 - **`GoogleMark` has no props** and is pinned to `cardMode: "single"` with
   `primaryStory: "InSignInButton"`; its solo story is a bare 17px SVG that would
   otherwise grade as an empty-looking card.
-- `.cf-ghostbtn` has no `:disabled` styling, so `DefaultCategoriesButton`'s busy
-  state is visually identical to its default. Graded as a match because both
-  panels agree, but it is a real design-system gap: a disabled control that
-  looks enabled. Worth a token-level fix rather than a per-call-site one.
+- **`.cf-add` has no `:disabled` rule** — the same gap `.cf-ghostbtn` had until
+  it was fixed. It is live: the "Set" button in `AlertSettingsModal` and
+  `AlertSheet` is disabled until a category and amount are picked, and renders
+  as a fully saturated blue button that also brightens on hover.
+  `CategoryModal` hides the problem at its own call site with an inline
+  `opacity: result.valid ? 1 : 0.45`, which is exactly the per-call-site
+  duplication a token rule exists to remove — so the same class currently looks
+  disabled in one surface and enabled in two others. The fix is the pair of
+  rules `.cf-ghostbtn` now has (`:disabled` + `:hover:not(:disabled)`), after
+  which the inline opacity in `CategoryModal` should be deleted.
+- A disabled-state audit found no other live gap: `.cf-stepbtn`, `.cf-back` and
+  `.cf-opt` also lack `:disabled` rules but are never rendered disabled.
 - Story fixtures for the modals/sheets (`src/fixtures.ts`) are hand-written and
   share one copy between reference and preview, so a drift in the underlying
   copy or shape grades as a match. Re-read the source when alert copy, income
