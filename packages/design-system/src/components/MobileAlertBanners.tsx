@@ -9,7 +9,7 @@ import type { SpendAlert } from '@expense-tracker/shared';
  * button here rather than a link inside it — on a phone the target should be
  * the thing you can see, and it clears 44px on its own.
  */
-export function AlertBanners({
+export function MobileAlertBanners({
   alerts,
   onOpenSettings,
 }: {

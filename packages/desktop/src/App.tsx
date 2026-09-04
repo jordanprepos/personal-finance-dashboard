@@ -21,7 +21,7 @@ import { YearlyView } from './views/YearlyView';
 import { IncomeView } from './views/IncomeView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { CategoryModal } from './components/CategoryModal';
-import { AlertBanners } from './components/AlertBanners';
+import { DesktopAlertBanners as AlertBanners } from '@expense-tracker/design-system';
 import { AlertSettingsModal } from './components/AlertSettingsModal';
 
 export function App({

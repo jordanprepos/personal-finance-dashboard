@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { currentYearMonth, monthLabel, type AuthController, type AuthState } from '@expense-tracker/shared';
 
-import { GoogleMark } from '../components/GoogleMark';
+import { GoogleMark } from '@expense-tracker/design-system';
 
 /**
  * Desktop login, ported from the Claude Design `Login.dc.html` two-column

@@ -30,7 +30,7 @@ import { ExpenseSheet } from './components/ExpenseSheet';
 import { CategorySheet } from './components/CategorySheet';
 import { AlertSheet } from './components/AlertSheet';
 import { IncomeTab } from './components/IncomeTab';
-import { AlertBanners } from './components/AlertBanners';
+import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
 
 type Tab = 'daily' | 'monthly' | 'yearly' | 'income';
 

@@ -1,0 +1,29 @@
+/* The design system's surface vocabularies.
+ *
+ * Design tokens (the ~197 custom properties and the .cf-* component classes
+ * every surface builds on) come from @expense-tracker/shared and are loaded
+ * ahead of this file — the sync places them first in the styles.css closure,
+ * and .storybook/preview.ts imports them in the same order.
+ *
+ * The two vocabularies below are disjoint (.dash__* for the desktop
+ * dashboard, .phone__* for the mobile webview), so they compose without
+ * fighting.
+ */
+@import './desktop.css';
+@import './mobile.css';
+
+/* App-shell neutralizer.
+ *
+ * mobile.css centres the phone frame by making `body` a flex container. That
+ * is an app-shell concern, not a component one: pulled into a shared closure
+ * it would centre every surface, including the desktop dashboard, and every
+ * layout built on top of this system. The apps import their own surface
+ * stylesheet directly, so this reset applies only to the shared closure —
+ * their own rendering is unchanged. Nothing in .dash__* or .phone__* depends
+ * on it.
+ */
+body {
+  display: block;
+  align-items: normal;
+  justify-content: normal;
+}

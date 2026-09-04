@@ -1,0 +1,26 @@
+{
+  "projectId": "8e46cb70-f979-4ffa-ab12-74a0da954137",
+  "shape": "storybook",
+  "pkg": "@expense-tracker/design-system",
+  "globalName": "ExpenseTrackerDS",
+  "storybookStatic": ".design-sync/sb-reference",
+  "storybookConfigDir": "packages/design-system/.storybook",
+  "buildCmd": "pnpm --filter @expense-tracker/design-system build",
+  "cssEntry": "dist/styles.css",
+  "overrides": {
+    "GoogleMark": {
+      "cardMode": "single",
+      "primaryStory": "InSignInButton",
+      "viewport": "360x200"
+    },
+    "DesktopAlertBanners": {
+      "cardMode": "column"
+    },
+    "MobileAlertBanners": {
+      "cardMode": "column"
+    }
+  },
+  "tokensPkg": "@expense-tracker/shared",
+  "tokensGlob": "src/styles/*.css",
+  "readmeHeader": ".design-sync/conventions.md"
+}
