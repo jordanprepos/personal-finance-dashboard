@@ -124,7 +124,7 @@ export function CategoryModal({
           <button
             type="button"
             className="cf-add"
-            style={{ alignSelf: 'flex-start', height: 34, opacity: result.valid ? 1 : 0.45 }}
+            style={{ alignSelf: 'flex-start', height: 34 }}
             disabled={!result.valid || busy}
             onClick={() => {
               onAddCategory(result.name, values.type, result.allocation);

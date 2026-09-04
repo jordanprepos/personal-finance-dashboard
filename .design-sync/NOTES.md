@@ -98,8 +98,8 @@ Mobile sheets need the opposite: their scrim is `position: absolute`, so the
 
 ## Disabled states
 
-`.cf-cta` and `.cf-ghostbtn` each carry the pair that makes a disabled control
-read as disabled:
+`.cf-cta`, `.cf-ghostbtn` and `.cf-add` each carry the pair that makes a
+disabled control read as disabled:
 
 ```css
 .cf-ghostbtn:disabled          { opacity: .45; cursor: not-allowed }
@@ -109,6 +109,11 @@ read as disabled:
 **Both halves matter.** The `:disabled` rule alone still leaves the button
 lighting up under the cursor, which reads as clickable more strongly than the
 dimming reads as disabled. Any new interactive class needs the pair.
+
+Keep the state in the class, not at the call site. `CategoryModal` used to dim
+its own `.cf-add` with an inline opacity, which meant the same class looked
+disabled in one surface and enabled in two others; the inline rule is gone now
+that the class carries it.
 
 A caveat learned while fixing this: a stylesheet-only change leaves every
 component's *source* untouched, so the re-sync diff reports every component
@@ -135,18 +140,15 @@ affects (`compare.mjs --force --components <Name>`), because nothing else will.
 - **`GoogleMark` has no props** and is pinned to `cardMode: "single"` with
   `primaryStory: "InSignInButton"`; its solo story is a bare 17px SVG that would
   otherwise grade as an empty-looking card.
-- **`.cf-add` has no `:disabled` rule** — the same gap `.cf-ghostbtn` had until
-  it was fixed. It is live: the "Set" button in `AlertSettingsModal` and
-  `AlertSheet` is disabled until a category and amount are picked, and renders
-  as a fully saturated blue button that also brightens on hover.
-  `CategoryModal` hides the problem at its own call site with an inline
-  `opacity: result.valid ? 1 : 0.45`, which is exactly the per-call-site
-  duplication a token rule exists to remove — so the same class currently looks
-  disabled in one surface and enabled in two others. The fix is the pair of
-  rules `.cf-ghostbtn` now has (`:disabled` + `:hover:not(:disabled)`), after
-  which the inline opacity in `CategoryModal` should be deleted.
-- A disabled-state audit found no other live gap: `.cf-stepbtn`, `.cf-back` and
-  `.cf-opt` also lack `:disabled` rules but are never rendered disabled.
+- A disabled-state audit found no remaining live gap: `.cf-stepbtn`, `.cf-back`
+  and `.cf-opt` also lack `:disabled` rules but are never rendered disabled.
+- **`.cf-cta` call sites still carry an inline `opacity: result.valid ? 1 : 0.45`**
+  (`ExpenseModal`, `ExpenseSheet`, `CategorySheet`). It is not merely redundant
+  with `.cf-cta:disabled`: inline styles win, so when the form is *valid but
+  busy* the button is `disabled` while the inline rule forces `opacity: 1` —
+  the CTA looks enabled for the duration of a save. Deleting the three inline
+  opacities fixes it and lets the class own the state, exactly as
+  `CategoryModal` now does for `.cf-add`.
 - Story fixtures for the modals/sheets (`src/fixtures.ts`) are hand-written and
   share one copy between reference and preview, so a drift in the underlying
   copy or shape grades as a match. Re-read the source when alert copy, income
