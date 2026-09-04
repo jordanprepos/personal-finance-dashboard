@@ -36,6 +36,32 @@ writing markup with the system's class names and reading its tokens through
   `.phone__status`, `.phone__scroll`, `.phone__list`, `.phone__entry`,
   `.phone__nav` / `.phone__navbtn`, `.phone__amount`, `.phone__alerts`.
 
+### Components come in surface pairs
+
+Most components ship twice — once per surface — and you pick the one matching
+the surface you are building. They take the **same props**, so switching
+surfaces is a component swap, not a rewrite:
+
+| Purpose | Desktop | Mobile |
+|---|---|---|
+| Spending alert stack | `DesktopAlertBanners` | `MobileAlertBanners` |
+| Add/edit an expense | `ExpenseModal` | `ExpenseSheet` |
+| Manage categories | `CategoryModal` | `CategorySheet` |
+| Add/edit an income source | `IncomeModal` | `IncomeSheet` |
+| Alert settings | `AlertSettingsModal` | `AlertSheet` |
+
+`DefaultCategoriesButton` and `GoogleMark` are surface-neutral and used by both.
+
+**Every component is presentational.** None reads a store, a session or
+Firestore — they take plain data plus callbacks (`onSave`, `onDelete`,
+`onClose`, …), so you can render any of them from literals. Where a surface
+needs derived numbers it takes them ready-made (`entryCounts`, `allocations`,
+`rows`, `monthSpend`) rather than raw transactions.
+
+**Mobile sheets must be rendered inside `.cf-phone`.** Their scrim is
+`position: absolute`, so without that positioned shell they collapse to
+nothing. The desktop modals bring their own fixed scrim and need no wrapper.
+
 ### Conventions that matter
 
 - **Money is Indonesian Rupiah in the smallest unit, with no decimals** — render

@@ -10,10 +10,32 @@
   stylesheets. The apps import from it. This retired the pre-existing duplication
   (`AlertBanners` existed twice with different markup; `GoogleMark` twice,
   identical).
-- 17 of the original 21 components are store-bound (`ExpenseStore` / `ExpenseState`
-  / `ViewProps` / `AuthController`) and are deliberately **out of scope** — they are
-  app wiring, not design-system parts. Syncing them would need presentational
-  shells extracted first.
+- The 10 modals/sheets were extracted from the apps into this package in a second
+  pass: they now take plain data plus callbacks and the apps keep the store
+  wiring at the call site. 12 components ship.
+- Still **out of scope**: the 5 whole-screen views (`MonthlyView`, `DailyView`,
+  `YearlyView`, `IncomeView`, `LoginView` ×2) and `IncomeTab`. They are screens
+  bound to a specific data model, not reusable design-system parts.
+
+## The extraction contract
+
+Shared prop interfaces live in `packages/design-system/src/types.ts`
+(`ExpenseFormProps`, `CategoryManagerProps`, `IncomeEditorProps`,
+`AlertSettingsProps`); each surface pair takes the same one, so desktop and
+mobile can't drift apart.
+
+The rule that decides a prop's shape: **the design agent must be able to
+construct it as a literal.** That is why the surfaces take `entryCounts`,
+`allocations`, `rows` and `monthSpend` — already derived — rather than
+`monthTransactions` / `yearTransactions` / `budget`. `Transaction.createdAt` is
+a Firestore `Timestamp`, so any contract carrying a `Transaction` cannot be
+written as a plain literal. `ExpenseFormProps` still carries one (`transaction`,
+for the edit case) because the form genuinely edits an entry; `src/fixtures.ts`
+stubs the timestamp structurally, reading the type off `Transaction` so the
+package needs no Firestore dependency.
+
+`entryCountsByCategory` was added to `shared/lib/derive.ts` rather than to a
+view, per the repo rule that **all** derived values live there.
 
 ## Build gotchas (cost a loop each; already fixed in config)
 
@@ -56,6 +78,24 @@ flex rule that `mobile.css` uses to centre the phone frame. It must stay last in
 the file. The apps import `styles/desktop.css` / `styles/mobile.css` directly, so
 their own rendering is unaffected by it.
 
+## Overlays need owned previews
+
+Every desktop modal (`ExpenseModal`, `CategoryModal`, `IncomeModal`,
+`AlertSettingsModal`) has a hand-owned preview in `.design-sync/previews/`.
+Reason: `.cf-modal-scrim` is `position: fixed`, and the preview card sets
+`transform: translateZ(0)` on its container. A transformed ancestor becomes the
+containing block for fixed descendants, so the scrim sizes to the card and the
+modal is clipped — while the storybook reference, which has no such ancestor,
+renders fine. **Only the preview is wrong, so the render check still passes**:
+this is the failure mode the compare loop exists to catch. Each owned preview
+wraps the generated composition in a `position: relative` box of fixed height;
+`max-height: 88vh` still resolves against the viewport, so the result matches
+storybook. A new desktop modal needs the same treatment.
+
+Mobile sheets need the opposite: their scrim is `position: absolute`, so the
+**story** must wrap them in `.cf-phone` or they collapse to nothing
+(`[RENDER_BLANK]`). Every sheet story carries a `PhoneShell` decorator.
+
 ## Re-sync risks
 
 - **The neutralizer is coupled to `mobile.css`.** If the `body` rule there changes
@@ -74,5 +114,13 @@ their own rendering is unaffected by it.
 - **`GoogleMark` has no props** and is pinned to `cardMode: "single"` with
   `primaryStory: "InSignInButton"`; its solo story is a bare 17px SVG that would
   otherwise grade as an empty-looking card.
+- `.cf-ghostbtn` has no `:disabled` styling, so `DefaultCategoriesButton`'s busy
+  state is visually identical to its default. Graded as a match because both
+  panels agree, but it is a real design-system gap: a disabled control that
+  looks enabled. Worth a token-level fix rather than a per-call-site one.
+- Story fixtures for the modals/sheets (`src/fixtures.ts`) are hand-written and
+  share one copy between reference and preview, so a drift in the underlying
+  copy or shape grades as a match. Re-read the source when alert copy, income
+  cadences or category types change.
 - Toolchain at last sync: node 26.4.0, pnpm 11.24.0, Storybook 9 (react-vite),
   React 19.2.8.

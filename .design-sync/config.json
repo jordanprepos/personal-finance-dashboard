@@ -18,6 +18,40 @@
     },
     "MobileAlertBanners": {
       "cardMode": "column"
+    },
+    "ExpenseModal": {
+      "cardMode": "single",
+      "primaryStory": "Edit",
+      "viewport": "1000x900"
+    },
+    "ExpenseSheet": {
+      "cardMode": "single",
+      "primaryStory": "Edit",
+      "viewport": "430x860"
+    },
+    "CategoryModal": {
+      "cardMode": "single",
+      "primaryStory": "Populated"
+    },
+    "CategorySheet": {
+      "cardMode": "single",
+      "primaryStory": "Populated"
+    },
+    "IncomeModal": {
+      "cardMode": "single",
+      "primaryStory": "Edit"
+    },
+    "IncomeSheet": {
+      "cardMode": "single",
+      "primaryStory": "Edit"
+    },
+    "AlertSettingsModal": {
+      "cardMode": "single",
+      "primaryStory": "Enabled"
+    },
+    "AlertSheet": {
+      "cardMode": "single",
+      "primaryStory": "Enabled"
     }
   },
   "tokensPkg": "@expense-tracker/shared",

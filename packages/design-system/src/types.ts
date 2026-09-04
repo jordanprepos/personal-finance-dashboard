@@ -1,0 +1,114 @@
+import type {
+  AlertSettings,
+  Category,
+  CategoryLimitRow,
+  CategoryType,
+  ExpenseDraft,
+  Income,
+  IncomeInput,
+  MoneyFormat,
+  Transaction,
+  WarnPct,
+} from '@expense-tracker/shared';
+
+/**
+ * What an expense form needs to render and report, on either surface.
+ *
+ * Every field is plain data or a callback — nothing here is a controller, so
+ * the form can be rendered from literals with no store, no Firebase and no
+ * session. The desktop modal and the mobile sheet take exactly this contract;
+ * they differ only in layout.
+ */
+export interface ExpenseFormProps {
+  /** the month in view, "YYYY-MM" — decides the day clamp and the footnote */
+  yearMonth: string;
+  /** "YYYY-MM-DD"; the default day comes from it when it falls in `yearMonth` */
+  today: string;
+  categories: readonly Category[];
+  /** a write is in flight — disables Save */
+  busy: boolean;
+  fmt: MoneyFormat;
+  /** null when adding, the entry being edited otherwise */
+  transaction: Transaction | null;
+  /** whether `transaction` belongs to a series, which offers the second delete */
+  isRecurring: boolean;
+  /** valid draft, plus the entry it edits (null when adding) */
+  onSave: (draft: ExpenseDraft, transaction: Transaction | null) => void;
+  onDelete: (transaction: Transaction) => void;
+  /** delete this entry and every later month in its series */
+  onDeleteSeries: (transaction: Transaction) => void;
+  onClose: () => void;
+  /** hands off to the categories surface when there is nothing to pick yet */
+  onManageCategories: () => void;
+  /** seeds the account from the category template */
+  onAddDefaultCategories: () => void;
+}
+
+/**
+ * What a category manager needs, on either surface.
+ *
+ * `entryCounts` and `allocations` are plain maps keyed by category id rather
+ * than the raw transaction list and budget document: the surfaces only ever
+ * showed a count and an amount per category, and maps keep the contract free
+ * of `Transaction` (whose `createdAt` is a Firestore `Timestamp`, not
+ * something a design can write as a literal).
+ */
+export interface CategoryManagerProps {
+  categories: readonly Category[];
+  /** entries per category id, over the year in view */
+  entryCounts: Readonly<Record<string, number>>;
+  /** this month's allocation per category id; missing or 0 reads as unset */
+  allocations: Readonly<Record<string, number>>;
+  /** the month in view, "YYYY-MM" */
+  yearMonth: string;
+  busy: boolean;
+  fmt: MoneyFormat;
+  onAddCategory: (name: string, type: CategoryType, allocation: number) => void;
+  onDeleteCategory: (category: Category) => void;
+  onAddDefaultCategories: () => void;
+  onClose: () => void;
+}
+
+/**
+ * What an income editor needs, on either surface.
+ *
+ * `paused` is deliberately absent from the draft: pausing is a row action, not
+ * a field, so saving an edit never quietly resumes a paused source. The caller
+ * fills it from the source being edited.
+ */
+export interface IncomeEditorProps {
+  fmt: MoneyFormat;
+  /** the month whose income list is being edited, "YYYY-MM" */
+  yearMonth: string;
+  /** null adds a new source; a source edits that one */
+  editing: Income | null;
+  /** valid draft, plus the source it edits (null when adding) */
+  onSave: (draft: Omit<IncomeInput, 'paused'>, editing: Income | null) => void;
+  onClose: () => void;
+}
+
+/**
+ * What an alert-settings surface needs, on either surface.
+ *
+ * The settings themselves live on the profile and are the same every month;
+ * what each row *shows* — spend, percent used — belongs to the month in view.
+ * That month-dependent part arrives already derived (`rows`, `monthSpend`,
+ * via `categoryLimitRows` and `sumAmounts`) rather than as a transaction list,
+ * so the contract stays free of `Transaction`.
+ */
+export interface AlertSettingsProps {
+  alerts: AlertSettings;
+  /** per-category cap rows for the month in view */
+  rows: readonly CategoryLimitRow[];
+  /** total spend for the month in view, against the monthly cap */
+  monthSpend: number;
+  categories: readonly Category[];
+  fmt: MoneyFormat;
+  onToggleEnabled: (enabled: boolean) => void;
+  onSetMonthlyLimit: (amount: number) => void;
+  onSetWarnPct: (pct: WarnPct) => void;
+  /** name is canonicalised to the category's own `name` by the caller */
+  onSetCategoryLimit: (name: string, amount: number) => void;
+  onClearCategoryLimit: (name: string) => void;
+  onClose: () => void;
+}

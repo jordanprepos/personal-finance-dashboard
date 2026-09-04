@@ -14,7 +14,7 @@ import {
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
-import { catStyle } from '../catStyle';
+import { catStyle } from '@expense-tracker/design-system';
 
 const DONUT_RADIUS = 54;
 

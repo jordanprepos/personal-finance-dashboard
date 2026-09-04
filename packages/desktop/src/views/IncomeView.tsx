@@ -15,7 +15,7 @@ import {
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
-import { IncomeModal } from '../components/IncomeModal';
+import { IncomeModal } from '@expense-tracker/design-system';
 
 type Filter = 'all' | 'active' | 'paused';
 
@@ -231,10 +231,13 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
 
       {modalOpen ? (
         <IncomeModal
-          store={store}
           fmt={fmt}
           yearMonth={yearMonth}
           editing={editing}
+          onSave={(draft, source) => {
+            if (source) void store.updateIncome(source.id, draft);
+            else void store.addIncome({ ...draft, paused: false });
+          }}
           onClose={() => setModalOpen(false)}
         />
       ) : null}

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   evaluateAlerts,
+  categoryLimitRows,
+  entryCountsByCategory,
   monthLabel,
+  sumAmounts,
   shiftMonth,
   yearOfMonth,
   type AuthController,
@@ -19,10 +22,10 @@ import { MonthlyView } from './views/MonthlyView';
 import { DailyView } from './views/DailyView';
 import { YearlyView } from './views/YearlyView';
 import { IncomeView } from './views/IncomeView';
-import { ExpenseModal } from './components/ExpenseModal';
-import { CategoryModal } from './components/CategoryModal';
+import { ExpenseModal } from '@expense-tracker/design-system';
+
 import { DesktopAlertBanners as AlertBanners } from '@expense-tracker/design-system';
-import { AlertSettingsModal } from './components/AlertSettingsModal';
+import { AlertSettingsModal, CategoryModal } from '@expense-tracker/design-system';
 
 export function App({
   store,
@@ -258,9 +261,18 @@ function Dashboard({
 
       {expenseOpen ? (
         <ExpenseModal
-          store={store}
-          state={state}
+          yearMonth={state.yearMonth}
+          today={state.today}
+          categories={state.categories}
+          busy={state.busy}
           fmt={fmt}
+          onSave={(draft, entry) => {
+            if (entry) void store.updateExpense(entry.id, draft);
+            else void store.addExpense(draft);
+          }}
+          onDelete={(entry) => void store.deleteExpense(entry)}
+          onDeleteSeries={(entry) => void store.deleteExpenseSeries(entry)}
+          onAddDefaultCategories={() => void store.addDefaultCategories()}
           transaction={editing}
           isRecurring={editing !== null && editing.seriesId !== null}
           onClose={() => {
@@ -277,18 +289,34 @@ function Dashboard({
 
       {categoriesOpen ? (
         <CategoryModal
-          store={store}
-          state={state}
+          categories={state.categories}
+          entryCounts={entryCountsByCategory(state.yearTransactions)}
+          allocations={state.budget?.categoryBudgets ?? {}}
+          yearMonth={state.yearMonth}
+          busy={state.busy}
           fmt={fmt}
+          onAddCategory={(name, type, allocation) =>
+            void store.addCategory(name, type, allocation)
+          }
+          onDeleteCategory={(category) => void store.deleteCategory(category)}
+          onSetAllocation={(categoryId, amount) => void store.setCategoryBudget(categoryId, amount)}
+          onAddDefaultCategories={() => void store.addDefaultCategories()}
           onClose={() => setCategoriesOpen(false)}
         />
       ) : null}
 
       {alertsOpen ? (
         <AlertSettingsModal
-          store={store}
-          state={state}
+          alerts={state.profile.alerts}
+          rows={categoryLimitRows(state.profile.alerts, state.monthTransactions, state.categories)}
+          monthSpend={sumAmounts(state.monthTransactions)}
+          categories={state.categories}
           fmt={fmt}
+          onToggleEnabled={(enabled) => void store.setAlertsEnabled(enabled)}
+          onSetMonthlyLimit={(amount) => void store.setMonthlyLimit(amount)}
+          onSetWarnPct={(pct) => void store.setWarnPct(pct)}
+          onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
+          onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}
         />
       ) : null}

@@ -13,7 +13,7 @@ import {
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
-import { catStyle } from '../catStyle';
+import { catStyle } from '@expense-tracker/design-system';
 
 const CHART_WIDTH = 1120;
 const CHART_HEIGHT = 240;

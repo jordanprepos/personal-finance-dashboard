@@ -940,3 +940,19 @@ export function categoryLimitRows(
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/**
+ * How many entries each category has, keyed by category id.
+ *
+ * The category surfaces show a count per row and nothing else about the
+ * transactions, so they take this map rather than the list itself. One pass
+ * rather than a filter per category, and — like every other derived value —
+ * it lives here rather than in a view.
+ */
+export function entryCountsByCategory(
+  transactions: readonly Transaction[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const t of transactions) counts[t.categoryId] = (counts[t.categoryId] ?? 0) + 1;
+  return counts;
+}
