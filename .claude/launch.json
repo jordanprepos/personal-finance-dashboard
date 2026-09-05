@@ -4,14 +4,32 @@
     {
       "name": "desktop",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@expense-tracker/desktop", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@expense-tracker/desktop",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "mobile-webview",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@expense-tracker/mobile-webview", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@expense-tracker/mobile-webview",
+        "dev"
+      ],
       "port": 5174
+    },
+    {
+      "name": "storybook",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@expense-tracker/design-system",
+        "storybook"
+      ],
+      "port": 6006
     }
   ]
 }

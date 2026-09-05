@@ -140,8 +140,10 @@ export const isIncomeKind = (value: unknown): value is IncomeKind =>
 
 /**
  * The highest pay day a source can hold. Every month has 28 days, so a source
- * clamped here lands in the month it was promised for regardless of which
- * month it is read against.
+ * clamped here lands in the period it was promised for regardless of which
+ * period it is read against — true of a calendar month and of a salary cycle
+ * alike, since a cycle also opens on a day every month has (see
+ * `MAX_CYCLE_START_DAY`).
  */
 export const MAX_INCOME_DAY = 28;
 
@@ -240,6 +242,16 @@ export interface Profile {
   /** BCP 47, e.g. "id-ID" */
   locale: string;
   alerts: AlertSettings;
+  /**
+   * The day of the month a tracking cycle opens on — 1-`MAX_CYCLE_START_DAY`.
+   *
+   * `1` means plain calendar months, and is the default a document written
+   * before this field existed reads back as, so nothing about an older account
+   * changes. Anything above it makes the period a salary-to-salary window:
+   * `27` tracks 27 Aug - 26 Sep as one cycle, labelled by the month it ends in.
+   * See `lib/dates.ts` for the arithmetic.
+   */
+  cycleStartDay: number;
 }
 
 /**

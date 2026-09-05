@@ -4,6 +4,7 @@ import {
   categoryLimitRows,
   entryCountsByCategory,
   monthLabel,
+  periodRangeLabel,
   sumAmounts,
   shiftMonth,
   yearOfMonth,
@@ -176,7 +177,15 @@ function Dashboard({
               >
                 ‹
               </button>
-              <span className="dash__monthlabel">{monthLabel(state.yearMonth)}</span>
+              <span className="dash__monthlabel">
+                {monthLabel(state.yearMonth)}
+                {/* The window the label names, when it is not simply the
+                    calendar month — a cycle's id says which month it *ends*
+                    in, which on its own would not say where it starts. */}
+                {periodRangeLabel(state) ? (
+                  <span className="dash__monthrange">{periodRangeLabel(state)}</span>
+                ) : null}
+              </span>
               <button
                 type="button"
                 className="cf-stepbtn"
@@ -228,7 +237,7 @@ function Dashboard({
                 className="cf-ghostbtn dash__alertsbtn"
                 onClick={() => setAlertsOpen(true)}
               >
-                Alerts
+                Settings
               </button>
               <button
                 type="button"
@@ -263,6 +272,7 @@ function Dashboard({
         <ExpenseModal
           yearMonth={state.yearMonth}
           today={state.today}
+          cycleStartDay={state.profile.cycleStartDay}
           categories={state.categories}
           busy={state.busy}
           fmt={fmt}
@@ -308,6 +318,8 @@ function Dashboard({
       {alertsOpen ? (
         <AlertSettingsModal
           alerts={state.profile.alerts}
+          cycleStartDay={state.profile.cycleStartDay}
+          cycleRangeLabel={periodRangeLabel(state)}
           rows={categoryLimitRows(state.profile.alerts, state.monthTransactions, state.categories)}
           monthSpend={sumAmounts(state.monthTransactions)}
           categories={state.categories}
@@ -315,6 +327,7 @@ function Dashboard({
           onToggleEnabled={(enabled) => void store.setAlertsEnabled(enabled)}
           onSetMonthlyLimit={(amount) => void store.setMonthlyLimit(amount)}
           onSetWarnPct={(pct) => void store.setWarnPct(pct)}
+          onSetCycleStartDay={(day) => void store.setCycleStartDay(day)}
           onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
           onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}

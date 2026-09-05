@@ -2,12 +2,22 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { ExpenseModal } from './ExpenseModal';
-import { categories, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
+import { categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
 
 const meta = {
   title: 'Expense/ExpenseModal',
   component: ExpenseModal,
-  args: { yearMonth, today, categories, busy: false, fmt: IDR, transaction: null, isRecurring: false, ...noopHandlers },
+  args: {
+    yearMonth,
+    today,
+    cycleStartDay,
+    categories,
+    busy: false,
+    fmt: IDR,
+    transaction: null,
+    isRecurring: false,
+    ...noopHandlers,
+  },
 } satisfies Meta<typeof ExpenseModal>;
 
 export default meta;

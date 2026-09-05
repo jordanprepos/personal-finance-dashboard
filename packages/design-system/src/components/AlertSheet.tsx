@@ -1,8 +1,10 @@
 import { useEffect, useState, type JSX } from 'react';
 import {
+  clampCycleStartDay,
   formatAmountInput,
   formatMoney,
   formatPercent,
+  MAX_CYCLE_START_DAY,
   parseAmountInput,
   type MoneyFormat,
   type WarnPct,
@@ -15,15 +17,18 @@ export type AlertSheetProps = AlertSettingsProps;
 const WARN_CHOICES: WarnPct[] = [70, 80, 90];
 
 /**
- * Alert settings as a bottom sheet — the phone's equivalent of the desktop
+ * Account settings as a bottom sheet — the phone's equivalent of the desktop
  * modal, driving exactly the same store methods.
  *
  * The settings are per account; the spend and percentages beside each limit
- * are for the month in view, and arrive already derived so this stays a pure
- * view of them.
+ * are for the period in view, and arrive already derived so this stays a pure
+ * view of them. The tracking cycle comes first, since it is what decides which
+ * period that is.
  */
 export function AlertSheet({
   alerts,
+  cycleStartDay,
+  cycleRangeLabel,
   rows,
   monthSpend: spent,
   categories,
@@ -31,6 +36,7 @@ export function AlertSheet({
   onToggleEnabled,
   onSetMonthlyLimit,
   onSetWarnPct,
+  onSetCycleStartDay,
   onSetCategoryLimit,
   onClearCategoryLimit,
   onClose,
@@ -57,13 +63,13 @@ export function AlertSheet({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Alert settings"
+        aria-label="Settings"
       >
         <div className="cf-sheet__grab" />
 
         <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
           <span style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
-            Spending alerts
+            Settings
           </span>
           <span className="cf-spacer" />
           <button type="button" className="cf-back phone__tap" onClick={onClose}>
@@ -71,11 +77,25 @@ export function AlertSheet({
           </button>
         </div>
 
+        <div style={{ flex: 'none' }}>
+          <div className="cf-fieldlabel">Cycle starts on day</div>
+          <DayField
+            value={cycleStartDay}
+            ariaLabel="Cycle start day"
+            onCommit={onSetCycleStartDay}
+          />
+          <div style={{ fontSize: 11.5, color: 'var(--cf-muted)', marginTop: 4 }}>
+            {cycleRangeLabel
+              ? `${cycleRangeLabel} is one period. Set 1 for calendar months.`
+              : 'Calendar months. Set the day you are paid to track salary to salary.'}
+          </div>
+        </div>
+
         <div className="phone__alertrow">
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Alerts</div>
             <div style={{ fontSize: 11.5, color: 'var(--cf-muted)' }}>
-              {alerts.enabled ? 'Watching this month.' : 'Nothing is evaluated.'}
+              {alerts.enabled ? 'Watching this period.' : 'Nothing is evaluated.'}
             </div>
           </div>
           <button
@@ -197,6 +217,42 @@ export function AlertSheet({
 }
 
 /** Digits-only money input; empty commits 0, which unsets the limit. */
+/** The cycle start day — see the desktop modal's twin. */
+function DayField({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: number;
+  ariaLabel: string;
+  onCommit: (next: number) => void;
+}): JSX.Element {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  const commit = (): void => {
+    const next = clampCycleStartDay(parseInt(text || '1', 10) || 1);
+    setText(String(next));
+    if (next !== value) onCommit(next);
+  };
+
+  return (
+    <input
+      className="tnum cf-input--pos"
+      style={{ width: 80 }}
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      value={text}
+      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      max={MAX_CYCLE_START_DAY}
+    />
+  );
+}
+
 function AmountField({
   value,
   fmt,

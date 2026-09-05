@@ -8,7 +8,18 @@ import {
   resolveSession,
   type ExpenseDataSource,
 } from './data/index.js';
-import { currentYearMonth, dateInMonth, todayISO, toYear, yearOfMonth } from './lib/dates.js';
+import {
+  clampCycleStartDay,
+  currentYearMonth,
+  cycleOf,
+  cycleRangeLabel,
+  dateInCycle,
+  todayISO,
+  toYear,
+  toYearMonth,
+  yearMonthOf,
+  yearOfMonth,
+} from './lib/dates.js';
 import type {
   AlertSettings,
   Budget,
@@ -43,14 +54,19 @@ export interface ExpenseState {
   warning: string | null;
   mode: 'firestore' | 'seed';
   userId: string;
-  /** the month in view, "YYYY-MM" */
+  /**
+   * The period in view, "YYYY-MM". A calendar month when
+   * `profile.cycleStartDay` is 1, otherwise the salary cycle ending in that
+   * month — the id shape is the same either way, so month nav, budget document
+   * ids and the month labels are unaffected by which it is.
+   */
   yearMonth: string;
   /** "YYYY-MM-DD", fixed for the session */
   today: string;
   categories: Category[];
-  /** transactions of `yearMonth` */
+  /** transactions of the period `yearMonth` */
   monthTransactions: Transaction[];
-  /** transactions of the whole calendar year containing `yearMonth` */
+  /** transactions of the twelve periods labelled by the year of `yearMonth` */
   yearTransactions: Transaction[];
   budget: Budget | null;
   profile: Profile;
@@ -70,9 +86,13 @@ export interface ExpenseDraft {
   paymentMethod?: PaymentMethod;
   item: string;
   amount: number;
-  /** day of month; clamped into the visible month */
+  /**
+   * Day of the month, clamped into the visible period. Under a salary cycle
+   * each day-of-month occurs at most once in the window, so this still names
+   * exactly one date — `dateInCycle` is what resolves it.
+   */
   day: number;
-  /** write one document per remaining month of the year */
+  /** write one document per remaining period of the year */
   repeat: boolean;
   note?: string;
 }
@@ -109,8 +129,17 @@ export class ExpenseStore {
    * account can land after a new one has signed in.
    */
   private generation = 0;
-  /** Tears down the live month subscription. Null when nothing is watched. */
+  /** Tears down the live period subscription. Null when nothing is watched. */
   private stopWatching: (() => void) | null = null;
+  /**
+   * True once the user has navigated to a period themselves.
+   *
+   * The cycle start day only arrives with the profile, so the period a session
+   * opens on is a guess that gets corrected on the first snapshot. This is what
+   * stops that correction yanking someone off a period they deliberately
+   * navigated to.
+   */
+  private pinned = false;
 
   constructor(today: string = todayISO()) {
     this.state = initialState(currentYearMonth(), today);
@@ -173,6 +202,7 @@ export class ExpenseStore {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = null;
     this.source = null;
+    this.pinned = false;
     this.state = initialState(this.state.yearMonth, this.state.today);
     for (const listener of this.listeners) listener();
   }
@@ -204,11 +234,34 @@ export class ExpenseStore {
 
     this.unwatch();
     const { yearMonth } = this.state;
+    const cycleStartDay = this.state.profile.cycleStartDay;
 
     this.stopWatching = source.watchMonth(
       yearMonth,
+      cycleStartDay,
       (snapshot) => {
         if (generation !== this.generation) return;
+
+        /*
+         * How wide a period is lives on the profile, which arrives *with* this
+         * snapshot — so the subscription that produced it was opened on the
+         * last known start day, and on the first load of a session that is a
+         * guess. When the arriving profile disagrees, re-point instead of
+         * painting: `status` is deliberately left alone, so a first load holds
+         * on `loading` rather than flashing a calendar month before the cycle
+         * replaces it, while a later change to the setting repaints in place.
+         *
+         * This always converges — the second subscription is opened with the
+         * start day this one reported, so its snapshot matches.
+         */
+        const startDay = snapshot.profile.cycleStartDay;
+        const wanted = this.pinned ? yearMonth : cycleOf(this.state.today, startDay);
+        if (startDay !== cycleStartDay || wanted !== yearMonth) {
+          this.set({ profile: snapshot.profile, yearMonth: wanted });
+          this.watchCurrentMonth(generation);
+          return;
+        }
+
         this.set({
           status: 'ready',
           error: null,
@@ -235,6 +288,9 @@ export class ExpenseStore {
   /* ----------------------------------------------------------- actions */
 
   async setYearMonth(yearMonth: string): Promise<void> {
+    // Pinned even when the period is unchanged: asking for it at all is a
+    // deliberate choice, and the profile landing later must not override it.
+    this.pinned = true;
     if (yearMonth === this.state.yearMonth) return;
     this.set({ yearMonth });
     await this.reload();
@@ -286,8 +342,8 @@ export class ExpenseStore {
     const source = this.source;
     if (!source) return;
 
-    const { yearMonth } = this.state;
-    const date = dateInMonth(yearMonth, draft.day);
+    const { yearMonth, profile } = this.state;
+    const date = dateInCycle(yearMonth, draft.day, profile.cycleStartDay);
     const input = {
       categoryId: draft.categoryId,
       item: draft.item.trim(),
@@ -301,7 +357,18 @@ export class ExpenseStore {
 
     await this.mutate(async () => {
       if (draft.repeat) {
-        const through = `${yearOfMonth(yearMonth)}-12`;
+        /*
+         * "Every remaining period of the year". `seriesDates` steps calendar
+         * months, so the bound has to be the calendar month *this day* falls in
+         * for the year's last period — which half of the window a day lands in
+         * depends on the day itself. A day at or above the start day sits in
+         * the opening month (28 -> "2026-11"), one below it in the closing
+         * month (3 -> "2026-12"); a single fixed bound serves one and truncates
+         * or overshoots the other. At a start day of 1 this is `${year}-12`,
+         * exactly as it was.
+         */
+        const lastPeriod = yearMonthOf(Number(yearOfMonth(yearMonth)), 12);
+        const through = toYearMonth(dateInCycle(lastPeriod, draft.day, profile.cycleStartDay));
         const rows = await source.createTransactionSeries(input, through);
         // Repeating from December leaves a single month — don't say "1 months".
         return rows.length > 1
@@ -317,7 +384,11 @@ export class ExpenseStore {
     const source = this.source;
     if (!source) return;
 
-    const date = dateInMonth(this.state.yearMonth, draft.day);
+    const date = dateInCycle(
+      this.state.yearMonth,
+      draft.day,
+      this.state.profile.cycleStartDay,
+    );
     await this.mutate(async () => {
       await source.updateTransaction(transactionId, {
         categoryId: draft.categoryId,
@@ -618,6 +689,26 @@ export class ExpenseStore {
     });
   }
 
+  /* ------------------------------------------------- the tracking cycle */
+
+  /**
+   * Sets the day a period opens on. Like alerts this lives on the profile, not
+   * the month — and nothing stored on a transaction depends on it, so moving it
+   * re-windows history rather than rewriting it.
+   *
+   * No reload here: the profile arrives by subscription, and the snapshot
+   * handler re-points the period as soon as it does.
+   */
+  async setCycleStartDay(cycleStartDay: number): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const day = clampCycleStartDay(cycleStartDay);
+    await this.mutate(async () => {
+      await source.setCycleStartDay(day);
+      return day === 1 ? 'Tracking calendar months' : `Cycle starts on day ${day}`;
+    });
+  }
+
   async setAlertsEnabled(enabled: boolean): Promise<void> {
     await this.writeAlerts({ enabled }, enabled ? 'Alerts on' : 'Alerts off');
   }
@@ -693,8 +784,18 @@ const newIncomeId = (): string =>
 /** The calendar year of the month in view — the yearly tab's scope. */
 export const yearInView = (state: ExpenseState): string => yearOfMonth(state.yearMonth);
 
-/** True when the month in view is the current one. */
+/** True when the period in view is the one today falls in. */
 export const isCurrentMonth = (state: ExpenseState): boolean =>
-  state.yearMonth === state.today.slice(0, 7);
+  state.yearMonth === cycleOf(state.today, state.profile.cycleStartDay);
+
+/** How wide a period is — 1 for calendar months. */
+export const cycleStartDayOf = (state: ExpenseState): number => state.profile.cycleStartDay;
+
+/**
+ * The period in view as a date range — "27 Aug – 26 Sep". Empty on calendar
+ * months, where the month label already says everything the range would.
+ */
+export const periodRangeLabel = (state: ExpenseState): string =>
+  cycleRangeLabel(state.yearMonth, state.profile.cycleStartDay);
 
 export const currentYearOf = (state: ExpenseState): string => toYear(state.today);

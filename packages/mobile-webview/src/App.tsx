@@ -13,6 +13,7 @@ import {
   entryCountsByCategory,
   monthLabel,
   monthSummary,
+  periodRangeLabel,
   sumAmounts,
   shortMonthLabel,
   stackSegments,
@@ -168,7 +169,15 @@ function Phone({
     <div className="cf-phone">
       <div className="phone__status">
         <span>{state.mode === 'firestore' ? 'live' : 'demo'}</span>
-        <span style={{ fontWeight: 600 }}>{monthLabel(yearMonth)}</span>
+        <span style={{ fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          {monthLabel(yearMonth)}
+          {/* Empty on calendar months, where the label already says it all. */}
+          {periodRangeLabel(state) ? (
+            <span style={{ fontWeight: 400, fontSize: 10.5, color: 'var(--cf-muted)' }}>
+              {periodRangeLabel(state)}
+            </span>
+          ) : null}
+        </span>
         {authState.status === 'signed-in' ? (
           <button type="button" className="phone__signout" onClick={() => void auth.signOut()}>
             Sign out
@@ -317,7 +326,7 @@ function Phone({
             style={{ color: 'var(--cf-muted)' }}
             onClick={() => setAlertsOpen(true)}
           >
-            Alerts
+            Settings
           </button>
         </div>
         <span className="cf-spacer" />
@@ -330,6 +339,7 @@ function Phone({
         <ExpenseSheet
           yearMonth={state.yearMonth}
           today={state.today}
+          cycleStartDay={state.profile.cycleStartDay}
           categories={state.categories}
           busy={state.busy}
           fmt={fmt}
@@ -374,6 +384,8 @@ function Phone({
       {alertsOpen ? (
         <AlertSheet
           alerts={state.profile.alerts}
+          cycleStartDay={state.profile.cycleStartDay}
+          cycleRangeLabel={periodRangeLabel(state)}
           rows={categoryLimitRows(state.profile.alerts, state.monthTransactions, state.categories)}
           monthSpend={sumAmounts(state.monthTransactions)}
           categories={state.categories}
@@ -381,6 +393,7 @@ function Phone({
           onToggleEnabled={(enabled) => void store.setAlertsEnabled(enabled)}
           onSetMonthlyLimit={(amount) => void store.setMonthlyLimit(amount)}
           onSetWarnPct={(pct) => void store.setWarnPct(pct)}
+          onSetCycleStartDay={(day) => void store.setCycleStartDay(day)}
           onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
           onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}
@@ -462,7 +475,7 @@ function YearTab({
   fmt: MoneyFormat;
 }): JSX.Element {
   const year = yearOfMonth(state.yearMonth);
-  const buckets = bucketByMonth(year, state.yearTransactions);
+  const buckets = bucketByMonth(year, state.yearTransactions, undefined, state.profile.cycleStartDay);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 'none' }}>

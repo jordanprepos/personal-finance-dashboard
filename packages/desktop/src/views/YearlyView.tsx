@@ -25,7 +25,7 @@ interface Props extends ViewProps {
 export function YearlyView({ state, store, fmt, year }: Props): JSX.Element {
   const { yearTransactions, categories, budget, yearMonth } = state;
 
-  const buckets = bucketByMonth(year, yearTransactions);
+  const buckets = bucketByMonth(year, yearTransactions, undefined, state.profile.cycleStartDay);
   const summary = yearSummary(year, buckets);
   // The reference line is the month's whole income, every source summed.
   const income = totalIncome(budget);

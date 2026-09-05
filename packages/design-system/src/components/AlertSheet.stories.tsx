@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { AlertSheet } from './AlertSheet';
-import { alertHandlers, alertSettings, categories, limitRows, monthSpend } from '../fixtures';
+import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, monthSpend } from '../fixtures';
 
 function PhoneShell({ children }: { children: ReactNode }) {
   return (
@@ -17,7 +17,16 @@ function PhoneShell({ children }: { children: ReactNode }) {
 const meta = {
   title: 'Alerts/AlertSheet',
   component: AlertSheet,
-  args: { alerts: alertSettings, rows: limitRows, monthSpend, categories, fmt: IDR, ...alertHandlers },
+  args: {
+    alerts: alertSettings,
+    cycleStartDay,
+    cycleRangeLabel,
+    rows: limitRows,
+    monthSpend,
+    categories,
+    fmt: IDR,
+    ...alertHandlers,
+  },
   decorators: [(Story) => <PhoneShell><Story /></PhoneShell>],
 } satisfies Meta<typeof AlertSheet>;
 

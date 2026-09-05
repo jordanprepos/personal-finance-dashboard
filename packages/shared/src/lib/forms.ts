@@ -10,7 +10,7 @@ import type {
   Transaction,
 } from '../types.js';
 import { MAX_INCOME_DAY } from '../types.js';
-import { clampDay, parseISODate } from './dates.js';
+import { clampDayInCycle, parseISODate } from './dates.js';
 import { parseAmountInput } from './format.js';
 
 /**
@@ -66,9 +66,13 @@ export interface ExpenseFormResult {
 export function evaluateExpenseForm(
   values: ExpenseFormValues,
   yearMonth: string,
+  cycleStartDay = 1,
 ): ExpenseFormResult {
   const amount = parseAmountInput(values.amountText);
-  const day = clampDay(yearMonth, parseInt(values.dayText || '1', 10) || 1);
+  // Clamped into the period, not the calendar month — the same helper the
+  // store resolves the draft's date with, so the two cannot disagree about
+  // which day a typed number means.
+  const day = clampDayInCycle(yearMonth, parseInt(values.dayText || '1', 10) || 1, cycleStartDay);
   const item = values.item.trim();
   // `paymentMethod` is deliberately absent from this predicate: it is optional
   // and must never block a save.

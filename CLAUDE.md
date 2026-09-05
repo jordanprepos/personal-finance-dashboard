@@ -90,7 +90,8 @@ Workspace layout (pnpm workspaces, `packages/*`):
     query is written against.
   - `src/firebase.ts` — config from env vars, app/auth/Firestore init.
   - `src/lib/queries.ts` — every read/write path (daily/monthly/yearly
-    queries, `createTransaction`, `createTransactionSeries`, `updateTransaction`),
+    equality queries, the `date`-range read a tracking cycle needs,
+    `createTransaction`, `createTransactionSeries`, `updateTransaction`),
     plus the `watch*` counterparts built on `onSnapshot`. Each watcher mirrors
     the `fetch*` of the same name and shares its mapper, so a live subscriber
     and a one-shot caller can't disagree about the same data.
@@ -100,7 +101,8 @@ Workspace layout (pnpm workspaces, `packages/*`):
     functions over `(transactions, categories, budget)`. No rollup documents
     exist anywhere in Firestore.
   - `src/lib/dates.ts`, `format.ts`, `forms.ts` — date helpers (leap-year
-    correct), IDR-first money formatting, framework-free form validation.
+    correct) including the salary-cycle arithmetic, IDR-first money formatting,
+    framework-free form validation.
   - `src/store.ts` — `ExpenseStore`: framework-agnostic app state exposing
     `subscribe`/`getSnapshot` for `useSyncExternalStore`. React stays out of
     this package entirely.
@@ -141,11 +143,15 @@ Transaction { id, categoryId, paymentMethod?, item, amount, date, yearMonth, yea
 PaymentMethod 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other'
 Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
 Income      { id, name, amount, note? }          // amount is per month
-Profile     { displayName, currency, locale, alerts: AlertSettings }
+Profile     { displayName, currency, locale, alerts: AlertSettings, cycleStartDay }
 AlertSettings { enabled, monthlyLimit, warnPct: 70|80|90, categoryLimits: { [name]: number } }
 ```
 
 `amount` is in the smallest currency unit (IDR has no decimals).
+
+`yearMonth` and `year` on a transaction are always the **calendar** month and
+year of `date`. They are not the tracking period — see "The tracking period is
+a salary cycle" below.
 
 Both apps gate on a login screen. `AuthController`
 (`packages/shared/src/auth.ts`) owns the session — `subscribe`/`getSnapshot`
@@ -209,6 +215,66 @@ The one-shot `listTransactionsByDate` / `listTransactionsByYear` remain on
 The subscription is keyed to the month in view, so Yearly is live for the year
 *containing* that month; moving months re-subscribes and `YearlyView` derives
 its `year` from `state.yearMonth`, so the two never disagree.
+
+### The tracking period is a salary cycle, resolved at read time
+
+`profile/main.cycleStartDay` is the day a period opens on. `1` means plain
+calendar months and is what a profile written before the field existed reads
+back as, so an older account is unchanged. `27` makes 27 Aug – 26 Sep one
+period, **labelled by the month it ends in** — `"2026-09"`.
+
+Nothing stored changes. `denormalize` still writes the calendar `yearMonth` and
+`year` from `date`, there is no backfill, and moving the start day re-windows
+history rather than rewriting it. What changes is the *read*: a period is a
+`date` range (`queries.rangeConstraints`, `watchTransactionsInRange`) instead of
+an equality query. Ranging over `date`, which is also the sort key, needs only
+the automatic single-field index — nothing was added to
+`firestore.indexes.json`, and every equality rollup and its composite index is
+untouched. `fetchTransactionsByPaymentMethod` deliberately keeps
+`yearMonth ==`: it reconciles against a card statement, and statements are
+calendar-shaped.
+
+A period id keeps the `"YYYY-MM"` shape, which is what leaves `assertYearMonth`,
+`budgets/{yearMonth}` doc ids, `shiftMonth` month nav and `monthLabel` all
+working unchanged. So `budgets/2026-09` holds the income and allocations for
+27 Aug – 26 Sep.
+
+The arithmetic is in `lib/dates.ts`: `cycleOf`, `cycleRange`, `cycleLength`,
+`dayInCycle`, `dateInCycle`, `clampDayInCycle`, `cycleRangeLabel`. Two rules
+worth knowing before touching them:
+
+- **`startDay === 1` is an explicit branch in every helper, not a value the
+  general formula happens to handle.** End-labelling is discontinuous there —
+  the general formula would label calendar August "September". Every helper
+  collapses to its calendar-month twin at 1, and *that identity is the control
+  the whole feature is tested against*: a cycle implementation that dumps
+  everything into one bucket passes a "the 28th moved" check just as happily as
+  a correct one.
+- **Each day-of-month occurs at most once in a window** (27, 28 … 31, 1, 2 …
+  26), which is why the expense form still takes a plain "Day" number rather
+  than growing a date picker. `dateInCycle` resolves it, and both clamp sites —
+  `forms.evaluateExpenseForm` and `store.addExpense`/`updateExpense` — go
+  through it, so a typed number cannot mean two different dates.
+
+**The start day arrives with the profile, which is the awkward part.** The store
+picks a period in its constructor, before any Firestore round-trip, so the first
+subscription of a session is opened on a guess. `watchCurrentMonth`'s snapshot
+handler compares the arriving `profile.cycleStartDay` against the one the
+subscription was opened with and re-points when they differ — deliberately
+*without* setting `status: 'ready'`, so a cold start holds on `loading` rather
+than flashing a calendar month before the cycle replaces it. It converges in one
+extra subscribe, because the second subscription uses the start day the first
+one reported. `ExpenseStore.pinned`, set by `setYearMonth`, is what stops that
+correction yanking someone off a period they navigated to themselves.
+
+The consequences elsewhere are all in `derive.ts`, and all take `cycleStartDay`
+defaulting to `1`: `pace` counts elapsed days and period length from the window;
+`bucketByMonth` assigns rows by `cycleOf(t.date)` rather than the stored
+`yearMonth` (still twelve buckets a year, just cycle-shaped); `upcomingIncome`
+sorts by position in the window, not by day number, since 27 comes before 3.
+`store.addExpense`'s repeat bound is the calendar month the year's **last
+period opens in** (`"2026-11"` at a 27th start), not `"${year}-12"` — left as
+December the run overshoots by one period into January.
 
 ### The category template — one source, three consumers
 
@@ -414,9 +480,10 @@ same trick `colorForName` plays with the palette.
 
 Settings live on `profile/main.alerts` — one set per account, already carried
 by the profile arm of the `watchMonth` fan-out, so they need no new listener.
-They are *evaluated* against whichever month is in view, by
+They are *evaluated* against whichever period is in view, by
 `derive.evaluateAlerts`, which both apps render as banners above the
-dashboard on every tab.
+dashboard on every tab. Both apps reach them from a **Settings** button —
+the same surface now hosts `cycleStartDay`, which also lives on the profile.
 
 Two rules, applied to the monthly cap and to each per-category cap alike:
 over the limit is a breach, at or past `warnPct` of it is a warning. A limit

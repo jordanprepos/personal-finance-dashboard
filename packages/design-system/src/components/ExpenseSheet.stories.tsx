@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { ExpenseSheet } from './ExpenseSheet';
-import { categories, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
+import { categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
 
 /**
  * The phone shell. `.cf-scrim` is `position: absolute; inset: 0`, so the sheet
@@ -23,7 +23,17 @@ const meta = {
   title: 'Expense/ExpenseSheet',
   component: ExpenseSheet,
   decorators: [(Story) => <PhoneShell><Story /></PhoneShell>],
-  args: { yearMonth, today, categories, busy: false, fmt: IDR, transaction: null, isRecurring: false, ...noopHandlers },
+  args: {
+    yearMonth,
+    today,
+    cycleStartDay,
+    categories,
+    busy: false,
+    fmt: IDR,
+    transaction: null,
+    isRecurring: false,
+    ...noopHandlers,
+  },
 } satisfies Meta<typeof ExpenseSheet>;
 
 export default meta;

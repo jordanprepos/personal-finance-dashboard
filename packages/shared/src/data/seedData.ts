@@ -118,6 +118,9 @@ export const seedProfile = (): Profile => ({
   currency: 'IDR',
   locale: 'id-ID',
   alerts: defaultAlerts(),
+  // Calendar months. Demo mode is the control the cycle behaviour is checked
+  // against, so this stays 1 — set it here to eyeball a cycle on seed data.
+  cycleStartDay: 1,
 });
 
 interface Charge {
