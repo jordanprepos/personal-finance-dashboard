@@ -524,3 +524,75 @@ formatted in the profile's locale. Passing the money locale through would put
   and would need the redirect flow to be reliable inside the mobile webview.
   "Forgot password?" is inert, matching the design — `sendPasswordResetEmail`
   is not wired up in `shared`.
+
+## Hosting
+
+Both front ends are static Vite SPAs — no server, no SSR — so they deploy to
+**Firebase Hosting**, not App Hosting. App Hosting would build them into a Cloud
+Run container and bill for a server that has nothing to do.
+
+One Firebase project, two Hosting sites, bound by deploy targets in `.firebaserc`:
+
+| target    | site                                | URL                                               | package                   |
+| --------- | ----------------------------------- | ------------------------------------------------- | ------------------------- |
+| `desktop` | `personal-finance-dashboard-desktop`| https://personal-finance-dashboard-desktop.web.app| `packages/desktop`        |
+| `mobile`  | `personal-finance-dashboard-mobile` | https://personal-finance-dashboard-mobile.web.app | `packages/mobile-webview` |
+
+Neither app is on the project's **default** site, `personal-web-app-projects`.
+Desktop was deployed there first and retargeted afterwards, which left it serving
+a build that would only rot, so it has been taken dark with `hosting:disable` and
+now returns 404. Firebase cannot delete a default site — disabling is as far as
+it goes, and deploying to the site again re-enables it. It is still load-bearing
+for auth, though; see the handler note below. Both entries in `firebase.json`'s
+`hosting` array rewrite `**` to `/index.html` (client-side routing) and set a
+one-year immutable `Cache-Control` on `/assets/**`, which is safe because Vite
+content-hashes those filenames while `index.html` stays uncached.
+
+```bash
+pnpm build && npx firebase-tools deploy --only hosting
+```
+
+Always `pnpm build` first: `VITE_FIREBASE_*` is **inlined at build time**, so
+deploying a stale or config-less `dist/` ships an app that silently falls back to
+the seed dataset. `deploy --only hosting` is deliberate — a bare `firebase deploy`
+would also push rules, indexes and auth config.
+
+To swap which app a site serves, no rebuild is needed:
+
+```bash
+npx firebase-tools hosting:clone personal-finance-dashboard-mobile:live personal-finance-dashboard-desktop:live
+```
+
+**`auth.authorizedDomains` in `firebase.json` is inert.** `deploy --only auth`
+applies the `providers` block and *ignores* this field — verified by reading
+`identitytoolkit.googleapis.com/admin/v2/projects/…/config` back after a deploy.
+The list in the file therefore mirrors what is live rather than driving it, and
+authorized domains have to be added in the console (Authentication → Settings →
+Authorized domains).
+
+This matters because Firebase auto-authorizes only the **default** site's
+domains — and nothing is served from the default site any more. Both
+`personal-finance-dashboard-desktop.web.app` and
+`personal-finance-dashboard-mobile.web.app` were created with
+`hosting:sites:create` and so had to be added by hand — both are in the live
+list now. Against an origin missing from it, `signInWithPopup` fails with
+`auth/unauthorized-domain`; email/password goes straight to the REST endpoint
+and is not domain-gated, so a missing domain breaks one and not the other.
+
+**A disabled default site still serves the auth handler.** `.env`'s
+`VITE_FIREBASE_AUTH_DOMAIN` is `personal-web-app-projects.firebaseapp.com`, and
+`signInWithPopup` loads `/__/auth/handler` from that domain — so it looked as
+though disabling the site would break Google Sign-in. It does not: with the site
+disabled and its root returning 404, the handler still answers 200. Firebase
+serves the reserved `/__/*` namespace independently of a site's serving state.
+
+Worth knowing before someone "fixes" a broken Google Sign-in by re-enabling the
+default site — that would not be the cause. Check the handler directly instead:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://personal-web-app-projects.firebaseapp.com/__/auth/handler
+```
+
+Unlike the Firestore named database, Hosting **sites** are fine to create from
+the CLI (`hosting:sites:create <id>`); site ids are globally unique across all
+of Firebase, so expect to need a suffix.
