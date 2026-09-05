@@ -6,10 +6,10 @@
   deliberately React-free (see CLAUDE.md) and exports no components. The two apps
   are private Vite apps with no library build.
 - `packages/design-system` (`@expense-tracker/design-system`) was created for this
-  sync and now **owns** the three prop-driven components and both surface
-  stylesheets. The apps import from it. This retired the pre-existing duplication
-  (`AlertBanners` existed twice with different markup; `GoogleMark` twice,
-  identical).
+  sync and **owns** every presentational component plus both surface stylesheets.
+  The apps import from it. This retired the pre-existing duplication
+  (`AlertBanners` existed twice with different markup; `GoogleMark`, `catStyle`
+  and `DefaultCategoriesButton` once per app).
 - The 10 modals/sheets were extracted from the apps into this package in a second
   pass: they now take plain data plus callbacks and the apps keep the store
   wiring at the call site. 12 components ship.
@@ -112,13 +112,14 @@ dimming reads as disabled. Any new interactive class needs the pair.
 
 **And never dim at the call site.** An inline `opacity` beats the class, so it
 silently defeats `:disabled` in any state the inline expression does not
-anticipate — which is how a valid-but-busy CTA stayed lit. Let the class own
-the state and give the component a story for every disabled reason it has.
-
-Keep the state in the class, not at the call site. `CategoryModal` used to dim
-its own `.cf-add` with an inline opacity, which meant the same class looked
-disabled in one surface and enabled in two others; the inline rule is gone now
-that the class carries it.
+anticipate. Both ways this bit us: `CategoryModal` dimmed its own `.cf-add`, so
+the same class looked disabled there and enabled in two other surfaces; and
+three `.cf-cta` sites used `opacity: result.valid ? 1 : 0.45` while disabling on
+`!result.valid || busy`, so a valid-but-busy CTA stayed fully lit for the whole
+save. No call site dims a disabled control by hand any more — let the class own
+the state, and give the component a story for every disabled reason it has
+(hence the `Saving` stories, the only ones where the form is valid *and* the
+button disabled).
 
 Changing a story that a component with an **owned** preview renders means
 editing `.design-sync/previews/<Name>.tsx` too — it enumerates the story
@@ -139,11 +140,11 @@ affects (`compare.mjs --force --components <Name>`), because nothing else will.
   (or others are added), the reset can silently stop covering it and the desktop
   cards will render centred. Re-check the `body{...}` cascade order in the built
   CSS.
-- **Story fixtures are hand-written copies of `evaluateAlerts` output**
-  (`derive.ts` `applyRule`). If the alert copy format or `breachTitle`/`warnTitle`
-  changes, the stories will keep showing the old wording and still grade as a match
-  — the reference and preview share the fixture. Re-read `derive.ts` when alert
-  copy changes.
+- **Story fixtures are hand-written** (`src/fixtures.ts`, plus the alert copy
+  reproduced from `derive.ts`'s `applyRule`). Reference and preview share the
+  same fixture, so drift grades as a match: if `breachTitle`/`warnTitle`, the
+  income cadences or the category types change, the stories keep showing the old
+  shape and nothing fails. Re-read the source when any of those change.
 - **Fonts are fetched remotely.** `tokens.css` `@import`s Outfit from Google Fonts;
   validate reports `[FONT_REMOTE]` and assumes runtime availability. Nothing is
   vendored, so an offline or egress-blocked capture renders a fallback face on both
@@ -153,16 +154,5 @@ affects (`compare.mjs --force --components <Name>`), because nothing else will.
   otherwise grade as an empty-looking card.
 - A disabled-state audit found no remaining live gap: `.cf-stepbtn`, `.cf-back`
   and `.cf-opt` also lack `:disabled` rules but are never rendered disabled.
-- No call site overrides a disabled state any more. The three `.cf-cta` inline
-  `opacity: result.valid ? 1 : 0.45` rules are gone: inline styles beat
-  `.cf-cta:disabled`, so a *valid but busy* CTA stayed fully lit for the
-  duration of a save. `ExpenseModal`/`ExpenseSheet` carry a `Saving` story
-  (valid form, `busy: true`) that pins the case — it is the only story where
-  the form is valid *and* the button disabled, so without it the regression is
-  invisible.
-- Story fixtures for the modals/sheets (`src/fixtures.ts`) are hand-written and
-  share one copy between reference and preview, so a drift in the underlying
-  copy or shape grades as a match. Re-read the source when alert copy, income
-  cadences or category types change.
 - Toolchain at last sync: node 26.4.0, pnpm 11.24.0, Storybook 9 (react-vite),
   React 19.2.8.
