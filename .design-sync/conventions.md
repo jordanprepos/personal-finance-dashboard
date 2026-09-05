@@ -64,8 +64,12 @@ nothing. The desktop modals bring their own fixed scrim and need no wrapper.
 
 ### Conventions that matter
 
-- **Money is Indonesian Rupiah in the smallest unit, with no decimals** — render
-  `8_000_000` as `Rp 8.000.000`. Never show cents.
+- **Amounts are integers in the currency's smallest unit** — `8_000_000` is eight
+  million rupiah, not eight million and a fraction. Components format through
+  their `fmt` prop (`MoneyFormat`), which is IDR / `id-ID` everywhere in this
+  app, so it renders `Rp 8.000.000` with no decimals. Pass a different `fmt`
+  only if you mean to change currency, and never hand a component a
+  pre-formatted string.
 - **Two alert levels only**: a breach takes the dark ink surface
   (`--modifier` `--breach`), a warning the pale accent (`--warning`). Introduce no
   other alert colour.
