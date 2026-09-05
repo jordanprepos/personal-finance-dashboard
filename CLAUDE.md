@@ -519,11 +519,24 @@ formatted in the profile's locale. Passing the money locale through would put
   Google Sign-in) and Firestore (named database
   `personal-finance-dashboard-db`, `asia-southeast2`) are both live and
   rules/indexes are deployed. Email/Password sign-in is exercised end to end from the login
-  screens in both apps; Google Sign-in is wired but uses `signInWithPopup`,
-  which a real native webview commonly blocks — it works in a desktop browser
-  and would need the redirect flow to be reliable inside the mobile webview.
-  "Forgot password?" is inert, matching the design — `sendPasswordResetEmail`
-  is not wired up in `shared`.
+  screens in both apps; Google Sign-in is exercised too, but uses
+  `signInWithPopup`, which a real native webview commonly blocks — it works in a
+  desktop browser and would need the redirect flow to be reliable inside the
+  mobile webview. "Forgot password?" is inert, matching the design —
+  `sendPasswordResetEmail` is not wired up in `shared`.
+- **`signInWithGoogle` sets `prompt: 'select_account'`, deliberately.** A bare
+  `new GoogleAuthProvider()` sends no `prompt`, and Google's default is then to
+  complete silently whenever exactly one account is signed in to the browser and
+  has already consented. Signing out of the app leaves exactly that state —
+  `signOutUser` ends the Firebase session, while the Google session is a cookie
+  on accounts.google.com that no site may clear — so the next Continue with
+  Google went straight back into the same ledger without an account ever being
+  chosen. On a shared machine that hands one person's finances to whoever clicks
+  next. Forcing the chooser cannot log anyone out of Google, and asks for no
+  password; what it buys is that an identity is always chosen explicitly rather
+  than supplied silently. `'consent select_account'` was rejected as the
+  stronger form: it re-authorizes unchanged scopes on every login and buys
+  nothing here.
 
 ## Hosting
 

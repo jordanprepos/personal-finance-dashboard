@@ -87,7 +87,17 @@ export function signInWithEmail(auth: Auth, email: string, password: string): Pr
 }
 
 export function signInWithGoogle(auth: Auth): Promise<User> {
-  return signInWithPopup(auth, new GoogleAuthProvider()).then((cred) => cred.user);
+  const provider = new GoogleAuthProvider();
+  // Without a `prompt`, Google completes silently whenever exactly one account
+  // is signed in to the browser and has already consented — so signing out of
+  // the app and clicking Continue with Google lands straight back in the same
+  // ledger, with no account ever having been chosen. `signOutUser` cannot
+  // prevent that: it clears the Firebase session, while the Google session is a
+  // cookie on accounts.google.com that no site may clear. Forcing the chooser is
+  // the half that is ours to control, and on a shared machine it is the half
+  // that matters.
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return signInWithPopup(auth, provider).then((cred) => cred.user);
 }
 
 export function signOutUser(auth: Auth): Promise<void> {
