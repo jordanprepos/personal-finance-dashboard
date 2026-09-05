@@ -9,8 +9,11 @@ import {
   formatMoney,
   formatMoneyShort,
   indexCategories,
+  categoryLimitRows,
+  entryCountsByCategory,
   monthLabel,
   monthSummary,
+  sumAmounts,
   shortMonthLabel,
   stackSegments,
   yearOfMonth,
@@ -23,14 +26,14 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
-import { catStyle } from './catStyle';
+import { catStyle } from '@expense-tracker/design-system';
 import { useAuth, useStore } from './useStore';
 import { LoginView } from './components/LoginView';
-import { ExpenseSheet } from './components/ExpenseSheet';
-import { CategorySheet } from './components/CategorySheet';
-import { AlertSheet } from './components/AlertSheet';
+import { ExpenseSheet } from '@expense-tracker/design-system';
+
+import { AlertSheet, CategorySheet } from '@expense-tracker/design-system';
 import { IncomeTab } from './components/IncomeTab';
-import { AlertBanners } from './components/AlertBanners';
+import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
 
 type Tab = 'daily' | 'monthly' | 'yearly' | 'income';
 
@@ -325,9 +328,18 @@ function Phone({
 
       {sheetOpen ? (
         <ExpenseSheet
-          store={store}
-          state={state}
+          yearMonth={state.yearMonth}
+          today={state.today}
+          categories={state.categories}
+          busy={state.busy}
           fmt={fmt}
+          onSave={(draft, entry) => {
+            if (entry) void store.updateExpense(entry.id, draft);
+            else void store.addExpense(draft);
+          }}
+          onDelete={(entry) => void store.deleteExpense(entry)}
+          onDeleteSeries={(entry) => void store.deleteExpenseSeries(entry)}
+          onAddDefaultCategories={() => void store.addDefaultCategories()}
           transaction={editing}
           isRecurring={editing !== null && editing.seriesId !== null}
           onClose={() => {
@@ -344,18 +356,33 @@ function Phone({
 
       {categoriesOpen ? (
         <CategorySheet
-          store={store}
-          state={state}
+          categories={state.categories}
+          entryCounts={entryCountsByCategory(state.yearTransactions)}
+          allocations={state.budget?.categoryBudgets ?? {}}
+          yearMonth={state.yearMonth}
+          busy={state.busy}
           fmt={fmt}
+          onAddCategory={(name, type, allocation) =>
+            void store.addCategory(name, type, allocation)
+          }
+          onDeleteCategory={(category) => void store.deleteCategory(category)}
+          onAddDefaultCategories={() => void store.addDefaultCategories()}
           onClose={() => setCategoriesOpen(false)}
         />
       ) : null}
 
       {alertsOpen ? (
         <AlertSheet
-          store={store}
-          state={state}
+          alerts={state.profile.alerts}
+          rows={categoryLimitRows(state.profile.alerts, state.monthTransactions, state.categories)}
+          monthSpend={sumAmounts(state.monthTransactions)}
+          categories={state.categories}
           fmt={fmt}
+          onToggleEnabled={(enabled) => void store.setAlertsEnabled(enabled)}
+          onSetMonthlyLimit={(amount) => void store.setMonthlyLimit(amount)}
+          onSetWarnPct={(pct) => void store.setWarnPct(pct)}
+          onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
+          onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}
         />
       ) : null}

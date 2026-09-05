@@ -6,28 +6,37 @@ import {
   formatAmountInput,
   formatMoney,
   parseAmountInput,
-  type Category,
-  type ExpenseState,
-  type ExpenseStore,
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
-import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton';
+import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';
+import type { CategoryManagerProps } from '../types.js';
 
-interface Props {
-  store: ExpenseStore;
-  state: ExpenseState;
-  fmt: MoneyFormat;
-  onClose: () => void;
+export interface CategoryModalProps extends CategoryManagerProps {
+  /** Writes this month's allocation for one category. */
+  onSetAllocation: (categoryId: string, amount: number) => void;
 }
 
-export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Element {
+/**
+ * The desktop categories dialog: bulk-seed while empty, an add form, and a row
+ * per category carrying an inline allocation field and a two-click delete.
+ */
+export function CategoryModal({
+  categories,
+  entryCounts,
+  allocations,
+  yearMonth,
+  busy,
+  fmt,
+  onAddCategory,
+  onDeleteCategory,
+  onSetAllocation,
+  onAddDefaultCategories,
+  onClose,
+}: CategoryModalProps): JSX.Element {
   const [values, setValues] = useState(emptyCategoryForm);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const result = evaluateCategoryForm(values, state.categories);
-
-  const countIn = (category: Category): number =>
-    state.yearTransactions.filter((t) => t.categoryId === category.id).length;
+  const result = evaluateCategoryForm(values, categories);
 
   return (
     <div className="cf-modal-scrim" style={{ zIndex: 55 }} onClick={onClose} role="presentation">
@@ -42,13 +51,13 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
           <span style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-.025em' }}>Categories</span>
           <span className="cf-spacer" />
           <span style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>
-            {state.categories.length} categories
+            {categories.length} categories
           </span>
         </div>
 
         {/* Offered only while the account is empty — once there are categories
             this would just be a second, redundant way to bulk-add. */}
-        {state.categories.length === 0 ? (
+        {categories.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -63,7 +72,7 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
               Start with the {DEFAULT_CATEGORY_COUNT} categories from your spreadsheet, with their
               monthly allocations.
             </div>
-            <DefaultCategoriesButton store={store} state={state} style={{ flex: 'none' }} />
+            <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} style={{ flex: 'none' }} />
           </div>
         ) : null}
 
@@ -115,10 +124,10 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
           <button
             type="button"
             className="cf-add"
-            style={{ alignSelf: 'flex-start', height: 34, opacity: result.valid ? 1 : 0.45 }}
-            disabled={!result.valid || state.busy}
+            style={{ alignSelf: 'flex-start', height: 34 }}
+            disabled={!result.valid || busy}
             onClick={() => {
-              void store.addCategory(result.name, values.type, result.allocation);
+              onAddCategory(result.name, values.type, result.allocation);
               setValues(emptyCategoryForm());
             }}
           >
@@ -126,14 +135,14 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
           </button>
           <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>
             The allocation is stored on{' '}
-            <code>budgets/{state.yearMonth}.categoryBudgets</code>, not on the category.
+            <code>budgets/{yearMonth}.categoryBudgets</code>, not on the category.
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {state.categories.map((c) => {
-            const count = countIn(c);
-            const allocation = state.budget?.categoryBudgets[c.id] ?? 0;
+          {categories.map((c) => {
+            const count = entryCounts[c.id] ?? 0;
+            const allocation = allocations[c.id] ?? 0;
             const pending = pendingDelete === c.id;
             return (
               <div key={c.id} className="dash__catrow">
@@ -148,10 +157,10 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
                   </div>
                 </div>
                 <AllocationField
-                  store={store}
                   categoryId={c.id}
                   allocation={allocation}
                   fmt={fmt}
+                  onCommit={onSetAllocation}
                 />
                 <span className="cf-tier" style={{ textTransform: 'capitalize' }}>
                   {c.type}
@@ -176,7 +185,7 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
                       setPendingDelete(c.id);
                       return;
                     }
-                    void store.deleteCategory(c);
+                    onDeleteCategory(c);
                     setPendingDelete(null);
                   }}
                 >
@@ -189,7 +198,7 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
 
         <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>
           Deleting a category removes its entries from every month of every year, not just{' '}
-          {state.yearMonth.slice(0, 4)}. Click Delete twice to confirm.
+          {yearMonth.slice(0, 4)}. Click Delete twice to confirm.
         </div>
 
         <button type="button" className="cf-cta cf-cta--outline" style={{ padding: 13 }} onClick={onClose}>
@@ -202,22 +211,22 @@ export function CategoryModal({ store, state, fmt, onClose }: Props): JSX.Elemen
 
 /** Writes budgets/{yearMonth}.categoryBudgets[categoryId] — allocations are per month. */
 function AllocationField({
-  store,
   categoryId,
   allocation,
   fmt,
+  onCommit,
 }: {
-  store: ExpenseStore;
   categoryId: string;
   allocation: number;
   fmt: MoneyFormat;
+  onCommit: (categoryId: string, amount: number) => void;
 }): JSX.Element {
   const [text, setText] = useState(allocation > 0 ? String(allocation) : '');
   useEffect(() => setText(allocation > 0 ? String(allocation) : ''), [allocation]);
 
   const commit = (): void => {
     const next = parseAmountInput(text);
-    if (next !== allocation) void store.setCategoryBudget(categoryId, next);
+    if (next !== allocation) onCommit(categoryId, next);
   };
 
   return (

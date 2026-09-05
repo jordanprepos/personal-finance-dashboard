@@ -5,23 +5,33 @@ import {
   evaluateCategoryForm,
   formatAmountInput,
   formatMoney,
-  type ExpenseState,
-  type ExpenseStore,
   type MoneyFormat,
 } from '@expense-tracker/shared';
-import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton';
 
-interface Props {
-  store: ExpenseStore;
-  state: ExpenseState;
-  fmt: MoneyFormat;
-  onClose: () => void;
-}
+import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';
+import type { CategoryManagerProps } from '../types.js';
 
-export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Element {
+export type CategorySheetProps = CategoryManagerProps;
+
+/**
+ * The mobile categories sheet — the same capabilities as the desktop dialog
+ * minus the inline allocation field: an allocation is set once when the
+ * category is created, and each row carries a 38px two-tap delete instead.
+ */
+export function CategorySheet({
+  categories,
+  entryCounts,
+  allocations,
+  busy,
+  fmt,
+  onAddCategory,
+  onDeleteCategory,
+  onAddDefaultCategories,
+  onClose,
+}: CategorySheetProps): JSX.Element {
   const [values, setValues] = useState(emptyCategoryForm);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const result = evaluateCategoryForm(values, state.categories);
+  const result = evaluateCategoryForm(values, categories);
 
   return (
     <div className="cf-scrim" onClick={onClose} role="presentation">
@@ -43,7 +53,7 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
 
         {/* Offered only while the account is empty — once there are categories
             this would just be a second, redundant way to bulk-add. */}
-        {state.categories.length === 0 ? (
+        {categories.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -60,7 +70,7 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
               Start with the {DEFAULT_CATEGORY_COUNT} categories from your spreadsheet, with their
               monthly allocations.
             </div>
-            <DefaultCategoriesButton store={store} state={state} />
+            <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} />
           </div>
         ) : null}
 
@@ -104,10 +114,10 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
         <button
           type="button"
           className="cf-cta cf-cta--primary"
-          style={{ padding: 14, flex: 'none', opacity: result.valid ? 1 : 0.45 }}
-          disabled={!result.valid || state.busy}
+          style={{ padding: 14, flex: 'none' }}
+          disabled={!result.valid || busy}
           onClick={() => {
-            void store.addCategory(result.name, values.type, result.allocation);
+            onAddCategory(result.name, values.type, result.allocation);
             setValues(emptyCategoryForm());
           }}
         >
@@ -115,9 +125,9 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
         </button>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 'none' }}>
-          {state.categories.map((c) => {
-            const count = state.yearTransactions.filter((t) => t.categoryId === c.id).length;
-            const allocation = state.budget?.categoryBudgets[c.id] ?? 0;
+          {categories.map((c) => {
+            const count = entryCounts[c.id] ?? 0;
+            const allocation = allocations[c.id] ?? 0;
             const pending = pendingDelete === c.id;
             return (
               <div
@@ -161,7 +171,7 @@ export function CategorySheet({ store, state, fmt, onClose }: Props): JSX.Elemen
                       setPendingDelete(c.id);
                       return;
                     }
-                    void store.deleteCategory(c);
+                    onDeleteCategory(c);
                     setPendingDelete(null);
                   }}
                 >

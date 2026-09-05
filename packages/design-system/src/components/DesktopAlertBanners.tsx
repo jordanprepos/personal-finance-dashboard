@@ -12,7 +12,7 @@ import type { SpendAlert } from '@expense-tracker/shared';
  * Every banner is itself the way into the settings, so an alert is never a
  * dead end — the thing it is telling you about is one click away.
  */
-export function AlertBanners({
+export function DesktopAlertBanners({
   alerts,
   onOpenSettings,
 }: {

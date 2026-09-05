@@ -13,7 +13,7 @@ import {
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
-import { IncomeSheet } from './IncomeSheet';
+import { IncomeSheet } from '@expense-tracker/design-system';
 
 type Filter = 'all' | 'active' | 'paused';
 
@@ -152,11 +152,15 @@ export function IncomeTab({
 
       {sheetOpen ? (
         <IncomeSheet
-          store={store}
           fmt={fmt}
           yearMonth={yearMonth}
           editing={editing}
           canRemove={breakdown.sources.length > 1}
+          onSave={(draft, source) => {
+            if (source) void store.updateIncome(source.id, draft);
+            else void store.addIncome({ ...draft, paused: false });
+          }}
+          onRemove={(incomeId) => void store.deleteIncome(incomeId)}
           onClose={() => setSheetOpen(false)}
         />
       ) : null}

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AuthController, ExpenseStore } from '@expense-tracker/shared';
 
 import '@expense-tracker/shared/styles.css';
-import './styles.css';
+import '@expense-tracker/design-system/styles/mobile.css';
 import { App } from './App';
 
 /*

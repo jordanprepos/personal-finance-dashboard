@@ -1,8 +1,7 @@
 import { useState, type JSX } from 'react';
 import {
-  CATEGORY_TYPES,
-  evaluateExpenseForm,
   emptyExpenseForm,
+  evaluateExpenseForm,
   expenseFormFrom,
   formatAmountInput,
   formatMoney,
@@ -10,80 +9,81 @@ import {
   parseISODate,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
-  type ExpenseState,
-  type ExpenseStore,
-  type MoneyFormat,
   type PaymentMethod,
-  type Transaction,
 } from '@expense-tracker/shared';
 
-import { catStyle } from '../catStyle';
-import { DefaultCategoriesButton } from './DefaultCategoriesButton';
+import { DefaultCategoriesButton } from './DefaultCategoriesButton.js';
+import { catStyle } from '../catStyle.js';
+import type { ExpenseFormProps } from '../types.js';
 
-interface Props {
-  store: ExpenseStore;
-  state: ExpenseState;
-  fmt: MoneyFormat;
-  /** null when adding */
-  transaction: Transaction | null;
-  isRecurring: boolean;
-  onClose: () => void;
-  /** Hands off to the Categories modal when there is nothing to pick yet. */
-  onManageCategories: () => void;
-}
+export type ExpenseSheetProps = ExpenseFormProps;
 
-export function ExpenseModal({
-  store,
-  state,
+/** Category names are shortened to their first word so a chip row fits a phone. */
+const shortName = (name: string): string => name.split(/[\s&]+/)[0] ?? name;
+
+/**
+ * The mobile add/edit expense sheet — the same contract as the desktop modal,
+ * laid out for a thumb: 44px targets, a single-column stack, and Save above
+ * the destructive actions rather than beside them.
+ */
+export function ExpenseSheet({
+  yearMonth,
+  today,
+  categories,
+  busy,
   fmt,
   transaction,
   isRecurring,
+  onSave,
+  onDelete,
+  onDeleteSeries,
   onClose,
   onManageCategories,
-}: Props): JSX.Element {
-  const defaultDay = state.yearMonth === state.today.slice(0, 7) ? parseISODate(state.today).day : 1;
+  onAddDefaultCategories,
+}: ExpenseSheetProps): JSX.Element {
+  const defaultDay = yearMonth === today.slice(0, 7) ? parseISODate(today).day : 1;
   const [values, setValues] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
 
-  const result = evaluateExpenseForm(values, state.yearMonth);
+  const selectable = categories.filter((c) => !c.archived);
+  const result = evaluateExpenseForm(values, yearMonth);
   const editing = transaction !== null;
-  const selectable = state.categories.filter((c) => !c.archived);
 
   const submit = (): void => {
     if (!result.draft) return;
-    if (transaction) void store.updateExpense(transaction.id, result.draft);
-    else void store.addExpense(result.draft);
+    onSave(result.draft, transaction);
     onClose();
   };
 
   return (
-    <div className="cf-modal-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={onClose} role="presentation">
       <div
-        className="cf-modal cf-anim-in-fast"
-        style={{ width: '100%', maxWidth: 520 }}
+        className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-.025em' }}>
+        <div className="cf-sheet__grab" />
+
+        <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
+          <span style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-.02em' }}>
             {editing ? 'Edit expense' : 'New expense'}
           </span>
           <span className="cf-spacer" />
-          <span style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>
-            {monthLabel(state.yearMonth)}
-          </span>
+          <button type="button" className="cf-back" onClick={onClose}>
+            Cancel
+          </button>
         </div>
 
         <div>
           <div className="cf-fieldlabel">Amount</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
             <span
               className="tnum"
               style={{
                 fontWeight: 700,
-                fontSize: 36,
+                fontSize: 32,
                 letterSpacing: '-.03em',
                 color: 'var(--cf-muted)',
               }}
@@ -92,25 +92,23 @@ export function ExpenseModal({
             </span>
             <input
               className="tnum cf-amountinput"
-              style={{ fontSize: 36 }}
+              style={{ fontSize: 32 }}
               inputMode="numeric"
               placeholder="0"
-              autoFocus
               value={formatAmountInput(values.amountText, fmt)}
               onChange={(e) =>
                 setValues({ ...values, amountText: e.target.value.replace(/[^0-9]/g, '') })
               }
             />
           </div>
-          <div style={{ height: 1, background: 'var(--cf-border)', marginTop: 4 }} />
+          <div style={{ height: 1, background: 'var(--cf-border)' }} />
         </div>
 
         <div>
           <div className="cf-fieldlabel">Category</div>
           {/* A fresh account has no categories, and an expense can't be saved
               without one. Left as an empty row this is a dead end: Save stays
-              dimmed with nothing on screen saying why. Mirrors the mobile
-              sheet. */}
+              dimmed with nothing on screen saying why. */}
           {selectable.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
@@ -119,7 +117,7 @@ export function ExpenseModal({
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {/* Fills the account from the spreadsheet's set; the chips then
                     appear in place, so the entry being typed isn't lost. */}
-                <DefaultCategoriesButton store={store} state={state} />
+                <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} />
                 <button type="button" className="cf-ghostbtn" onClick={onManageCategories}>
                   Add my own
                 </button>
@@ -132,33 +130,32 @@ export function ExpenseModal({
                   key={c.id}
                   type="button"
                   className={`cf-catchip${values.categoryId === c.id ? ' cf-catchip--on' : ''}`}
-                  style={catStyle(c.color)}
+                  style={{ ...catStyle(c.color), minHeight: 44 }}
                   onClick={() => setValues({ ...values, categoryId: c.id })}
                 >
                   <span className="cf-catdot" />
-                  {c.name}
+                  {shortName(c.name)}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        <div className="dash__formrow">
-          <div>
-            <div className="cf-fieldlabel">Item</div>
-            <input
-              className="cf-input--pos"
-              style={{ width: '100%' }}
-              placeholder="e.g. Token Listrik"
-              value={values.item}
-              onChange={(e) => setValues({ ...values, item: e.target.value })}
-            />
-          </div>
-          <div>
+        <div>
+          <div className="cf-fieldlabel">Item</div>
+          <input
+            className="cf-input--phone"
+            placeholder="e.g. Token Listrik"
+            value={values.item}
+            onChange={(e) => setValues({ ...values, item: e.target.value })}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1 }}>
             <div className="cf-fieldlabel">Day</div>
             <input
-              className="cf-input--pos tnum"
-              style={{ width: '100%' }}
+              className="cf-input--phone tnum"
               inputMode="numeric"
               value={values.dayText}
               onChange={(e) =>
@@ -166,15 +163,14 @@ export function ExpenseModal({
               }
             />
           </div>
-          <div>
+          <div style={{ flex: 'none', width: 130 }}>
             <div className="cf-fieldlabel">Repeat</div>
             <button
               type="button"
-              className="cf-input--pos"
+              className="cf-input--phone"
               style={{
-                cursor: 'pointer',
                 textAlign: 'left',
-                width: '100%',
+                cursor: 'pointer',
                 fontWeight: 600,
                 color: values.repeat ? 'var(--cf-blue)' : 'var(--cf-slate)',
               }}
@@ -186,17 +182,14 @@ export function ExpenseModal({
           </div>
         </div>
 
-        {/* Its own field block, deliberately not a fourth column of
-            .dash__formrow (that grid positions children by nth-child at the
-            mobile fold) and deliberately not a chip row like Category — a
-            second chip row would read as a nested or derived category
-            control. Payment method is a separate dimension: every option
-            stays available whatever category is picked, and nothing here
-            touches values.categoryId. */}
+        {/* A separate control from the category chips above, not a second
+            chip row — payment method is an independent dimension, so every
+            option stays available whatever category is picked and nothing
+            here touches values.categoryId. */}
         <div>
           <div className="cf-fieldlabel">Paid with</div>
           <select
-            className="cf-input--pos"
+            className="cf-input--phone"
             style={{ width: '100%', cursor: 'pointer' }}
             aria-label="Payment method"
             value={values.paymentMethod}
@@ -218,73 +211,68 @@ export function ExpenseModal({
             ? 'Editing changes this entry only.'
             : values.repeat
               ? 'Written into every remaining month of the year as its own entry.'
-              : `Logged once, in ${monthLabel(state.yearMonth)}.`}
+              : `Logged once, in ${monthLabel(yearMonth)}.`}
         </div>
 
+        <button
+          type="button"
+          className="cf-cta cf-cta--primary"
+          style={{ padding: 15 }}
+          disabled={!result.valid || busy}
+          onClick={submit}
+        >
+          {result.valid ? `Save ${formatMoney(result.amount, fmt)}` : 'Save expense'}
+        </button>
+
         {editing && transaction ? (
-          <div
-            style={{
-              display: 'flex',
-              gap: 10,
-              borderTop: '1px solid var(--cf-border)',
-              paddingTop: 14,
-            }}
-          >
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
-              className="cf-cta cf-cta--outline"
-              style={{ padding: 13, fontSize: 14 }}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 'var(--cf-r-pill)',
+                border: '1.5px solid var(--cf-border-strong)',
+                background: 'var(--cf-surface)',
+                color: 'var(--cf-ink)',
+                fontFamily: 'inherit',
+                fontWeight: 600,
+                fontSize: 13.5,
+                cursor: 'pointer',
+              }}
               onClick={() => {
-                void store.deleteExpense(transaction);
+                onDelete(transaction);
                 onClose();
               }}
             >
-              Delete this entry
+              Delete entry
             </button>
             {isRecurring ? (
               <button
                 type="button"
-                className="cf-cta"
                 style={{
-                  padding: 13,
-                  fontSize: 14,
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 'var(--cf-r-pill)',
                   border: 0,
                   background: 'var(--cf-ink)',
                   color: '#fff',
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                  fontSize: 13.5,
+                  cursor: 'pointer',
                 }}
                 onClick={() => {
-                  void store.deleteExpenseSeries(transaction);
+                  onDeleteSeries(transaction);
                   onClose();
                 }}
               >
-                Delete this + future months
+                This + future
               </button>
             ) : null}
           </div>
         ) : null}
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            type="button"
-            className="cf-cta cf-cta--outline"
-            style={{ padding: 14 }}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="cf-cta cf-cta--primary"
-            style={{ padding: 14, opacity: result.valid ? 1 : 0.45 }}
-            disabled={!result.valid || state.busy}
-            onClick={submit}
-          >
-            {result.valid ? `Save ${formatMoney(result.amount, fmt)}` : 'Save expense'}
-          </button>
-        </div>
       </div>
     </div>
   );
 }
-
-export { CATEGORY_TYPES };

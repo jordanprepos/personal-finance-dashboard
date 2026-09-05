@@ -348,7 +348,15 @@ input {
   white-space: nowrap;
 }
 
-.cf-add:hover {
+.cf-add:disabled {
+  /* Same pair as .cf-cta and .cf-ghostbtn. This one was the loudest gap: a
+     solid blue button that refuses clicks reads as enabled, and call sites
+     were papering over it with an inline opacity of their own. */
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cf-add:hover:not(:disabled) {
   background: var(--cf-blue-hover);
 }
 
@@ -400,7 +408,17 @@ input {
   cursor: pointer;
 }
 
-.cf-ghostbtn:hover {
+.cf-ghostbtn:disabled {
+  /* Same dimming as .cf-cta:disabled — a ghost button that stays fully lit
+     while it refuses clicks reads as broken rather than as busy. */
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* :not(:disabled) matters as much as the rule above — without it a disabled
+   button still lights up under the cursor, which is the louder half of the
+   bug. Mirrors .cf-cta--outline:hover:not(:disabled). */
+.cf-ghostbtn:hover:not(:disabled) {
   background: var(--cf-blue-pale);
 }
 
