@@ -46,7 +46,7 @@ export function IncomeTab({
 }): JSX.Element {
   const { budget, yearMonth } = state;
   const breakdown = incomeBreakdown(budget);
-  const upcoming = upcomingIncome(budget, yearMonth);
+  const upcoming = upcomingIncome(budget, yearMonth, state.profile.cycleStartDay);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<Income | null>(null);

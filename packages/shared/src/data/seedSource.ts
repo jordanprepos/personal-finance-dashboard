@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 import { seriesDates } from '../lib/queries.js';
-import { toYear, toYearMonth, yearOfMonth } from '../lib/dates.js';
+import { cycleRange, toYear, toYearMonth, yearMonthOf, yearOfMonth } from '../lib/dates.js';
 import type {
   AlertSettings,
   Budget,
@@ -69,20 +69,32 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
      snapshot both go through these, so a live subscriber and a one-shot
      caller can never disagree about what the month contains. */
   const readCategories = (): Category[] => clone(categories).sort((a, b) => a.order - b.order);
-  const readMonth = (yearMonth: string): Transaction[] =>
-    clone(transactions.filter((t) => t.yearMonth === yearMonth)).sort(byDateDesc);
-  const readYear = (year: string): Transaction[] =>
-    clone(transactions.filter((t) => t.year === year)).sort(byDateDesc);
+  /* Windowed on `date`, mirroring the range query the Firestore path runs —
+     filtering on the denormalized `yearMonth`/`year` would be a calendar month
+     whatever the start day said, and demo mode would disagree with live. */
+  const readRange = (from: string, to: string): Transaction[] =>
+    clone(transactions.filter((t) => t.date >= from && t.date <= to)).sort(byDateDesc);
+  const readPeriod = (yearMonth: string, cycleStartDay: number): Transaction[] => {
+    const { start, end } = cycleRange(yearMonth, cycleStartDay);
+    return readRange(start, end);
+  };
+  const readYear = (yearMonth: string, cycleStartDay: number): Transaction[] => {
+    const year = Number(yearOfMonth(yearMonth));
+    return readRange(
+      cycleRange(yearMonthOf(year, 1), cycleStartDay).start,
+      cycleRange(yearMonthOf(year, 12), cycleStartDay).end,
+    );
+  };
   const readBudget = (yearMonth: string): Budget => {
     const budget = budgets[yearMonth];
     return budget
       ? { ...budget, incomes: budget.incomes.map((i) => ({ ...i })), categoryBudgets: { ...budget.categoryBudgets } }
       : { id: yearMonth, income: SEED_INCOME, incomes: seedIncomes(), categoryBudgets: {} };
   };
-  const monthSnapshot = (yearMonth: string): MonthSnapshot => ({
+  const monthSnapshot = (yearMonth: string, cycleStartDay: number): MonthSnapshot => ({
     categories: readCategories(),
-    monthTransactions: readMonth(yearMonth),
-    yearTransactions: readYear(yearOfMonth(yearMonth)),
+    monthTransactions: readPeriod(yearMonth, cycleStartDay),
+    yearTransactions: readYear(yearMonth, cycleStartDay),
     budget: readBudget(yearMonth),
     profile: { ...profile },
   });
@@ -93,13 +105,14 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
      instead of quietly going stale after the first paint. */
   interface Watcher {
     yearMonth: string;
+    cycleStartDay: number;
     onChange: (snapshot: MonthSnapshot) => void;
     live: boolean;
   }
   const watchers = new Set<Watcher>();
   const notify = (): void => {
     for (const watcher of watchers) {
-      if (watcher.live) watcher.onChange(monthSnapshot(watcher.yearMonth));
+      if (watcher.live) watcher.onChange(monthSnapshot(watcher.yearMonth, watcher.cycleStartDay));
     }
   };
 
@@ -114,11 +127,11 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
      * Firestore gives them — a callback that ran synchronously here would
      * reach the store before it had finished wiring the subscription up.
      */
-    watchMonth(yearMonth, onChange): Unsubscribe {
-      const watcher: Watcher = { yearMonth, onChange, live: true };
+    watchMonth(yearMonth, cycleStartDay, onChange): Unsubscribe {
+      const watcher: Watcher = { yearMonth, cycleStartDay, onChange, live: true };
       watchers.add(watcher);
       void Promise.resolve().then(() => {
-        if (watcher.live) watcher.onChange(monthSnapshot(yearMonth));
+        if (watcher.live) watcher.onChange(monthSnapshot(yearMonth, cycleStartDay));
       });
       return () => {
         watcher.live = false;
@@ -209,6 +222,11 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       // Replaced whole, matching the Firestore path — a cleared category cap
       // has to disappear rather than linger from the previous settings.
       profile = { ...profile, alerts: { ...alerts, categoryLimits: { ...alerts.categoryLimits } } };
+      notify();
+    },
+
+    async setCycleStartDay(cycleStartDay: number): Promise<void> {
+      profile = { ...profile, cycleStartDay };
       notify();
     },
 

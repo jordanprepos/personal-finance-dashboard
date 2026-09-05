@@ -3,6 +3,7 @@ import {
   evaluateExpenseForm,
   emptyExpenseForm,
   expenseFormFrom,
+  cycleOf,
   formatAmountInput,
   formatMoney,
   monthLabel,
@@ -29,6 +30,7 @@ export type ExpenseModalProps = ExpenseFormProps;
 export function ExpenseModal({
   yearMonth,
   today,
+  cycleStartDay,
   categories,
   busy,
   fmt,
@@ -41,12 +43,15 @@ export function ExpenseModal({
   onManageCategories,
   onAddDefaultCategories,
 }: ExpenseModalProps): JSX.Element {
-  const defaultDay = yearMonth === today.slice(0, 7) ? parseISODate(today).day : 1;
+  // Today's day when the period in view is the live one, otherwise the day the
+  // period opens on — which is `1` for a calendar month, as it always was.
+  const defaultDay =
+    yearMonth === cycleOf(today, cycleStartDay) ? parseISODate(today).day : cycleStartDay;
   const [values, setValues] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
 
-  const result = evaluateExpenseForm(values, yearMonth);
+  const result = evaluateExpenseForm(values, yearMonth, cycleStartDay);
   const editing = transaction !== null;
   const selectable = categories.filter((c) => !c.archived);
 

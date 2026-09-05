@@ -1,12 +1,15 @@
 import type { AlertSettings, Budget, Category, Income, Transaction } from '../types.js';
 import { normalizeCategoryName } from '../data/defaultCategories.js';
 import {
-  clampDay,
+  clampCycleStartDay,
+  cycleLength,
+  cycleOf,
+  dateInCycle,
+  dayInCycle,
   dayLabel,
-  daysInYearMonth,
   monthNameLabel,
   monthsOfYear,
-  parseISODate,
+  shortDayLabel,
   shortMonthLabel,
 } from './dates.js';
 import { formatMoney, IDR, type MoneyFormat } from './format.js';
@@ -197,7 +200,7 @@ export function incomeStatus(income: Income): IncomeStatus {
 export interface UpcomingIncome {
   id: string;
   name: string;
-  /** e.g. "Aug 25" — the month in view, since that is the month being planned */
+  /** e.g. "25 Aug" — inside the period in view, since that is what is planned */
   dateLabel: string;
   /** the whole payment, which is what actually lands */
   amount: number;
@@ -212,15 +215,25 @@ export interface UpcomingIncome {
  * payment into a future month would be a guess. A source is expected in the
  * month you are looking at until you mark it received there.
  */
-export function upcomingIncome(budget: Budget | null, yearMonth: string): UpcomingIncome[] {
+export function upcomingIncome(
+  budget: Budget | null,
+  yearMonth: string,
+  cycleStartDay = 1,
+): UpcomingIncome[] {
+  const start = clampCycleStartDay(cycleStartDay);
+  // Soonest first means soonest *in the window*, which under a cycle is not
+  // the lowest day number: a 27th-start period runs 27, 28 ... 31, 1, 2 ... 26.
+  const position = (day: number): number => dayInCycle(dateInCycle(yearMonth, day, start), yearMonth, start);
   return activeIncomes(budget)
     .filter((i) => !i.received)
     .slice()
-    .sort((a, b) => a.day - b.day)
+    .sort((a, b) => position(a.day) - position(b.day))
     .map((i) => ({
       id: i.id,
       name: i.name,
-      dateLabel: `${shortMonthLabel(yearMonth)} ${clampDay(yearMonth, i.day)}`,
+      // `dateInCycle` names the right month for a pay day below the start day,
+      // which falls in the second half of the window.
+      dateLabel: shortDayLabel(dateInCycle(yearMonth, i.day, start)),
       amount: i.amount,
     }));
 }
@@ -561,17 +574,24 @@ export interface Pace {
   /** positive = under an even pace */
   delta: number;
   under: boolean;
-  /** the month has already ended */
+  /** the period has already ended */
   closed: boolean;
   throughDay: number;
 }
 
-export function pace(summary: MonthSummary, today: string): Pace {
-  const closed = summary.yearMonth !== today.slice(0, 7);
-  const throughDay = closed ? daysInYearMonth(summary.yearMonth) : parseISODate(today).day;
-  const target = closed
-    ? summary.income
-    : Math.round((summary.income * throughDay) / daysInYearMonth(summary.yearMonth));
+/**
+ * `cycleStartDay` is what makes "how far into the period are we" answerable:
+ * under a salary cycle both the elapsed days and the length of the period are
+ * counted from the window, not from the calendar month it is named after. At
+ * `1` every term below collapses to the calendar-month arithmetic this had
+ * before cycles existed.
+ */
+export function pace(summary: MonthSummary, today: string, cycleStartDay = 1): Pace {
+  const start = clampCycleStartDay(cycleStartDay);
+  const closed = summary.yearMonth !== cycleOf(today, start);
+  const length = cycleLength(summary.yearMonth, start);
+  const throughDay = closed ? length : dayInCycle(today, summary.yearMonth, start);
+  const target = closed ? summary.income : Math.round((summary.income * throughDay) / length);
   const delta = target - summary.spent;
   return { target, delta: Math.abs(delta), under: delta >= 0, closed, throughDay };
 }
@@ -585,17 +605,26 @@ export interface MonthBucket {
   transactions: Transaction[];
 }
 
-/** Twelve buckets, January first, whether or not a month has entries. */
+/**
+ * Twelve buckets, January first, whether or not a period has entries.
+ *
+ * Rows are assigned by the period their `date` falls in, not by the stored
+ * `yearMonth` — that field is the calendar month, which is a different thing
+ * as soon as `cycleStartDay` is above 1. At `1` the two agree exactly.
+ */
 export function bucketByMonth(
   year: string,
   transactions: readonly Transaction[],
   locale = 'en-US',
+  cycleStartDay = 1,
 ): MonthBucket[] {
+  const start = clampCycleStartDay(cycleStartDay);
   const byMonth = new Map<string, Transaction[]>();
   for (const t of transactions) {
-    const bucket = byMonth.get(t.yearMonth);
+    const key = cycleOf(t.date, start);
+    const bucket = byMonth.get(key);
     if (bucket) bucket.push(t);
-    else byMonth.set(t.yearMonth, [t]);
+    else byMonth.set(key, [t]);
   }
   return monthsOfYear(year).map((yearMonth) => {
     const rows = byMonth.get(yearMonth) ?? [];

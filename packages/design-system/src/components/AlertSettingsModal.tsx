@@ -1,8 +1,10 @@
 import { useEffect, useState, type JSX } from 'react';
 import {
+  clampCycleStartDay,
   formatAmountInput,
   formatMoney,
   formatPercent,
+  MAX_CYCLE_START_DAY,
   parseAmountInput,
   type MoneyFormat,
   type WarnPct,
@@ -15,15 +17,20 @@ export type AlertSettingsModalProps = AlertSettingsProps;
 const WARN_CHOICES: WarnPct[] = [70, 80, 90];
 
 /**
- * Alert settings: the on/off switch, the monthly cap, the warning threshold,
- * and the per-category caps.
+ * Account settings: the tracking cycle, then the alerts — the on/off switch,
+ * the monthly cap, the warning threshold, and the per-category caps.
  *
- * The settings live on the profile, so they are the same on every month; what
- * each row *shows* — spend, percent used — is the month currently in view, and
+ * All of it lives on the profile, so it is the same on every month; what each
+ * row *shows* — spend, percent used — is the period currently in view, and
  * arrives already derived so this stays a pure view of it.
+ *
+ * The cycle sits first because it decides what "this period" even means, which
+ * every figure below is then measured against.
  */
 export function AlertSettingsModal({
   alerts,
+  cycleStartDay,
+  cycleRangeLabel,
   rows,
   monthSpend,
   categories,
@@ -31,6 +38,7 @@ export function AlertSettingsModal({
   onToggleEnabled,
   onSetMonthlyLimit,
   onSetWarnPct,
+  onSetCycleStartDay,
   onSetCategoryLimit,
   onClearCategoryLimit,
   onClose,
@@ -58,16 +66,31 @@ export function AlertSettingsModal({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Alert settings"
+        aria-label="Settings"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-.02em' }}>
-            Spending alerts
+            Settings
           </div>
           <span className="cf-spacer" />
           <button type="button" className="cf-back" onClick={onClose}>
             Close
           </button>
+        </div>
+
+        {/* tracking cycle */}
+        <div>
+          <div className="cf-fieldlabel">Cycle starts on day</div>
+          <DayField
+            value={cycleStartDay}
+            ariaLabel="Cycle start day"
+            onCommit={onSetCycleStartDay}
+          />
+          <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 6 }}>
+            {cycleRangeLabel
+              ? `Tracking ${cycleRangeLabel} as one period. Set it to 1 for calendar months.`
+              : 'Tracking calendar months. Set this to the day you are paid to track salary to salary.'}
+          </div>
         </div>
 
         {/* on/off */}
@@ -76,7 +99,7 @@ export function AlertSettingsModal({
             <div style={{ fontWeight: 600, fontSize: 14.5 }}>Alerts</div>
             <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 1 }}>
               {alerts.enabled
-                ? 'Watching this month against your limits.'
+                ? 'Watching this period against your limits.'
                 : 'Nothing is being evaluated.'}
             </div>
           </div>
@@ -210,6 +233,48 @@ export function AlertSettingsModal({
  * A digits-only money input that commits on blur or Enter, matching the income
  * and allocation fields. Empty is 0, which is how a limit gets turned off.
  */
+/**
+ * The cycle start day. A plain day number rather than a date picker: a period
+ * opens on the same day every month, and `MAX_CYCLE_START_DAY` is what keeps it
+ * a day every month actually has.
+ */
+function DayField({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: number;
+  ariaLabel: string;
+  onCommit: (next: number) => void;
+}): JSX.Element {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  const commit = (): void => {
+    const next = clampCycleStartDay(parseInt(text || '1', 10) || 1);
+    // Snap the field back to what was actually stored, so a typed 31 does not
+    // sit there looking accepted after being clamped to 28.
+    setText(String(next));
+    if (next !== value) onCommit(next);
+  };
+
+  return (
+    <input
+      className="tnum cf-input--pos"
+      style={{ width: 80 }}
+      inputMode="numeric"
+      aria-label={ariaLabel}
+      value={text}
+      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      max={MAX_CYCLE_START_DAY}
+    />
+  );
+}
+
 function AmountField({
   value,
   fmt,

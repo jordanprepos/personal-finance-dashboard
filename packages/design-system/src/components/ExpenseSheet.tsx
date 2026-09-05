@@ -3,6 +3,7 @@ import {
   emptyExpenseForm,
   evaluateExpenseForm,
   expenseFormFrom,
+  cycleOf,
   formatAmountInput,
   formatMoney,
   monthLabel,
@@ -29,6 +30,7 @@ const shortName = (name: string): string => name.split(/[\s&]+/)[0] ?? name;
 export function ExpenseSheet({
   yearMonth,
   today,
+  cycleStartDay,
   categories,
   busy,
   fmt,
@@ -41,13 +43,16 @@ export function ExpenseSheet({
   onManageCategories,
   onAddDefaultCategories,
 }: ExpenseSheetProps): JSX.Element {
-  const defaultDay = yearMonth === today.slice(0, 7) ? parseISODate(today).day : 1;
+  // Today's day when the period in view is the live one, otherwise the day the
+  // period opens on — which is `1` for a calendar month, as it always was.
+  const defaultDay =
+    yearMonth === cycleOf(today, cycleStartDay) ? parseISODate(today).day : cycleStartDay;
   const [values, setValues] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
 
   const selectable = categories.filter((c) => !c.archived);
-  const result = evaluateExpenseForm(values, yearMonth);
+  const result = evaluateExpenseForm(values, yearMonth, cycleStartDay);
   const editing = transaction !== null;
 
   const submit = (): void => {

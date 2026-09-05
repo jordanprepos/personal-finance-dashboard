@@ -23,7 +23,7 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
   const shown = filterTransactions(monthTransactions, categories, { categoryId, query });
   const days = groupByDate(shown);
   const summary = monthSummary(yearMonth, monthTransactions, budget);
-  const burn = pace(summary, today);
+  const burn = pace(summary, today, state.profile.cycleStartDay);
 
   // Only categories that actually appear this month get a filter chip.
   const present = categories.filter((c) => monthTransactions.some((t) => t.categoryId === c.id));
@@ -135,8 +135,10 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
           <div className="cf-promo">
             <div className="cf-promo__title">Pace check</div>
             <div className="cf-promo__sub">
+              {/* "Closed" rather than "Closed month": under a salary cycle the
+                  period is not a month, and the header above already names it. */}
               {burn.closed
-                ? `Closed month · ${formatMoney(summary.spent, fmt)} spent, ${formatMoney(summary.left, fmt)} left over.`
+                ? `Closed · ${formatMoney(summary.spent, fmt)} spent, ${formatMoney(summary.left, fmt)} left over.`
                 : `${formatMoney(burn.delta, fmt)} ${burn.under ? 'under' : 'over'} an even pace for day ${burn.throughDay}.`}
             </div>
           </div>

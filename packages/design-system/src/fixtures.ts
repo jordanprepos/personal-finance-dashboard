@@ -60,6 +60,10 @@ export const recurringTransaction: Transaction = {
 
 export const yearMonth = '2026-08';
 export const today = '2026-08-14';
+/** Calendar months — the default, and what the stories render against. */
+export const cycleStartDay = 1;
+/** Empty, matching `cycleStartDay` above: a calendar month needs no range. */
+export const cycleRangeLabel = '';
 
 /** Every callback a form needs, as inert no-ops. */
 export const noopHandlers = {
@@ -127,6 +131,7 @@ export const alertHandlers = {
   onToggleEnabled: () => {},
   onSetMonthlyLimit: () => {},
   onSetWarnPct: () => {},
+  onSetCycleStartDay: () => {},
   onSetCategoryLimit: () => {},
   onClearCategoryLimit: () => {},
   onClose: () => {},

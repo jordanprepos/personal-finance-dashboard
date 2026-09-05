@@ -13,7 +13,7 @@ import type {
   TransactionPatch,
   TransactionSeriesKey,
 } from '../types.js';
-import { yearOfMonth } from '../lib/dates.js';
+import { cycleRange, yearOfMonth, yearMonthOf } from '../lib/dates.js';
 import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
 
 /** Live Firestore, scoped to one authenticated user. */
@@ -24,9 +24,10 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
 
     watchMonth: (
       yearMonth: string,
+      cycleStartDay: number,
       onChange: (snapshot: MonthSnapshot) => void,
       onError: (error: Error) => void,
-    ): Unsubscribe => watchMonth(db, userId, yearMonth, onChange, onError),
+    ): Unsubscribe => watchMonth(db, userId, yearMonth, cycleStartDay, onChange, onError),
 
     createCategory: (input: CategoryInput): Promise<Category> => q.createCategory(db, userId, input),
     deleteCategory: (categoryId: string): Promise<number> => q.deleteCategory(db, userId, categoryId),
@@ -45,14 +46,21 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
     setIncomes: (yearMonth: string, incomes: Income[]): Promise<void> =>
       q.setIncomes(db, userId, yearMonth, incomes),
     setAlerts: (alerts: AlertSettings): Promise<void> => q.saveAlerts(db, userId, alerts),
+    setCycleStartDay: (cycleStartDay: number): Promise<void> =>
+      q.saveCycleStartDay(db, userId, cycleStartDay),
     setCategoryBudget: (yearMonth: string, categoryId: string, amount: number): Promise<void> =>
       q.setCategoryBudget(db, userId, yearMonth, categoryId, amount),
   };
 }
 
 /**
- * Fans one month out to the five listeners the Monthly view needs, and gates
+ * Fans one period out to the five listeners the Monthly view needs, and gates
  * the callback until each has reported at least once.
+ *
+ * Two of the five are windowed by `cycleStartDay` rather than by the period id
+ * — the period's own transactions, and the twelve periods of the year around
+ * it. The other three (categories, the budget document, the profile) are keyed
+ * by id or account and are unaffected by how wide a period is.
  *
  * Without that gate the first paint would arrive in five pieces — categories
  * with no transactions, then transactions with no budget — and each piece
@@ -67,6 +75,7 @@ function watchMonth(
   db: Firestore,
   userId: string,
   yearMonth: string,
+  cycleStartDay: number,
   onChange: (snapshot: MonthSnapshot) => void,
   onError: (error: Error) => void,
 ): Unsubscribe {
@@ -132,11 +141,13 @@ function watchMonth(
         fail,
       ),
     );
+    const period = cycleRange(yearMonth, cycleStartDay);
     track(
-      q.watchTransactionsByMonth(
+      q.watchTransactionsInRange(
         db,
         userId,
-        yearMonth,
+        period.start,
+        period.end,
         (rows) => {
           parts.monthTransactions = rows;
           emit();
@@ -144,11 +155,17 @@ function watchMonth(
         fail,
       ),
     );
+    // The year is the twelve periods labelled by that year's months, which at
+    // any start day above 1 reaches back into the previous December.
+    const year = Number(yearOfMonth(yearMonth));
+    const yearStart = cycleRange(yearMonthOf(year, 1), cycleStartDay).start;
+    const yearEnd = cycleRange(yearMonthOf(year, 12), cycleStartDay).end;
     track(
-      q.watchTransactionsByYear(
+      q.watchTransactionsInRange(
         db,
         userId,
-        yearOfMonth(yearMonth),
+        yearStart,
+        yearEnd,
         (rows) => {
           parts.yearTransactions = rows;
           emit();

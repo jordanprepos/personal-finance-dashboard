@@ -47,7 +47,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
   const { budget, yearMonth } = state;
   const breakdown = incomeBreakdown(budget);
-  const upcoming = upcomingIncome(budget, yearMonth);
+  const upcoming = upcomingIncome(budget, yearMonth, state.profile.cycleStartDay);
   const stillToLand = upcomingIncomeTotal(budget);
 
   const [filter, setFilter] = useState<Filter>('all');

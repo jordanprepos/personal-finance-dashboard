@@ -2,12 +2,21 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { AlertSettingsModal } from './AlertSettingsModal';
-import { alertHandlers, alertSettings, categories, limitRows, monthSpend } from '../fixtures';
+import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, monthSpend } from '../fixtures';
 
 const meta = {
   title: 'Alerts/AlertSettingsModal',
   component: AlertSettingsModal,
-  args: { alerts: alertSettings, rows: limitRows, monthSpend, categories, fmt: IDR, ...alertHandlers },
+  args: {
+    alerts: alertSettings,
+    cycleStartDay,
+    cycleRangeLabel,
+    rows: limitRows,
+    monthSpend,
+    categories,
+    fmt: IDR,
+    ...alertHandlers,
+  },
 } satisfies Meta<typeof AlertSettingsModal>;
 
 export default meta;

@@ -43,7 +43,15 @@ import type {
   TransactionPatch,
   TransactionSeriesKey,
 } from '../types.js';
-import { monthsOfYear, shiftMonth, toYear, toYearMonth, assertYearMonth } from './dates.js';
+import {
+  assertISODate,
+  assertYearMonth,
+  clampCycleStartDay,
+  monthsOfYear,
+  shiftMonth,
+  toYear,
+  toYearMonth,
+} from './dates.js';
 import { colorForName } from '../data/defaultCategories.js';
 
 /* ------------------------------------------------------------------ paths */
@@ -268,8 +276,14 @@ export async function deleteCategory(db: Firestore, userId: string, categoryId: 
 /* ----------------------------------------------------------- transactions */
 
 /**
- * Daily / monthly / yearly rollups are equality queries against the
- * denormalized `date`, `yearMonth` and `year` fields — no range scans.
+ * Calendar rollups — daily, monthly, yearly — are equality queries against the
+ * denormalized `date`, `yearMonth` and `year` fields, which is what keeps
+ * their composite indexes small.
+ *
+ * The one exception is the tracking cycle: a salary-to-salary window straddles
+ * two calendar months, so it ranges over `date` instead (`rangeConstraints`
+ * below). Ranging over the sort key alone needs no composite index, so this
+ * costs nothing — but a rollup that *can* be an equality query still is one.
  */
 
 /** Daily: `date == "YYYY-MM-DD"`. */
@@ -295,6 +309,19 @@ const yearConstraints = (year: string): QueryConstraint[] => [
   where('year', '==', year),
   orderBy('date', 'desc'),
 ];
+
+/*
+ * A tracking cycle straddles two calendar months, so it cannot be an equality
+ * query on `yearMonth` — it is a window on `date`. Ranging over a single field
+ * that is also the sort key needs only the automatic index Firestore keeps for
+ * `date`, so this adds nothing to `firestore.indexes.json`; the equality
+ * rollups above and their composite indexes are untouched.
+ */
+const rangeConstraints = (from: string, to: string): QueryConstraint[] => {
+  assertISODate(from);
+  assertISODate(to);
+  return [where('date', '>=', from), where('date', '<=', to), orderBy('date', 'desc')];
+};
 
 /** Monthly: `yearMonth == "YYYY-MM"`. */
 export async function fetchTransactionsByMonth(
@@ -365,6 +392,27 @@ export async function fetchRecentTransactions(
   count = 25,
 ): Promise<Transaction[]> {
   return runTransactionQuery(db, userId, [orderBy('date', 'desc'), limit(count)]);
+}
+
+/** Every transaction in an inclusive date window — the cycle read. */
+export async function fetchTransactionsInRange(
+  db: Firestore,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<Transaction[]> {
+  return runTransactionQuery(db, userId, rangeConstraints(from, to));
+}
+
+export function watchTransactionsInRange(
+  db: Firestore,
+  userId: string,
+  from: string,
+  to: string,
+  onChange: (transactions: Transaction[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return watchTransactionQuery(db, userId, rangeConstraints(from, to), onChange, onError);
 }
 
 export function watchTransactionsByMonth(
@@ -677,6 +725,9 @@ export const DEFAULT_PROFILE: Profile = {
   currency: 'IDR',
   locale: 'id-ID',
   alerts: DEFAULT_ALERTS,
+  // Calendar months. A document written before the field existed reads back as
+  // this, so an older account's periods are exactly what they were.
+  cycleStartDay: 1,
 };
 
 const isWarnPct = (value: number): value is WarnPct =>
@@ -715,6 +766,9 @@ function toProfile(d: DocumentData | undefined): Profile {
     currency: String(d['currency'] ?? DEFAULT_PROFILE.currency),
     locale: String(d['locale'] ?? DEFAULT_PROFILE.locale),
     alerts: toAlerts(d['alerts']),
+    // Same narrowing rule as `toIncomeDay`: anything outside the range reads
+    // as the default rather than becoming a period nobody can navigate to.
+    cycleStartDay: clampCycleStartDay(Number(d['cycleStartDay'] ?? DEFAULT_PROFILE.cycleStartDay)),
   };
 }
 
@@ -750,6 +804,19 @@ export async function saveProfile(db: Firestore, userId: string, profile: Partia
  * therefore named explicitly with `deleteField()`, which means reading the
  * stored settings first to know which keys went away.
  */
+/**
+ * Sets the day a tracking cycle opens on. A plain profile field write — the
+ * period is resolved from it at read time, so nothing stored on a transaction
+ * changes and the day can move again later without a migration.
+ */
+export async function saveCycleStartDay(
+  db: Firestore,
+  userId: string,
+  cycleStartDay: number,
+): Promise<void> {
+  await setDoc(profileDoc(db, userId), { cycleStartDay: clampCycleStartDay(cycleStartDay) }, { merge: true });
+}
+
 export async function saveAlerts(
   db: Firestore,
   userId: string,

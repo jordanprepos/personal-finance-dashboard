@@ -106,6 +106,20 @@
   text-align: center;
 }
 
+/*
+ * The window a cycle covers, stacked under the month it is named after. Absent
+ * entirely on calendar months, so the nav keeps its original single-line height
+ * unless a cycle is actually in use.
+ */
+.dash__monthrange {
+  display: block;
+  margin-top: 1px;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--cf-muted);
+}
+
 .dash__split {
   display: grid;
   grid-template-columns: 1fr 300px;

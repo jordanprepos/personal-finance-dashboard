@@ -20,10 +20,16 @@ import type {
  * they differ only in layout.
  */
 export interface ExpenseFormProps {
-  /** the month in view, "YYYY-MM" — decides the day clamp and the footnote */
+  /** the period in view, "YYYY-MM" — decides the day clamp and the footnote */
   yearMonth: string;
   /** "YYYY-MM-DD"; the default day comes from it when it falls in `yearMonth` */
   today: string;
+  /**
+   * The day a tracking period opens on; 1 is a plain calendar month. The "Day"
+   * field is still a day-of-month number under a salary cycle — each one occurs
+   * at most once in the window — but which date it means depends on this.
+   */
+  cycleStartDay: number;
   categories: readonly Category[];
   /** a write is in flight — disables Save */
   busy: boolean;
@@ -98,6 +104,13 @@ export interface IncomeEditorProps {
  */
 export interface AlertSettingsProps {
   alerts: AlertSettings;
+  /**
+   * The day a tracking period opens on, 1-`MAX_CYCLE_START_DAY`. Lives on the
+   * profile beside `alerts`, which is why it shares this surface.
+   */
+  cycleStartDay: number;
+  /** "27 Aug – 26 Sep" for the period in view; empty on calendar months */
+  cycleRangeLabel: string;
   /** per-category cap rows for the month in view */
   rows: readonly CategoryLimitRow[];
   /** total spend for the month in view, against the monthly cap */
@@ -107,6 +120,8 @@ export interface AlertSettingsProps {
   onToggleEnabled: (enabled: boolean) => void;
   onSetMonthlyLimit: (amount: number) => void;
   onSetWarnPct: (pct: WarnPct) => void;
+  /** 1 tracks calendar months; anything higher makes the period a salary cycle */
+  onSetCycleStartDay: (day: number) => void;
   /** name is canonicalised to the category's own `name` by the caller */
   onSetCategoryLimit: (name: string, amount: number) => void;
   onClearCategoryLimit: (name: string) => void;
