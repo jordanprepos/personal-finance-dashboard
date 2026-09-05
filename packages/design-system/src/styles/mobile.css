@@ -25,6 +25,33 @@ body {
   flex: none;
 }
 
+/* The period in view, given a container so the month and its cycle range read
+   as one labelled object rather than two runs of status text. White on the page
+   tint, and sized to `.phone__signout`'s proportions so the three items in the
+   status row stay on one line. */
+.phone__period {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-pill);
+  padding: 4px 12px;
+  /* the status row is baseline-aligned text; keep the pill from stretching it */
+  margin: -4px 0;
+  font-weight: 600;
+  color: var(--cf-ink);
+  white-space: nowrap;
+}
+
+/* Empty on calendar months, so this never renders alone. */
+.phone__periodrange {
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--cf-muted);
+}
+
 .phone__scroll {
   flex: 1;
   min-height: 0;

@@ -169,13 +169,11 @@ function Phone({
     <div className="cf-phone">
       <div className="phone__status">
         <span>{state.mode === 'firestore' ? 'live' : 'demo'}</span>
-        <span style={{ fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+        <span className="phone__period">
           {monthLabel(yearMonth)}
           {/* Empty on calendar months, where the label already says it all. */}
           {periodRangeLabel(state) ? (
-            <span style={{ fontWeight: 400, fontSize: 10.5, color: 'var(--cf-muted)' }}>
-              {periodRangeLabel(state)}
-            </span>
+            <span className="phone__periodrange">{periodRangeLabel(state)}</span>
           ) : null}
         </span>
         {authState.status === 'signed-in' ? (
