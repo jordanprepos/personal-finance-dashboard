@@ -2,6 +2,17 @@
   "projects": {
     "default": "personal-web-app-projects"
   },
-  "targets": {},
+  "targets": {
+    "personal-web-app-projects": {
+      "hosting": {
+        "mobile": [
+          "personal-finance-dashboard-mobile"
+        ],
+        "desktop": [
+          "personal-finance-dashboard-desktop"
+        ]
+      }
+    }
+  },
   "etags": {}
 }

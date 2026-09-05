@@ -8,7 +8,11 @@
   ],
   "auth": {
     "authorizedDomains": [
-      "localhost"
+      "localhost",
+      "personal-web-app-projects.firebaseapp.com",
+      "personal-web-app-projects.web.app",
+      "personal-finance-dashboard-desktop.web.app",
+      "personal-finance-dashboard-mobile.web.app"
     ],
     "providers": {
       "anonymous": false,
@@ -18,5 +22,59 @@
         "supportEmail": "christopherjordantp@gmail.com"
       }
     }
-  }
+  },
+  "hosting": [
+    {
+      "target": "desktop",
+      "public": "packages/desktop/dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/assets/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "mobile",
+      "public": "packages/mobile-webview/dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/assets/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
