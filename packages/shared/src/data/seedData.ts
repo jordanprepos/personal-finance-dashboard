@@ -131,7 +131,6 @@ export const seedAccounts = (): Account[] => [
     balanceAsOf: `${SEED_YEAR}-08-01`,
     limit: 0,
     monthlyPayment: 0,
-    archived: false,
     order: 0,
   },
   {
@@ -142,7 +141,6 @@ export const seedAccounts = (): Account[] => [
     balanceAsOf: `${SEED_YEAR}-07-01`,
     limit: 0,
     monthlyPayment: 0,
-    archived: false,
     order: 1,
   },
   {
@@ -153,7 +151,6 @@ export const seedAccounts = (): Account[] => [
     balanceAsOf: `${SEED_YEAR}-08-01`,
     limit: 15_000_000,
     monthlyPayment: 2_300_000,
-    archived: false,
     order: 2,
   },
   {
@@ -164,7 +161,6 @@ export const seedAccounts = (): Account[] => [
     balanceAsOf: `${SEED_YEAR}-08-01`,
     limit: 0,
     monthlyPayment: 1_150_000,
-    archived: false,
     order: 3,
   },
 ];

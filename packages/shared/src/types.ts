@@ -142,7 +142,6 @@ export interface Account {
   limit: number;
   /** Cards and loans: what leaves each period. `0` is unset. */
   monthlyPayment: number;
-  archived: boolean;
   /**
    * Sort key, and the colour ramp slot — resolved through `colorForOrder`, so
    * it **must be unique**. Assign one past the highest in use, never

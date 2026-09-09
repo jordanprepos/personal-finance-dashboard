@@ -224,12 +224,14 @@ function AccountRow({
         >
           Reconcile
         </button>
+        {/* Remove is deliberately *not* here. Deleting an account is a hard
+            delete that drops the reconciled figure and the limit — numbers
+            re-entered by hand — and a destructive third button a thumb-width
+            from Reconcile is the wrong place for it, exactly as the income
+            note says. It lives at the foot of the edit form, behind a
+            confirm. */}
         <button type="button" className="cf-ghostbtn" disabled={busy} onClick={onStartEdit}>
           Edit
-        </button>
-        <span className="cf-spacer" />
-        <button type="button" className="cf-back" disabled={busy} onClick={onDelete}>
-          Remove
         </button>
       </div>
 
@@ -245,7 +247,13 @@ function AccountRow({
       ) : null}
 
       {editing ? (
-        <EditForm account={account} fmt={fmt} busy={busy} onSubmit={onUpdate} />
+        <EditForm
+          account={account}
+          fmt={fmt}
+          busy={busy}
+          onSubmit={onUpdate}
+          onDelete={onDelete}
+        />
       ) : null}
     </div>
   );
@@ -325,18 +333,24 @@ function EditForm({
   fmt,
   busy,
   onSubmit,
+  onDelete,
 }: {
   account: Account;
   fmt: MoneyFormat;
   busy: boolean;
   onSubmit: (patch: { name?: string; limit?: number; monthlyPayment?: number }) => void;
+  onDelete: () => void;
 }): JSX.Element {
   const [name, setName] = useState(account.name);
   const [limit, setLimit] = useState(account.limit > 0 ? String(account.limit) : '');
   const [payment, setPayment] = useState(
     account.monthlyPayment > 0 ? String(account.monthlyPayment) : '',
   );
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => setName(account.name), [account.name]);
+  // A different account behind the same open form must not inherit an armed
+  // confirm.
+  useEffect(() => setConfirming(false), [account.id]);
 
   const liability = isLiabilityAccount(account.type);
 
@@ -397,6 +411,55 @@ function EditForm({
       >
         Save
       </button>
+
+      {/* The destructive end of the form, behind a confirm that names what is
+          lost. The expenses survive — they read as unattributed, which the
+          omitted-field contract gives for free — but the balance and the limit
+          do not, and nothing here is undoable. */}
+      <div
+        style={{
+          borderTop: '1px solid var(--cf-border)',
+          paddingTop: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        {confirming ? (
+          <>
+            <div style={{ fontSize: 11.5, color: 'var(--cf-danger)' }}>
+              Remove {account.name}?{' '}
+              {liability
+                ? 'The confirmed balance and the limit go with it.'
+                : 'The confirmed balance goes with it.'}{' '}
+              Expenses you tagged to it stay, with no account.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="cf-ghostbtn"
+                disabled={busy}
+                onClick={() => setConfirming(false)}
+              >
+                Keep it
+              </button>
+              <button type="button" className="cf-back" disabled={busy} onClick={onDelete}>
+                Remove for good
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="cf-back"
+            style={{ alignSelf: 'flex-start' }}
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
+            Remove account
+          </button>
+        )}
+      </div>
     </div>
   );
 }

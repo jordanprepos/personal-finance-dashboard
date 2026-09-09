@@ -239,7 +239,6 @@ function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
     balanceAsOf: String(d['balanceAsOf'] ?? ''),
     limit: num(d['limit']),
     monthlyPayment: num(d['monthlyPayment']),
-    archived: Boolean(d['archived'] ?? false),
     order: num(d['order']),
   };
 }

@@ -160,7 +160,7 @@ export interface AccountManagerProps {
   today: string;
   busy: boolean;
   fmt: MoneyFormat;
-  onAdd: (input: Omit<AccountInput, 'order' | 'archived' | 'balanceAsOf'>) => void;
+  onAdd: (input: Omit<AccountInput, 'order' | 'balanceAsOf'>) => void;
   onUpdate: (accountId: string, patch: { name?: string; type?: AccountType; limit?: number; monthlyPayment?: number }) => void;
   onReconcile: (accountId: string, balance: number, asOf: string) => void;
   onDelete: (account: Account) => void;

@@ -189,7 +189,10 @@ export function accountTotals(balances: readonly AccountBalance[]): AccountTotal
   let anyStale = false;
 
   for (const b of balances) {
-    if (b.account.archived) continue;
+    // Every account counts. There is deliberately no `archived` flag: nothing
+    // would set it, and a totals function that skipped rows the list still
+    // rendered would drop an account out of "net" while it sat there in plain
+    // sight. Removing an account is a hard delete instead.
     const figure = b.stale ? b.reconciled : b.projected;
     if (b.stale) anyStale = true;
 

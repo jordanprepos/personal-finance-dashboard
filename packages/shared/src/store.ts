@@ -468,7 +468,7 @@ export class ExpenseStore {
    * true as of today, so `balanceAsOf` defaults to the session's date rather
    * than being left empty for the projection to choke on.
    */
-  async addAccount(input: Omit<AccountInput, 'order' | 'archived' | 'balanceAsOf'> & {
+  async addAccount(input: Omit<AccountInput, 'order' | 'balanceAsOf'> & {
     balanceAsOf?: string;
   }): Promise<void> {
     const source = this.source;
@@ -490,7 +490,6 @@ export class ExpenseStore {
         balanceAsOf: input.balanceAsOf ?? this.state.today,
         limit: input.limit,
         monthlyPayment: input.monthlyPayment,
-        archived: false,
         order,
       });
       return `${name} added`;

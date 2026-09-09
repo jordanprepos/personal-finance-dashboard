@@ -139,7 +139,7 @@ users/{userId}
 ```
 
 ```ts
-Account     { id, name, type: AccountType, balance, balanceAsOf, limit, monthlyPayment, order, archived }
+Account     { id, name, type: AccountType, balance, balanceAsOf, limit, monthlyPayment, order }
 AccountType 'cash' | 'checking' | 'savings' | 'credit_card' | 'investment' | 'other'
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
 Transaction { id, categoryId, paymentMethod?, accountId?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
@@ -540,9 +540,20 @@ composite indexes on `paymentMethod` are untouched, and `accountId` needs none
 Deleting an account is a **hard** delete and deliberately does not rewrite the
 transactions that named it: a stale `accountId` already reads as unattributed
 and moves no balance, so rewriting a year of documents to tidy an inert field
-would be the more dangerous of the two. `order` is unique and assigned with
-`nextAccountOrder`, never `accounts.length` — colour resolves from it through
-`colorForOrder`, so the category note's collision applies here too.
+would be the more dangerous of the two. There is deliberately no `archived`
+flag either — the one a category carries — because nothing would set it, and
+a `totals` that filtered archived rows while the list still rendered them would
+drop an account out of "net" while it sat there in plain sight.
+
+Because the delete is hard and the confirmed balance and limit go with it,
+**Remove is not a button on the row**. It sits at the foot of the edit form
+behind a confirm that names what is lost — the same reasoning the income note
+gives for keeping a destructive third button away from a thumb-width of Pause,
+applied to both surfaces here since they share one `AccountsPanel`.
+
+`order` is unique and assigned with `nextAccountOrder`, never
+`accounts.length` — colour resolves from it through `colorForOrder`, so the
+category note's collision applies here too.
 
 **The mobile nav collapsed to fit this.** Accounts made a seventh button in
 `.phone__navgroup`, which overflowed its track by 57px at 375px — enough to

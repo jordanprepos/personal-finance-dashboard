@@ -151,10 +151,10 @@ export const alertHandlers = {
  * loan whose balance is a debt.
  */
 export const accounts: Account[] = [
-  { id: 'ac1', name: 'BCA Daily', type: 'checking', balance: 8_400_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 0, archived: false, order: 0 },
-  { id: 'ac2', name: 'Mandiri Savings', type: 'savings', balance: 21_000_000, balanceAsOf: '2025-11-01', limit: 0, monthlyPayment: 0, archived: false, order: 1 },
-  { id: 'ac3', name: 'Visa Signature', type: 'credit_card', balance: 2_300_000, balanceAsOf: '2026-08-01', limit: 15_000_000, monthlyPayment: 2_300_000, archived: false, order: 2 },
-  { id: 'ac4', name: 'Motorcycle loan', type: 'other', balance: 12_500_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 1_150_000, archived: false, order: 3 },
+  { id: 'ac1', name: 'BCA Daily', type: 'checking', balance: 8_400_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 0, order: 0 },
+  { id: 'ac2', name: 'Mandiri Savings', type: 'savings', balance: 21_000_000, balanceAsOf: '2025-11-01', limit: 0, monthlyPayment: 0, order: 1 },
+  { id: 'ac3', name: 'Visa Signature', type: 'credit_card', balance: 2_300_000, balanceAsOf: '2026-08-01', limit: 15_000_000, monthlyPayment: 2_300_000, order: 2 },
+  { id: 'ac4', name: 'Motorcycle loan', type: 'other', balance: 12_500_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 1_150_000, order: 3 },
 ];
 
 /** Built through the real projection, so a change to it moves the stories too. */
