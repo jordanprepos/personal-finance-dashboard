@@ -35,6 +35,14 @@ import type {
 } from './types.js';
 import { MAX_INCOME_DAY } from './types.js';
 import { DEFAULT_PROFILE, defaultAlerts } from './lib/queries.js';
+import {
+  dashboardCardSpec,
+  isDashboardCardId,
+  normalizeDashboardCards,
+  type DashboardCardContext,
+  type DashboardCardId,
+} from './lib/dashboardCards.js';
+import type { MoneyFormat } from './lib/format.js';
 
 /**
  * Framework-agnostic application state.
@@ -709,6 +717,73 @@ export class ExpenseStore {
     });
   }
 
+  /* --------------------------------------------------- dashboard cards */
+
+  /**
+   * Writes the whole card list, which is what add, remove and reorder all
+   * reduce to — `merge: true` replaces an array outright rather than merging
+   * it element-wise, the same reason `writeIncomes` exists.
+   *
+   * No reload: the list lives on the profile, which already arrives by the
+   * profile arm of the `watchMonth` fan-out.
+   */
+  private async writeDashboardCards(cards: readonly string[], note: string): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const next = normalizeDashboardCards(cards);
+    await this.mutate(async () => {
+      await source.setDashboardCards(next);
+      return note;
+    });
+  }
+
+  /** Replaces the list outright — used by the picker's reset and reorder. */
+  async setDashboardCards(cards: readonly string[]): Promise<void> {
+    await this.writeDashboardCards(cards, 'Dashboard updated');
+  }
+
+  /**
+   * Appends a card. A card already on the dashboard is left where it is.
+   *
+   * The `isDashboardCardId` guard here and on the two below is not belt and
+   * braces: a card retired from the registry vanishes from the *rendered*
+   * dashboard, because `buildDashboardCards` narrows, but a stale render still
+   * holds a button wired to its id. Reading the spec for a toast would throw.
+   */
+  async addDashboardCard(id: DashboardCardId): Promise<void> {
+    if (!isDashboardCardId(id)) return;
+    const current = this.state.profile.dashboardCards;
+    if (current.includes(id)) return;
+    await this.writeDashboardCards([...current, id], `${dashboardCardSpec(id).title} added`);
+  }
+
+  async removeDashboardCard(id: DashboardCardId): Promise<void> {
+    if (!isDashboardCardId(id)) return;
+    const current = this.state.profile.dashboardCards;
+    if (!current.includes(id)) return;
+    await this.writeDashboardCards(
+      current.filter((c) => c !== id),
+      `${dashboardCardSpec(id).title} removed`,
+    );
+  }
+
+  /**
+   * Moves a card one place up (`-1`) or down (`+1`). A move off either end is
+   * a no-op rather than a wrap — the buttons are hidden there, but two tabs
+   * can each be showing a different list.
+   */
+  async moveDashboardCard(id: DashboardCardId, delta: number): Promise<void> {
+    if (!isDashboardCardId(id)) return;
+    const current = [...this.state.profile.dashboardCards];
+    const from = current.indexOf(id);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= current.length) return;
+    const [moved] = current.splice(from, 1);
+    if (moved === undefined) return;
+    current.splice(to, 0, moved);
+    await this.writeDashboardCards(current, `${dashboardCardSpec(id).title} moved`);
+  }
+
   async setAlertsEnabled(enabled: boolean): Promise<void> {
     await this.writeAlerts({ enabled }, enabled ? 'Alerts on' : 'Alerts off');
   }
@@ -799,3 +874,25 @@ export const periodRangeLabel = (state: ExpenseState): string =>
   cycleRangeLabel(state.yearMonth, state.profile.cycleStartDay);
 
 export const currentYearOf = (state: ExpenseState): string => toYear(state.today);
+
+/**
+ * The snapshot, as the card builders want it.
+ *
+ * Lives here rather than in `lib/dashboardCards.ts` because it is the one
+ * piece that has to know about `ExpenseState`, and `store.ts` imports the lib
+ * rather than the other way round. Both apps go through it, so the desktop
+ * grid and the phone column can never build their cards from different inputs.
+ */
+export const dashboardCardContext = (
+  state: ExpenseState,
+  fmt: MoneyFormat,
+): DashboardCardContext => ({
+  yearMonth: state.yearMonth,
+  today: state.today,
+  cycleStartDay: state.profile.cycleStartDay,
+  categories: state.categories,
+  monthTransactions: state.monthTransactions,
+  yearTransactions: state.yearTransactions,
+  budget: state.budget,
+  fmt,
+});

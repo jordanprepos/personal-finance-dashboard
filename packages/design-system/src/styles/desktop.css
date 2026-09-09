@@ -189,6 +189,36 @@
   gap: 14px;
 }
 
+/* The composed dashboard. Two columns like the envelope grid, with a card
+   whose spec says `full` spanning both — that is set inline from `spec.size`
+   rather than with a modifier class, since the span is the card's own
+   property and not a layout choice this grid makes. */
+/* The composed dashboard.
+ *
+ * Flex rather than the two-column grid the envelopes use, because these cards
+ * are reorderable and a `full`-width one can land at any position. Grid leaves
+ * the half-row before it empty; `grid-auto-flow: dense` fills that hole only
+ * by pulling a later card forward, so moving a card up makes a *different*
+ * card jump ahead of it — a worse wrong than the hole in a list the user
+ * arranged by hand. Flex keeps document order and lets a stranded half grow
+ * into the space instead. */
+.dash__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.dash__cards > * {
+  /* Two halves to a row; one left alone on its row fills the width. */
+  flex: 1 1 calc(50% - 7px);
+  min-width: 0;
+}
+
+.dash__cards > .dash__card--full {
+  flex-basis: 100%;
+}
+
 .dash__column {
   display: flex;
   flex-direction: column;
@@ -1067,6 +1097,10 @@
 
   .dash__envelopes {
     grid-template-columns: 1fr;
+  }
+
+  .dash__cards > * {
+    flex-basis: 100%;
   }
 
   /* --- daily --- */

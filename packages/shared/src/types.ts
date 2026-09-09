@@ -252,6 +252,18 @@ export interface Profile {
    * See `lib/dates.ts` for the arithmetic.
    */
   cycleStartDay: number;
+  /**
+   * Which dashboard cards this account shows, and in what order — ids from
+   * `DASHBOARD_CARDS` in `lib/dashboardCards.ts`.
+   *
+   * Absent and empty mean different things, which is the whole reason this is
+   * an array rather than a map. A document with **no** field falls back to
+   * `DEFAULT_DASHBOARD_CARDS`, so an account written before cards existed gets
+   * a populated dashboard with no migration; a stored **empty** array is
+   * someone who removed every card, and is left exactly as it is. `toProfile`
+   * is where that distinction is made.
+   */
+  dashboardCards: string[];
 }
 
 /**

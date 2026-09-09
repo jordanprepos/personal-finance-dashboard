@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   evaluateAlerts,
+  buildDashboardCard,
   categoryLimitRows,
+  dashboardCardContext,
+  DASHBOARD_CARDS,
   entryCountsByCategory,
   monthLabel,
   periodRangeLabel,
@@ -11,6 +14,7 @@ import {
   type AuthController,
   type AuthState,
   type EnvRecord,
+  type DashboardCardId,
   type MoneyFormat,
   type ExpenseStore,
   type Transaction,
@@ -19,6 +23,7 @@ import {
 import { SPEND_TABS, type Tab } from './appTypes';
 import { useAuth, useStore } from './useStore';
 import { LoginView } from './views/LoginView';
+import { HomeView } from './views/HomeView';
 import { MonthlyView } from './views/MonthlyView';
 import { DailyView } from './views/DailyView';
 import { YearlyView } from './views/YearlyView';
@@ -26,7 +31,11 @@ import { IncomeView } from './views/IncomeView';
 import { ExpenseModal } from '@expense-tracker/design-system';
 
 import { DesktopAlertBanners as AlertBanners } from '@expense-tracker/design-system';
-import { AlertSettingsModal, CategoryModal } from '@expense-tracker/design-system';
+import {
+  AlertSettingsModal,
+  CategoryModal,
+  DashboardCardPicker,
+} from '@expense-tracker/design-system';
 
 export function App({
   store,
@@ -85,6 +94,7 @@ function Dashboard({
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const fmt: MoneyFormat = useMemo(
     () => ({ currency: state.profile.currency, locale: state.profile.locale }),
@@ -259,6 +269,9 @@ function Dashboard({
           */}
           <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
 
+          {tab === 'home' ? (
+            <HomeView {...viewProps} onCustomize={() => setPickerOpen(true)} />
+          ) : null}
           {tab === 'monthly' ? <MonthlyView {...viewProps} /> : null}
           {tab === 'daily' ? <DailyView {...viewProps} /> : null}
           {tab === 'yearly' ? (
@@ -331,6 +344,21 @@ function Dashboard({
           onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
           onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}
+        />
+      ) : null}
+
+      {pickerOpen ? (
+        <DashboardCardPicker
+          /* Every card in the registry, built against the period in view — the
+             previews are the real numbers, not sample data. */
+          catalog={DASHBOARD_CARDS.map((spec) =>
+            buildDashboardCard(spec.id, dashboardCardContext(state, fmt)),
+          )}
+          chosen={state.profile.dashboardCards}
+          busy={state.busy}
+          onAdd={(id: DashboardCardId) => void store.addDashboardCard(id)}
+          onRemove={(id: DashboardCardId) => void store.removeDashboardCard(id)}
+          onClose={() => setPickerOpen(false)}
         />
       ) : null}
 

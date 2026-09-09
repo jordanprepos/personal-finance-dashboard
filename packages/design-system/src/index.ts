@@ -12,6 +12,15 @@ export {
   type AlertSettingsModalProps,
 } from './components/AlertSettingsModal.js';
 export { AlertSheet, type AlertSheetProps } from './components/AlertSheet.js';
+export { DashboardCard } from './components/DashboardCard.js';
+export {
+  DashboardCardPicker,
+  type DashboardCardPickerProps,
+} from './components/DashboardCardPicker.js';
+export {
+  DashboardCardSheet,
+  type DashboardCardSheetProps,
+} from './components/DashboardCardSheet.js';
 export {
   DefaultCategoriesButton,
   DEFAULT_CATEGORY_COUNT,
@@ -21,6 +30,8 @@ export { catStyle } from './catStyle.js';
 export type {
   AlertSettingsProps,
   CategoryManagerProps,
+  DashboardCardProps,
+  DashboardPickerProps,
   ExpenseFormProps,
   IncomeEditorProps,
 } from './types.js';

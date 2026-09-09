@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import type { Budget, Category, Income, Profile, Transaction } from '../types.js';
 import { defaultAlerts } from '../lib/queries.js';
+import { DEFAULT_DASHBOARD_CARDS } from '../lib/dashboardCards.js';
 import { dateInMonth, monthsOfYear, toYear, toYearMonth } from '../lib/dates.js';
 import { DEFAULT_CATEGORIES } from './defaultCategories.js';
 
@@ -121,6 +122,7 @@ export const seedProfile = (): Profile => ({
   // Calendar months. Demo mode is the control the cycle behaviour is checked
   // against, so this stays 1 — set it here to eyeball a cycle on seed data.
   cycleStartDay: 1,
+  dashboardCards: [...DEFAULT_DASHBOARD_CARDS],
 });
 
 interface Charge {
