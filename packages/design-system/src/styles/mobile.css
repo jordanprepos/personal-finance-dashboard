@@ -116,9 +116,8 @@ body {
   cursor: pointer;
   /* A hair under the design's 11.5px: this is what buys the row enough slack
      to sit on one line at the design's 390px and still clear the FAB on a
-     375px phone. Tuned when Income made six items; Home makes seven, and the
-     rest of the slack came out of `.phone__navgroup`'s gap rather than out of
-     this — 11px is already the floor for a legible label. */
+     375px phone. 11px is the floor for a legible label — the rest of the
+     slack came out of `.phone__navgroup`'s gap instead. */
   font-size: 11px;
   font-weight: 600;
   padding: 0;
@@ -140,12 +139,13 @@ body {
 .phone__navgroup {
   display: flex;
   align-items: center;
-  /* 8px, not the 11px this held at six items. Home makes seven, and at 11px
-     the row hid 42px of itself behind the FAB on a 375px phone — enough to
-     clip Settings. This buys back 19px of that.
-     It does not eliminate the scroll, and is not meant to: the row already
-     overflowed by 6px at six items, which is what `overflow-x` below is for.
-     Measured at 375px — scrollWidth 324 -> 303 against a 280px track. */
+  /* 8px, not the 11px this held before the Home tab landed.
+     The row is Home / Today / Month / Year / Income / Manage — six items,
+     because Accounts, Categories and Settings sit behind Manage rather than
+     as buttons of their own (see `ManageSheet` for why). Measured against this
+     stylesheet in the running app at 375px: scrollWidth 242 in a 242px track,
+     nothing hidden. There is no slack left for a seventh item — `overflow-x`
+     below is the fallback, not a budget to spend. */
   gap: 8px;
   min-width: 0;
   overflow-x: auto;

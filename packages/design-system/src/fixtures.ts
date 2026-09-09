@@ -11,6 +11,7 @@ import {
   buildDashboardCard,
   DASHBOARD_CARDS,
   IDR,
+  yearWindowEnd,
   yearWindowStart,
   type Account,
   type AccountBalance,
@@ -174,6 +175,7 @@ export const balances: AccountBalance[] = accountBalances(
   ],
   today,
   yearWindowStart(yearMonth),
+  yearWindowEnd(yearMonth),
 );
 
 export const accountHandlers = {
@@ -261,6 +263,7 @@ export const noLimitsContext: DashboardCardContext = {
     [],
     today,
     yearWindowStart(yearMonth),
+    yearWindowEnd(yearMonth),
   ),
 };
 

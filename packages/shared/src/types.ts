@@ -97,7 +97,11 @@ export const ACCOUNT_TYPE_HINTS: Record<AccountType, string> = {
   savings: 'Bank savings with interest',
   credit_card: 'Bank credit cards',
   investment: 'Stocks, ETF or crypto',
-  other: 'Life insurance, loan, mortgage or anything else',
+  // Deliberately **not** "or anything else". `other` is a liability, so
+  // spending against it increases the balance and it subtracts from net worth
+  // — an invitation to file a wallet or an e-wallet here would invert both.
+  // Anything that holds money belongs in Cash, Checking or Savings.
+  other: 'Loan, mortgage, insurance or another debt',
 };
 
 /** The types that owe money rather than hold it — a balance here is a debt. */
@@ -106,9 +110,21 @@ export const LIABILITY_ACCOUNT_TYPES: readonly AccountType[] = ['credit_card', '
 export const isLiabilityAccount = (type: AccountType): boolean =>
   (LIABILITY_ACCOUNT_TYPES as readonly string[]).includes(type);
 
-/** Narrows a stored value to the union; anything else reads as `'other'`. */
+/** Narrows a stored value to the union. See `UNKNOWN_ACCOUNT_TYPE` for the fallback. */
 export const isAccountType = (value: unknown): value is AccountType =>
   typeof value === 'string' && (ACCOUNT_TYPES as readonly string[]).includes(value);
+
+/**
+ * What an unrecognised stored `type` reads as.
+ *
+ * `'cash'` rather than `'other'`, deliberately. The rule this file follows for
+ * `toIncome` is that a default must not silently change what the data means —
+ * and `'other'` is a **liability**, so falling back to it would turn a pot of
+ * money into a debt that grows as you spend and subtracts from net worth. Of
+ * the six, only the four asset types are inert here; `'cash'` is the one that
+ * claims least about where the money is.
+ */
+export const UNKNOWN_ACCOUNT_TYPE: AccountType = 'cash';
 
 /**
  * One pot money sits in — a bank account, a wallet, a credit card, a loan.

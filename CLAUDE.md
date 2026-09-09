@@ -508,14 +508,30 @@ Two consequences, and both are load-bearing:
   `AccountsPanel` makes Reconcile the primary action on the row rather than a
   field inside an edit form.
 
-`stale` is the guard against the worst version of that. Movements come from
-`state.yearTransactions`, the widest window the snapshot carries, so a
-reconciliation from several periods back still projects correctly — but one
-older than the loaded year cannot, and the row then shows the **reconciled**
-figure with a prompt rather than a confident wrong number. A missing
-`balanceAsOf` counts as stale for the same reason. Note this makes the horizon
-the *year in view*: stepping the month nav into another year reads stale
-throughout, which is correct — a balance is a now, not a period.
+`stale` is the guard against the worst version of that, and it checks **both
+edges of the window**, which is the part that is easy to get half-right.
+Movements come from `state.yearTransactions`, the widest window the snapshot
+carries, so a reconciliation from several periods back still projects
+correctly. It goes stale when:
+
+- `balanceAsOf` falls **before** the window opened, so movements between the
+  two are invisible;
+- the window **closes before `today`** — which is exactly what viewing a past
+  year means. Every movement since the reconciliation is then outside it,
+  `spentSince` collapses to 0, and without this clause the confirmed figure
+  would be presented as a current balance: a *confidently wrong* number, which
+  is worse than an obviously missing one. `accountBalances` takes `windowEnd`
+  as a required argument for this reason — the compiler will not let a caller
+  pass only the start;
+- there is no `balanceAsOf` at all, since a figure with no date cannot be
+  projected from.
+
+A stale row shows the **reconciled** figure with a prompt, and `utilisation` is
+taken from whichever figure the row is actually showing — not from `projected`
+— so a bar and the amount printed beside it cannot disagree. `accountTotals`
+sums the same figure. Note all this makes the horizon the *year in view*:
+stepping the month nav into another year reads stale throughout, which is
+correct — a balance is a now, not a period.
 
 **Liabilities carry the opposite sign, in exactly one place.** `projectedFor`
 adds spend to a card or loan and subtracts it from everything else, so no

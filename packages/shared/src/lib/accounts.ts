@@ -57,12 +57,24 @@ export interface AccountBalance {
   /** whole days since the reconciliation; 0 on the day itself */
   ageInDays: number;
   /**
-   * The reconciliation predates the loaded window, so movements between it and
-   * the window's start are invisible and the projection would be wrong. The
-   * surfaces show `reconciled` with a prompt instead of `projected`.
+   * The projection cannot be trusted, so the surfaces show `reconciled` with a
+   * prompt instead. Two ways to get here, and both are about the window:
+   *
+   * - the reconciliation predates the window's start, so movements between the
+   *   two are invisible; or
+   * - the window ends before `today`, which is what viewing a **past year**
+   *   means — every movement since then is outside it, so the projection
+   *   collapses back to the confirmed figure and would otherwise be presented
+   *   as a current balance.
    */
   stale: boolean;
-  /** credit cards: `projected / limit`, 0-1. `0` when no limit is set. */
+  /**
+   * Credit cards: how much of the limit is drawn, 0-1. `0` when no limit is set.
+   *
+   * Taken from the **shown** figure, not from `projected` — a stale row prints
+   * `reconciled`, and a percentage derived from the other one would contradict
+   * the amounts printed beside it. `accountTotals` sums the same figure.
+   */
   utilisation: number;
   color: string;
 }
@@ -84,17 +96,23 @@ const safeDiv = (a: number, b: number): number => (b > 0 ? a / b : 0);
  * `transactions` should be the widest window the snapshot carries —
  * `state.yearTransactions`, the twelve periods of the year in view. That is
  * what makes a reconciliation from several periods back still project
- * correctly; anything older than the window is reported `stale` rather than
+ * correctly; anything the window cannot see is reported `stale` rather than
  * silently under-counted.
  *
- * `windowStart` is the first day the caller can see. Pass the first day of the
- * year in view; `accountBalancesForYear` does that for you.
+ * `windowStart` and `windowEnd` are the first and last day the caller can see.
+ * **Both** are needed, and passing only the start is the bug this signature
+ * exists to prevent: with a window that ends before `today` — which is exactly
+ * what viewing a past year means — every movement since the reconciliation
+ * falls outside it, `spentSince` collapses to 0, and the confirmed figure gets
+ * presented as a current balance. Pass the year in view;
+ * `accountBalancesForYear` does that for you.
  */
 export function accountBalances(
   accounts: readonly Account[],
   transactions: readonly Transaction[],
   today: string,
   windowStart: string,
+  windowEnd: string,
 ): AccountBalance[] {
   // One pass over the transactions rather than one per account: a year's rows
   // times a dozen accounts is a lot of scanning to repeat.
@@ -124,6 +142,16 @@ export function accountBalances(
       const { total, count } = spent.get(account.id) ?? { total: 0, count: 0 };
       const projected = projectedFor(account, total);
       const reconciledOn = account.balanceAsOf;
+      const stale =
+        // No date at all: we cannot tell what the figure already includes, so
+        // projecting from it would be a guess.
+        reconciledOn === '' ||
+        // Movements before the window opened are invisible.
+        reconciledOn < windowStart ||
+        // Movements after it closed are too — this is the past-year case, and
+        // it is the one that would otherwise read as a confident wrong number
+        // rather than as an obviously missing one.
+        windowEnd < today;
       return {
         account,
         reconciled: account.balance,
@@ -132,10 +160,10 @@ export function accountBalances(
         entryCount: count,
         projected,
         ageInDays: reconciledOn ? Math.max(0, daysBetween(reconciledOn, today)) : 0,
-        // No date at all counts as stale: we cannot tell what the figure
-        // already includes, so projecting from it would be a guess.
-        stale: reconciledOn === '' || reconciledOn < windowStart,
-        utilisation: safeDiv(projected, account.limit),
+        stale,
+        // The figure the surfaces actually print, so the bar and the amount
+        // beside it cannot disagree.
+        utilisation: safeDiv(stale ? account.balance : projected, account.limit),
         color: accountColor(account),
       };
     });
@@ -145,6 +173,9 @@ export function accountBalances(
 export const yearWindowStart = (yearMonth: string): string =>
   `${monthsOfYear(yearOfMonth(yearMonth))[0] as string}-01`;
 
+/** The last day of it. Together with the start, what the snapshot can see. */
+export const yearWindowEnd = (yearMonth: string): string => `${yearOfMonth(yearMonth)}-12-31`;
+
 /** `accountBalances` against the year the period in view sits in. */
 export const accountBalancesForYear = (
   accounts: readonly Account[],
@@ -152,7 +183,13 @@ export const accountBalancesForYear = (
   today: string,
   yearMonth: string,
 ): AccountBalance[] =>
-  accountBalances(accounts, yearTransactions, today, yearWindowStart(yearMonth));
+  accountBalances(
+    accounts,
+    yearTransactions,
+    today,
+    yearWindowStart(yearMonth),
+    yearWindowEnd(yearMonth),
+  );
 
 export interface AccountTotals {
   /** what the asset accounts hold */

@@ -25,6 +25,7 @@ import {
 
 import {
   isAccountType,
+  UNKNOWN_ACCOUNT_TYPE,
   isIncomeCadence,
   isIncomeKind,
   isPaymentMethod,
@@ -224,9 +225,11 @@ function toBudget(id: string, d: DocumentData | undefined): Budget {
 
 /**
  * Narrowing, same rules as everything else read back here: a type outside the
- * union reads as `'other'`, a malformed number as 0, and a missing
- * `balanceAsOf` as the empty string — which `lib/accounts.ts` treats as stale,
- * since a figure with no date attached cannot be projected from.
+ * union reads as `UNKNOWN_ACCOUNT_TYPE` (an asset — never `'other'`, which is
+ * a liability and would invert the sign of every expense tagged to it), a
+ * malformed number as 0, and a missing `balanceAsOf` as the empty string —
+ * which `lib/accounts.ts` treats as stale, since a figure with no date
+ * attached cannot be projected from.
  */
 function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
   const d = snap.data();
@@ -238,7 +241,7 @@ function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
   return {
     id: snap.id,
     name: String(d['name'] ?? ''),
-    type: isAccountType(type) ? type : 'other',
+    type: isAccountType(type) ? type : UNKNOWN_ACCOUNT_TYPE,
     balance: num(d['balance']),
     balanceAsOf: String(d['balanceAsOf'] ?? ''),
     limit: num(d['limit']),

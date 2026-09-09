@@ -247,6 +247,14 @@ export function ExpenseModal({
                   {a.name}
                 </option>
               ))}
+              {/* Removing an account is a hard delete that deliberately leaves
+                  the id on the transactions that named it. Without this the
+                  select would bind to a value no option matches and render
+                  blank, so the entry would silently look untagged — and the
+                  reader could not tell whether saving would clear it. */}
+              {values.accountId !== '' && !accounts.some((a) => a.id === values.accountId) ? (
+                <option value={values.accountId}>Removed account</option>
+              ) : null}
             </select>
           )}
         </div>
