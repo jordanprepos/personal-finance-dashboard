@@ -1,4 +1,7 @@
 import type {
+  Account,
+  AccountInput,
+  AccountPatch,
   AlertSettings,
   Budget,
   Category,
@@ -19,6 +22,8 @@ export type Unsubscribe = () => void;
  * never paints a half-updated month.
  */
 export interface MonthSnapshot {
+  /** every account, in `order` — balances are projected from these by `lib/accounts.ts` */
+  accounts: Account[];
   categories: Category[];
   monthTransactions: Transaction[];
   yearTransactions: Transaction[];
@@ -45,9 +50,9 @@ export interface ExpenseDataSource {
    * ending in that month. Both are needed — the id alone does not say which
    * dates it covers.
    *
-   * The Firestore implementation fans out to five listeners and emits only
-   * once all five have reported, so the first callback is a complete month
-   * rather than five partial repaints. The seed implementation re-emits after
+   * The Firestore implementation fans out to six listeners and emits only
+   * once all six have reported, so the first callback is a complete month
+   * rather than six partial repaints. The seed implementation re-emits after
    * every write, so demo mode behaves the same way rather than going stale
    * after the first paint.
    *
@@ -62,6 +67,20 @@ export interface ExpenseDataSource {
     onChange: (snapshot: MonthSnapshot) => void,
     onError: (error: Error) => void,
   ): Unsubscribe;
+
+  createAccount(input: AccountInput): Promise<Account>;
+  updateAccount(accountId: string, patch: AccountPatch): Promise<void>;
+  /**
+   * Confirms what an account holds, as of a date. Its own call rather than a
+   * two-field patch: the pair is meaningless apart, since a balance with no
+   * date attached cannot be projected from.
+   */
+  reconcileAccount(accountId: string, balance: number, asOf: string): Promise<void>;
+  /**
+   * Hard delete. Transactions naming the account are left alone — `accountId`
+   * is omitted-when-unset, so a stale id already reads as unattributed.
+   */
+  deleteAccount(accountId: string): Promise<void>;
 
   createCategory(input: CategoryInput): Promise<Category>;
   /** Hard delete — also removes every transaction in the category. Returns that count. */

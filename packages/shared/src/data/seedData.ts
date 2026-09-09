@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-import type { Budget, Category, Income, Profile, Transaction } from '../types.js';
+import type { Account, Budget, Category, Income, Profile, Transaction } from '../types.js';
 import { defaultAlerts } from '../lib/queries.js';
 import { DEFAULT_DASHBOARD_CARDS } from '../lib/dashboardCards.js';
 import { dateInMonth, monthsOfYear, toYear, toYearMonth } from '../lib/dates.js';
@@ -113,6 +113,58 @@ export const seedBudgets = (): Record<string, Budget> => {
   }
   return budgets;
 };
+
+/**
+ * Demo accounts — one of each shape the balance logic has to handle: a plain
+ * asset, a savings pot reconciled a while back, a card with a limit, and a
+ * loan whose "balance" is a debt. Between them they exercise the asset and
+ * liability sign conventions, utilisation, and `monthlyPayment`.
+ *
+ * `balanceAsOf` sits inside the seed year so demo mode projects rather than
+ * reading stale — move one back a year to eyeball the stale path.
+ */
+export const seedAccounts = (): Account[] => [
+  {
+    id: 'acct-seed-1',
+    name: 'BCA Daily',
+    type: 'checking',
+    balance: 8_400_000,
+    balanceAsOf: `${SEED_YEAR}-08-01`,
+    limit: 0,
+    monthlyPayment: 0,
+    order: 0,
+  },
+  {
+    id: 'acct-seed-2',
+    name: 'Mandiri Savings',
+    type: 'savings',
+    balance: 21_000_000,
+    balanceAsOf: `${SEED_YEAR}-07-01`,
+    limit: 0,
+    monthlyPayment: 0,
+    order: 1,
+  },
+  {
+    id: 'acct-seed-3',
+    name: 'Visa Signature',
+    type: 'credit_card',
+    balance: 2_300_000,
+    balanceAsOf: `${SEED_YEAR}-08-01`,
+    limit: 15_000_000,
+    monthlyPayment: 2_300_000,
+    order: 2,
+  },
+  {
+    id: 'acct-seed-4',
+    name: 'Motorcycle loan',
+    type: 'other',
+    balance: 12_500_000,
+    balanceAsOf: `${SEED_YEAR}-08-01`,
+    limit: 0,
+    monthlyPayment: 1_150_000,
+    order: 3,
+  },
+];
 
 export const seedProfile = (): Profile => ({
   displayName: 'Demo',

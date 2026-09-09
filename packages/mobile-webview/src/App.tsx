@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
+  accountBalancesOf,
   bucketByMonth,
   categoryOf,
   categoryTotals,
@@ -32,9 +33,10 @@ import { useAuth, useStore } from './useStore';
 import { LoginView } from './components/LoginView';
 import { ExpenseSheet } from '@expense-tracker/design-system';
 
-import { AlertSheet, CategorySheet } from '@expense-tracker/design-system';
+import { AccountsSheet, AlertSheet, CategorySheet } from '@expense-tracker/design-system';
 import { IncomeTab } from './components/IncomeTab';
 import { HomeTab } from './components/HomeTab';
+import { ManageSheet } from './components/ManageSheet';
 import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
 
 type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
@@ -118,6 +120,8 @@ function Phone({
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
 
   const fmt: MoneyFormat = useMemo(
@@ -313,21 +317,20 @@ function Phone({
             </button>
           ))}
           <span className="phone__navsep" aria-hidden="true" />
+          {/*
+            Accounts, Categories and Settings behind one button. They were three
+            until Accounts made a seventh item, which overflowed the row by 57px
+            at 375px — enough to push Settings off the end, and no gap tuning
+            fixed it. The five tabs plus this one fit with nothing hidden, and
+            the row has no slack left for a seventh. See ManageSheet.
+          */}
           <button
             type="button"
             className="phone__navbtn"
             style={{ color: 'var(--cf-muted)' }}
-            onClick={() => setCategoriesOpen(true)}
+            onClick={() => setManageOpen(true)}
           >
-            Categories
-          </button>
-          <button
-            type="button"
-            className="phone__navbtn"
-            style={{ color: 'var(--cf-muted)' }}
-            onClick={() => setAlertsOpen(true)}
-          >
-            Settings
+            Manage
           </button>
         </div>
         <span className="cf-spacer" />
@@ -342,6 +345,7 @@ function Phone({
           today={state.today}
           cycleStartDay={state.profile.cycleStartDay}
           categories={state.categories}
+          accounts={state.accounts}
           busy={state.busy}
           fmt={fmt}
           onSave={(draft, entry) => {
@@ -362,6 +366,34 @@ function Phone({
             setEditing(null);
             setCategoriesOpen(true);
           }}
+          onManageAccounts={() => {
+            setSheetOpen(false);
+            setEditing(null);
+            setAccountsOpen(true);
+          }}
+        />
+      ) : null}
+
+      {manageOpen ? (
+        <ManageSheet
+          onAccounts={() => setAccountsOpen(true)}
+          onCategories={() => setCategoriesOpen(true)}
+          onSettings={() => setAlertsOpen(true)}
+          onClose={() => setManageOpen(false)}
+        />
+      ) : null}
+
+      {accountsOpen ? (
+        <AccountsSheet
+          balances={accountBalancesOf(state)}
+          today={state.today}
+          busy={state.busy}
+          fmt={fmt}
+          onAdd={(input) => void store.addAccount(input)}
+          onUpdate={(id, patch) => void store.updateAccount(id, patch)}
+          onReconcile={(id, balance, asOf) => void store.reconcileAccount(id, balance, asOf)}
+          onDelete={(account) => void store.deleteAccount(account)}
+          onClose={() => setAccountsOpen(false)}
         />
       ) : null}
 

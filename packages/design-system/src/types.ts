@@ -1,4 +1,8 @@
 import type {
+  Account,
+  AccountBalance,
+  AccountInput,
+  AccountType,
   AlertSettings,
   Category,
   CategoryLimitRow,
@@ -33,6 +37,12 @@ export interface ExpenseFormProps {
    */
   cycleStartDay: number;
   categories: readonly Category[];
+  /**
+   * The accounts an expense can be drawn on. A third axis: never filtered by
+   * the picked category or payment method, and never inferred from either.
+   * Empty offers a handoff to the accounts surface instead of a dead select.
+   */
+  accounts: readonly Account[];
   /** a write is in flight — disables Save */
   busy: boolean;
   fmt: MoneyFormat;
@@ -50,6 +60,8 @@ export interface ExpenseFormProps {
   onManageCategories: () => void;
   /** seeds the account from the category template */
   onAddDefaultCategories: () => void;
+  /** hands off to the accounts surface when there is nothing to draw on yet */
+  onManageAccounts: () => void;
 }
 
 /**
@@ -127,6 +139,33 @@ export interface AlertSettingsProps {
   /** name is canonicalised to the category's own `name` by the caller */
   onSetCategoryLimit: (name: string, amount: number) => void;
   onClearCategoryLimit: (name: string) => void;
+  onClose: () => void;
+}
+
+/**
+ * What an accounts manager needs, on either surface.
+ *
+ * `balances` arrive already projected by `lib/accounts.ts` — reconciled figure,
+ * what has been spent since, whether the reconciliation is too old to project
+ * from — so this surface does no arithmetic and never sees a `Transaction`
+ * (whose `createdAt` is a Firestore `Timestamp`, not something a design can
+ * write as a literal).
+ *
+ * Reconcile is deliberately part of this contract rather than folded into
+ * `onUpdate`: a balance and the date it was true are meaningless apart, and it
+ * is the action that will be taken most, since a projection is only ever as
+ * good as the last time it ran.
+ */
+export interface AccountManagerProps {
+  balances: readonly AccountBalance[];
+  /** "YYYY-MM-DD" — the default as-of date when reconciling */
+  today: string;
+  busy: boolean;
+  fmt: MoneyFormat;
+  onAdd: (input: Omit<AccountInput, 'order' | 'balanceAsOf'>) => void;
+  onUpdate: (accountId: string, patch: { name?: string; type?: AccountType; limit?: number; monthlyPayment?: number }) => void;
+  onReconcile: (accountId: string, balance: number, asOf: string) => void;
+  onDelete: (account: Account) => void;
   onClose: () => void;
 }
 

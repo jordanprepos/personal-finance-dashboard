@@ -4,6 +4,9 @@ import { seriesDates } from '../lib/queries.js';
 import { normalizeDashboardCards } from '../lib/dashboardCards.js';
 import { cycleRange, toYear, toYearMonth, yearMonthOf, yearOfMonth } from '../lib/dates.js';
 import type {
+  Account,
+  AccountInput,
+  AccountPatch,
   AlertSettings,
   Budget,
   Category,
@@ -16,6 +19,7 @@ import type {
   TransactionSeriesKey,
 } from '../types.js';
 import {
+  seedAccounts,
   seedBudgets,
   seedCategories,
   seedIncomes,
@@ -32,6 +36,7 @@ import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js'
  * lifetime of the page.
  */
 export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
+  let accounts = seedAccounts();
   let categories = seedCategories();
   let transactions = seedTransactions();
   const budgets = seedBudgets();
@@ -44,6 +49,8 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
      categories are created in the same millisecond — which bulk-adding the
      defaults does every time, silently giving them all one id. */
   const newCategoryId = (): string => `cat-${String(++nextCategory).padStart(3, '0')}`;
+  let nextAccount = 0;
+  const newAccountId = (): string => `acct-${String(++nextAccount).padStart(3, '0')}`;
   let nextSeries = 0;
   const newSeriesId = (): string => `seed-series-${String(++nextSeries).padStart(3, '0')}`;
   const clone = <T>(rows: T[]): T[] => rows.map((r) => ({ ...r }));
@@ -62,6 +69,9 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     // derived from `categoryId`. Kept in step with it or the field vanishes in
     // seed mode only.
     ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+    // Third axis, same mirror, same warning: this line and its twin in
+    // `denormalize` change together or the field vanishes in seed mode only.
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     seriesId,
     createdAt: Timestamp.now(),
   });
@@ -92,7 +102,9 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       ? { ...budget, incomes: budget.incomes.map((i) => ({ ...i })), categoryBudgets: { ...budget.categoryBudgets } }
       : { id: yearMonth, income: SEED_INCOME, incomes: seedIncomes(), categoryBudgets: {} };
   };
+  const readAccounts = (): Account[] => clone(accounts).sort((a, b) => a.order - b.order);
   const monthSnapshot = (yearMonth: string, cycleStartDay: number): MonthSnapshot => ({
+    accounts: readAccounts(),
     categories: readCategories(),
     monthTransactions: readPeriod(yearMonth, cycleStartDay),
     yearTransactions: readYear(yearMonth, cycleStartDay),
@@ -140,6 +152,33 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       };
     },
 
+    async createAccount(input: AccountInput): Promise<Account> {
+      const account: Account = { ...input, id: newAccountId() };
+      accounts = [...accounts, account];
+      notify();
+      return { ...account };
+    },
+
+    async updateAccount(accountId: string, patch: AccountPatch): Promise<void> {
+      accounts = accounts.map((a) => (a.id === accountId ? { ...a, ...patch } : a));
+      notify();
+    },
+
+    async reconcileAccount(accountId: string, balance: number, asOf: string): Promise<void> {
+      accounts = accounts.map((a) =>
+        a.id === accountId ? { ...a, balance, balanceAsOf: asOf } : a,
+      );
+      notify();
+    },
+
+    async deleteAccount(accountId: string): Promise<void> {
+      // The transactions that named it are deliberately left alone; a stale
+      // `accountId` reads as unattributed and moves no balance, so rewriting
+      // them would be the riskier of the two. Mirrors the Firestore path.
+      accounts = accounts.filter((a) => a.id !== accountId);
+      notify();
+    },
+
     async createCategory(input: CategoryInput): Promise<Category> {
       const category: Category = { ...input, id: newCategoryId() };
       categories = [...categories, category];
@@ -183,6 +222,7 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
         // rather than leaving it present-but-undefined, so a round trip here
         // looks exactly like one through Firestore.
         if ('paymentMethod' in patch && !patch.paymentMethod) delete next.paymentMethod;
+        if ('accountId' in patch && !patch.accountId) delete next.accountId;
         if (patch.date !== undefined) {
           next.yearMonth = toYearMonth(patch.date);
           next.year = toYear(patch.date);

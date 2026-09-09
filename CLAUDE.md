@@ -131,6 +131,7 @@ Workspace layout (pnpm workspaces, `packages/*`):
 
 ```
 users/{userId}
+  ├── accounts/{accountId}
   ├── categories/{categoryId}
   ├── transactions/{transactionId}
   ├── budgets/{yearMonth}        // doc id "2026-08"
@@ -138,8 +139,10 @@ users/{userId}
 ```
 
 ```ts
+Account     { id, name, type: AccountType, balance, balanceAsOf, limit, monthlyPayment, order }
+AccountType 'cash' | 'checking' | 'savings' | 'credit_card' | 'investment' | 'other'
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
-Transaction { id, categoryId, paymentMethod?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+Transaction { id, categoryId, paymentMethod?, accountId?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
 PaymentMethod 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other'
 Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
 Income      { id, name, amount, note? }          // amount is per month
@@ -195,9 +198,9 @@ Two things matter when touching this:
   the generation before calling `set`, and `reset()` both bumps the generation
   and unsubscribes. `watchCurrentMonth` tears down the previous subscription
   before opening a new one, so a month switch never leaves two running.
-- **The Firestore implementation gates its first emit.** It fans out to five
-  listeners and stays silent until all five have reported, so the first paint
-  is a whole month rather than five partial repaints. After that, every change
+- **The Firestore implementation gates its first emit.** It fans out to six
+  listeners and stays silent until all six have reported, so the first paint
+  is a whole month rather than six partial repaints. After that, every change
   emits immediately. The first error tears the whole fan-out down — a partial
   month is worse than a visible failure.
 
@@ -476,10 +479,96 @@ a document has no `incomes` array, so an account written before this change
 keeps its income with no migration. Nothing writes it any more. This is the
 same trick `colorForName` plays with the palette.
 
+### Accounts and balances
+
+`users/{userId}/accounts/{accountId}` is a pot money sits in — a bank account,
+a wallet, a card, a loan. `Transaction.accountId` says which one an expense
+came out of, and `lib/accounts.ts` turns the two into a balance.
+
+**A balance here is confirmed, not derived, and cannot be derived.** The
+identity is `opening + income − expenses ± transfers`, and three of those four
+terms do not exist: there are no opening balances, no transfers, and income is
+a plan on `budgets/{yearMonth}.incomes` rather than a set of transactions. So
+`Account.balance` is the figure last checked against the bank, `balanceAsOf` is
+the day it was true, and `accountBalances` projects forward from there over the
+expenses tagged since.
+
+Two consequences, and both are load-bearing:
+
+- **Balances only ever move down between reconciliations.** Money arriving is
+  invisible. Letting an income source name a destination account was
+  considered and rejected: without transfers the app would credit a payroll
+  account the whole salary and never see the money moved straight out of it, so
+  the figure would read *high* until the next reconcile — worse than one that
+  is knowably a floor. Income destination belongs with transfers, whenever
+  those land.
+- **The projection is only as good as what was logged.** Bank fees, interest,
+  auto-debits and any forgotten expense all push it off. That is why no surface
+  ever shows a bare figure: every one carries `reconciledOn` beside it, and
+  `AccountsPanel` makes Reconcile the primary action on the row rather than a
+  field inside an edit form.
+
+`stale` is the guard against the worst version of that. Movements come from
+`state.yearTransactions`, the widest window the snapshot carries, so a
+reconciliation from several periods back still projects correctly — but one
+older than the loaded year cannot, and the row then shows the **reconciled**
+figure with a prompt rather than a confident wrong number. A missing
+`balanceAsOf` counts as stale for the same reason. Note this makes the horizon
+the *year in view*: stepping the month nav into another year reads stale
+throughout, which is correct — a balance is a now, not a period.
+
+**Liabilities carry the opposite sign, in exactly one place.** `projectedFor`
+adds spend to a card or loan and subtracts it from everything else, so no
+caller has to remember which way round it goes. `accountTotals` is the only
+other place that knows, and it is what both surfaces use for "net" — so they
+cannot disagree about it.
+
+`accountId` follows the **`paymentMethod` contract verbatim** (see the axes
+section above): optional, omitted when unset, `deleteField()` to clear, the
+create spreading it conditionally while the update always sends the key, and
+`denormalize` in `lib/queries.ts` paired with `build` in `data/seedSource.ts`
+— **edit those two together** or the field vanishes in seed mode only. Every
+row written before accounts existed simply reads as unattributed, so there is
+no migration.
+
+The two are **not** the same question and neither replaces the other:
+`paymentMethod` exists to reconcile against a card statement and is
+calendar-shaped; `accountId` exists to say which balance the money left. Both
+composite indexes on `paymentMethod` are untouched, and `accountId` needs none
+— balances filter `yearTransactions` client-side rather than querying.
+
+Deleting an account is a **hard** delete and deliberately does not rewrite the
+transactions that named it: a stale `accountId` already reads as unattributed
+and moves no balance, so rewriting a year of documents to tidy an inert field
+would be the more dangerous of the two. There is deliberately no `archived`
+flag either — the one a category carries — because nothing would set it, and
+a `totals` that filtered archived rows while the list still rendered them would
+drop an account out of "net" while it sat there in plain sight.
+
+Because the delete is hard and the confirmed balance and limit go with it,
+**Remove is not a button on the row**. It sits at the foot of the edit form
+behind a confirm that names what is lost — the same reasoning the income note
+gives for keeping a destructive third button away from a thumb-width of Pause,
+applied to both surfaces here since they share one `AccountsPanel`.
+
+`order` is unique and assigned with `nextAccountOrder`, never
+`accounts.length` — colour resolves from it through `colorForOrder`, so the
+category note's collision applies here too.
+
+**The mobile nav collapsed to fit this.** Accounts made a seventh button in
+`.phone__navgroup`, which overflowed its track by 57px at 375px — enough to
+push Settings off the end, and tightening the gap did not fix it (38px hidden
+at 8px, 58px at 6px once Home is counted too). Accounts, Categories and
+Settings now sit behind one **Manage** button (`mobile-webview/components/
+ManageSheet`), which leaves the five tabs plus Manage and nothing hidden — and
+clears the 6px the row was already losing before any of this. Measure the row
+against the real stylesheet before adding a seventh; it has no slack left.
+
 ### Dashboard cards — one registry, two consumers
 
-`src/lib/dashboardCards.ts` holds `DASHBOARD_CARDS`, the catalog of ten cards
-the Home tab can draw, grouped `cashflow` / `spending` / `reports`. Two things
+`src/lib/dashboardCards.ts` holds `DASHBOARD_CARDS`, the catalog of fifteen
+cards the Home tab can draw, grouped `cashflow` / `spending` / `credit` /
+`reports`. Two things
 read it, so a card added there appears in both at once: the **Home view**
 (`desktop/views/HomeView`, `mobile-webview/components/HomeTab`) renders the
 chosen ones, and the **picker** (`DashboardCardPicker` / `DashboardCardSheet`)
@@ -502,7 +591,7 @@ Reports-group cards are year-scoped and labelled with the year alone.
 
 **Every card reduces to one of four bodies** — `stat`, `rows`, `donut`,
 `bars` — so the design system ships *one* `DashboardCard` renderer rather than
-ten components. It is surface-neutral (only `.cf-*` classes, charts scaled
+one component per card. It is surface-neutral (only `.cf-*` classes, charts scaled
 through a `viewBox`), which is why the desktop grid and the phone's single
 column need no second implementation. A new card needs a new body type only if
 it cannot be said as a stat, a list, an arc or a bar chart. `DonutSegment` and
@@ -526,11 +615,38 @@ cleared, on every snapshot. Unknown ids are dropped on read
 (`normalizeDashboardCards`), so retiring a card from the registry makes it
 vanish from the accounts that had it rather than crashing their dashboard.
 
-There is deliberately **no Credit group**. The four credit cards in the source
-design — recurring debts, debt-to-income, credit-limit utilisation — need
-accounts, balances, limits and loan principals, and none of that is in the
-schema; `Transaction.paymentMethod` says *how* something was paid and nothing
-about what is owed. The group key is open for the day that data model lands.
+**The Credit group exists now, and what unblocked it was accounts.** The four
+cards in the source design — credit used, utilisation by card, debt to income,
+debt payments — need balances, limits and monthly payments, and until the
+`accounts` collection landed none of that was in the schema. The distinction
+that kept them out still holds and is worth keeping straight:
+`Transaction.paymentMethod` says *how* something was paid and nothing about
+what is owed, so it is `Account.limit` and `Account.monthlyPayment` these read,
+never the payment method. A fifth card, `account-balances`, sits in `cashflow`
+rather than `credit` — it answers where money *is*, not what is owed.
+
+Three rules those five follow:
+
+- **They take `balances`, not `accounts`.** `DashboardCardContext.balances` is
+  already projected, and `store.dashboardCardContext` calls `accountBalancesOf`
+  **once**. Handing the cards raw accounts would have five bodies each call
+  `accountBalancesForYear` with their own `windowStart`, and the Credit tab
+  could then disagree with the accounts sheet about what a card owes.
+- **`scope: 'account'` labels them "as of 10 Sep".** A balance is a now, not a
+  window, so labelling one with the period in view would claim it was read at a
+  date it never consulted — and stepping the month nav would relabel a figure
+  that had not moved. `periodLabelFor` branches on all three scopes
+  explicitly; nothing falls through to the period label. `debt-to-income` is
+  the deliberate exception: its numerator is a standing monthly figure but its
+  denominator is the period's income, so it stays `period`-scoped.
+- **An unset limit is not a limit of zero.** `accountTotals.creditUtilisation`
+  returns 0 through `safeDiv` when no limit is set anywhere, which reads
+  identically to "nothing drawn against a real limit" — so
+  `credit-utilisation` and `debt-to-income` check the denominator and render
+  `—`. This is the same rule as `AlertSettings.monthlyLimit` (an unset cap is
+  silent, not permanently breached) and `budget-left`'s income branch. A stale
+  balance is surfaced rather than hidden: `accountTotals` counts it at its
+  reconciled figure, and the caption says so.
 
 ### Spending alerts
 

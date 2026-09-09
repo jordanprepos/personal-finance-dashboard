@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { ExpenseModal } from './ExpenseModal';
-import { categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
+import { accounts, categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
 
 const meta = {
   title: 'Expense/ExpenseModal',
@@ -12,6 +12,7 @@ const meta = {
     today,
     cycleStartDay,
     categories,
+    accounts,
     busy: false,
     fmt: IDR,
     transaction: null,

@@ -4,6 +4,7 @@ import type { Timestamp } from 'firebase/firestore';
  * Firestore data model.
  *
  *   users/{userId}
+ *     ├── accounts/{accountId}
  *     ├── categories/{categoryId}
  *     ├── transactions/{transactionId}
  *     ├── budgets/{yearMonth}       // doc id "2026-08"
@@ -12,9 +13,9 @@ import type { Timestamp } from 'firebase/firestore';
  * Field names here are load-bearing: dashboard queries are written against
  * them. Do not rename without updating firestore.indexes.json too.
  *
- * A transaction carries two independent dimensions: `categoryId` (what the
- * expense is for) and `paymentMethod` (how it was paid). Neither is ever
- * derived from the other.
+ * A transaction carries three independent dimensions: `categoryId` (what the
+ * expense is for), `paymentMethod` (how it was paid) and `accountId` (which
+ * pot it came out of). None is ever derived from another.
  */
 
 export type CategoryType = 'fixed' | 'variable' | 'savings';
@@ -58,6 +59,104 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const isPaymentMethod = (value: unknown): value is PaymentMethod =>
   typeof value === 'string' && (PAYMENT_METHODS as readonly string[]).includes(value);
 
+/**
+ * What kind of pot an account is. Mirrors the six an expense tracker actually
+ * needs — four that hold money, two that owe it.
+ */
+export type AccountType =
+  | 'cash'
+  | 'checking'
+  | 'savings'
+  | 'credit_card'
+  | 'investment'
+  | 'other';
+
+/** Menu order for the account-type selector — both apps read this list. */
+export const ACCOUNT_TYPES: readonly AccountType[] = [
+  'cash',
+  'checking',
+  'savings',
+  'credit_card',
+  'investment',
+  'other',
+];
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  cash: 'Cash',
+  checking: 'Checking account',
+  savings: 'Savings account',
+  credit_card: 'Credit card',
+  investment: 'Investments',
+  other: 'Other',
+};
+
+/** One line of help per type, so the picker explains itself as the design does. */
+export const ACCOUNT_TYPE_HINTS: Record<AccountType, string> = {
+  cash: 'Wallet, pocket money',
+  checking: 'Main account for daily transactions',
+  savings: 'Bank savings with interest',
+  credit_card: 'Bank credit cards',
+  investment: 'Stocks, ETF or crypto',
+  other: 'Life insurance, loan, mortgage or anything else',
+};
+
+/** The types that owe money rather than hold it — a balance here is a debt. */
+export const LIABILITY_ACCOUNT_TYPES: readonly AccountType[] = ['credit_card', 'other'];
+
+export const isLiabilityAccount = (type: AccountType): boolean =>
+  (LIABILITY_ACCOUNT_TYPES as readonly string[]).includes(type);
+
+/** Narrows a stored value to the union; anything else reads as `'other'`. */
+export const isAccountType = (value: unknown): value is AccountType =>
+  typeof value === 'string' && (ACCOUNT_TYPES as readonly string[]).includes(value);
+
+/**
+ * One pot money sits in — a bank account, a wallet, a credit card, a loan.
+ *
+ * **The balance is confirmed, not computed.** A true balance is
+ * `opening + income − expenses ± transfers`, and this app records only
+ * expenses: there are no opening balances, no transfers, and income is a plan
+ * on the budget document rather than a set of transactions. So `balance` is
+ * the figure you last checked against the bank and `balanceAsOf` is the day it
+ * was true; `lib/accounts.ts` projects forward from there using the expenses
+ * you tagged.
+ *
+ * That makes every balance an estimate that drifts by exactly what you do not
+ * log — bank fees, interest, an unlogged withdrawal — which is why the surface
+ * always shows the as-of date beside the figure, and flags a reconciliation
+ * too old for the loaded window rather than showing a confident wrong number.
+ */
+export interface Account {
+  id: string;
+  name: string;
+  type: AccountType;
+  /** the figure last confirmed against the bank, smallest currency unit */
+  balance: number;
+  /** ISO date that figure was true, "YYYY-MM-DD" */
+  balanceAsOf: string;
+  /**
+   * Credit cards: the spending limit. `0` is unset and yields no utilisation
+   * figure at all — the same rule `AlertSettings.monthlyLimit` follows, where
+   * an unset cap is silent rather than permanently breached.
+   */
+  limit: number;
+  /** Cards and loans: what leaves each period. `0` is unset. */
+  monthlyPayment: number;
+  /**
+   * Sort key, and the colour ramp slot — resolved through `colorForOrder`, so
+   * it **must be unique**. Assign one past the highest in use, never
+   * `accounts.length`, which collides after a delete for the same reason the
+   * category note gives.
+   */
+  order: number;
+}
+
+/** Write shape — the id is assigned by Firestore. */
+export type AccountInput = Omit<Account, 'id'>;
+
+/** Patch shape; absent fields are left as they are. */
+export type AccountPatch = Partial<AccountInput>;
+
 export interface Transaction {
   id: string;
   /**
@@ -78,6 +177,24 @@ export interface Transaction {
    * written before this field existed.
    */
   paymentMethod?: PaymentMethod;
+  /**
+   * **Which pot** it came out of — the source of funds, and the third
+   * independent dimension. Nothing infers it from the other two: a card-paid
+   * subscription can sit in Subscription, be paid by `credit_card`, and be
+   * drawn on whichever account settles that card.
+   *
+   * Optional and *omitted* when unset, exactly like `paymentMethod` above and
+   * for the same reasons — so every row written before accounts existed simply
+   * reads as unattributed, and no migration is needed. An id naming an account
+   * that has since been deleted reads as unset too: `lib/accounts.ts` matches
+   * on the accounts that exist, so a stale id moves no balance rather than
+   * throwing.
+   *
+   * Note this is *not* the same question as `paymentMethod`. That one exists to
+   * reconcile against a card statement and is calendar-shaped; this one exists
+   * to say which balance the money left.
+   */
+  accountId?: string;
   item: string;
   /** smallest currency unit — no decimals for IDR */
   amount: number;

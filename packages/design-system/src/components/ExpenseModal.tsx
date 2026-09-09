@@ -32,6 +32,7 @@ export function ExpenseModal({
   today,
   cycleStartDay,
   categories,
+  accounts,
   busy,
   fmt,
   transaction,
@@ -41,6 +42,7 @@ export function ExpenseModal({
   onDeleteSeries,
   onClose,
   onManageCategories,
+  onManageAccounts,
   onAddDefaultCategories,
 }: ExpenseModalProps): JSX.Element {
   // Today's day when the period in view is the live one, otherwise the day the
@@ -215,6 +217,38 @@ export function ExpenseModal({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Which pot the money left — the third axis, and like "Paid with"
+            above it is its own field block, never filtered by the category or
+            the method, and never inferred from either. */}
+        <div>
+          <div className="cf-fieldlabel">Paid from</div>
+          {accounts.length === 0 ? (
+            <button
+              type="button"
+              className="cf-ghostbtn"
+              style={{ width: '100%' }}
+              onClick={onManageAccounts}
+            >
+              Add an account to track balances
+            </button>
+          ) : (
+            <select
+              className="cf-input--pos"
+              style={{ width: '100%', cursor: 'pointer' }}
+              aria-label="Source account"
+              value={values.accountId}
+              onChange={(e) => setValues({ ...values, accountId: e.target.value })}
+            >
+              <option value="">Not set</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>

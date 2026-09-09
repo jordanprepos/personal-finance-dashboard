@@ -7,9 +7,13 @@
  * smallest unit, category colours from the template palette.
  */
 import {
+  accountBalances,
   buildDashboardCard,
   DASHBOARD_CARDS,
   IDR,
+  yearWindowStart,
+  type Account,
+  type AccountBalance,
   type AlertSettings,
   type Budget,
   type Category,
@@ -75,6 +79,7 @@ export const cycleRangeLabel = '';
 /** Every callback a form needs, as inert no-ops. */
 export const noopHandlers = {
   onSave: () => {},
+  onManageAccounts: () => {},
   onDelete: () => {},
   onDeleteSeries: () => {},
   onClose: () => {},
@@ -144,6 +149,40 @@ export const alertHandlers = {
   onClose: () => {},
 };
 
+
+/* -------------------------------------------------------------- accounts */
+
+/**
+ * One of each shape the balance logic handles: an asset reconciled recently,
+ * one reconciled long enough ago to read stale, a card with a limit, and a
+ * loan whose balance is a debt.
+ */
+export const accounts: Account[] = [
+  { id: 'ac1', name: 'BCA Daily', type: 'checking', balance: 8_400_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 0, order: 0 },
+  { id: 'ac2', name: 'Mandiri Savings', type: 'savings', balance: 21_000_000, balanceAsOf: '2025-11-01', limit: 0, monthlyPayment: 0, order: 1 },
+  { id: 'ac3', name: 'Visa Signature', type: 'credit_card', balance: 2_300_000, balanceAsOf: '2026-08-01', limit: 15_000_000, monthlyPayment: 2_300_000, order: 2 },
+  { id: 'ac4', name: 'Motorcycle loan', type: 'other', balance: 12_500_000, balanceAsOf: '2026-08-01', limit: 0, monthlyPayment: 1_150_000, order: 3 },
+];
+
+/** Built through the real projection, so a change to it moves the stories too. */
+export const balances: AccountBalance[] = accountBalances(
+  accounts,
+  [
+    { ...transaction, id: 'ta1', accountId: 'ac1', amount: 450_000, date: '2026-08-14' },
+    { ...transaction, id: 'ta2', accountId: 'ac1', amount: 96_000, date: '2026-08-19' },
+    { ...transaction, id: 'ta3', accountId: 'ac3', amount: 320_000, date: '2026-08-11' },
+  ],
+  today,
+  yearWindowStart(yearMonth),
+);
+
+export const accountHandlers = {
+  onAdd: () => {},
+  onUpdate: () => {},
+  onReconcile: () => {},
+  onDelete: () => {},
+  onClose: () => {},
+};
 /* ------------------------------------------------------- dashboard cards */
 
 /**
@@ -191,13 +230,53 @@ export const cardContext: DashboardCardContext = {
   // One period of a year is enough to give the reports cards a bar to draw;
   // the other eleven render as the empty state, which is worth seeing.
   yearTransactions: cardTransactions,
+  // The same four accounts the accounts stories use, already projected — so a
+  // change to the projection moves the credit cards and the accounts sheet
+  // together, rather than leaving one of them quietly stale.
+  balances,
   budget,
   fmt: IDR,
+};
+
+/**
+ * The same context with nothing to draw on: no accounts at all.
+ *
+ * Every credit card has an empty state that is *not* zero — an unset limit is
+ * not a limit of nothing, and 0% would read as "plenty of headroom". This is
+ * what the stories use to prove it.
+ */
+export const emptyAccountsContext: DashboardCardContext = { ...cardContext, balances: [] };
+
+/**
+ * Accounts, but none of them carrying a limit or a monthly payment.
+ *
+ * The control the empty context cannot give: the cards have rows to work with
+ * and must *still* refuse to print a percentage, because the denominator is
+ * unset rather than zero.
+ */
+export const noLimitsContext: DashboardCardContext = {
+  ...cardContext,
+  balances: accountBalances(
+    accounts.map((a) => ({ ...a, limit: 0, monthlyPayment: 0 })),
+    [],
+    today,
+    yearWindowStart(yearMonth),
+  ),
 };
 
 /** Every card in the registry, built against the month above. */
 export const cardCatalog: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
   buildDashboardCard(spec.id, cardContext),
+);
+
+/** The same catalog with no accounts at all — every credit card in its empty state. */
+export const cardCatalogNoAccounts: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
+  buildDashboardCard(spec.id, emptyAccountsContext),
+);
+
+/** Accounts present, but no limit or monthly payment on any of them. */
+export const cardCatalogNoLimits: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
+  buildDashboardCard(spec.id, noLimitsContext),
 );
 
 const cardById = (id: DashboardCardId): DashboardCardView =>
