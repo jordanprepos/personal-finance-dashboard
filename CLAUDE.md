@@ -146,7 +146,7 @@ Transaction { id, categoryId, paymentMethod?, accountId?, item, amount, date, ye
 PaymentMethod 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other'
 Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
 Income      { id, name, amount, note? }          // amount is per month
-Profile     { displayName, currency, locale, alerts: AlertSettings, cycleStartDay }
+Profile     { displayName, currency, locale, alerts: AlertSettings, cycleStartDay, dashboardCards: string[] }
 AlertSettings { enabled, monthlyLimit, warnPct: 70|80|90, categoryLimits: { [name]: number } }
 ```
 
@@ -560,8 +560,65 @@ category note's collision applies here too.
 push Settings off the end, and tightening the gap did not fix it (38px hidden
 at 8px, 58px at 6px once Home is counted too). Accounts, Categories and
 Settings now sit behind one **Manage** button (`mobile-webview/components/
-ManageSheet`), which leaves five items and nothing hidden — and clears the 6px
-the row was already losing before any of this.
+ManageSheet`), which leaves the five tabs plus Manage and nothing hidden — and
+clears the 6px the row was already losing before any of this. Measure the row
+against the real stylesheet before adding a seventh; it has no slack left.
+
+### Dashboard cards — one registry, two consumers
+
+`src/lib/dashboardCards.ts` holds `DASHBOARD_CARDS`, the catalog of ten cards
+the Home tab can draw, grouped `cashflow` / `spending` / `reports`. Two things
+read it, so a card added there appears in both at once: the **Home view**
+(`desktop/views/HomeView`, `mobile-webview/components/HomeTab`) renders the
+chosen ones, and the **picker** (`DashboardCardPicker` / `DashboardCardSheet`)
+renders every one of them as a live preview.
+
+The file sits *above* `derive.ts` and adds no arithmetic — every figure comes
+out of a function already there (`monthSummary`, `pace`, `incomeBreakdown`,
+`categoryTotals`, `donutSegments`, `envelopesByType`, `recurringThisMonth`,
+`yearBars`, `yearSummary`). What it adds is selection and shape.
+
+**Cards are scoped to the period in view, never to a rolling window.** The app
+this borrows its shape from scopes every card to "last 30 days"; that is the
+one thing deliberately not ported. `watchMonth` is the only read on
+`ExpenseDataSource`, so a rolling window would need either a new read on that
+interface or client-side filtering of `state.yearTransactions` — which covers
+only the twelve periods of the year in view, and so would silently truncate a
+window straddling January. A card reads what the snapshot already carries and
+says which period it read in its own label ("August 2026 · 27 Jul – 26 Aug").
+Reports-group cards are year-scoped and labelled with the year alone.
+
+**Every card reduces to one of four bodies** — `stat`, `rows`, `donut`,
+`bars` — so the design system ships *one* `DashboardCard` renderer rather than
+ten components. It is surface-neutral (only `.cf-*` classes, charts scaled
+through a `viewBox`), which is why the desktop grid and the phone's single
+column need no second implementation. A new card needs a new body type only if
+it cannot be said as a stat, a list, an arc or a bar chart. `DonutSegment` and
+`YearBar` are reused from `derive.ts` rather than mirrored, so a card and the
+Monthly/Yearly views cannot disagree about an arc.
+
+Selection lives on `profile/main.dashboardCards`, so it rides the profile arm
+of the `watchMonth` fan-out and needs **no new listener** — the same argument
+`alerts` and `cycleStartDay` make. It is written whole (`saveDashboardCards`,
+`store.setDashboardCards`) because `merge: true` replaces an array rather than
+merging it element-wise, exactly as `setIncomes` does; add, remove and reorder
+are all that one write.
+
+**Absent and empty mean different things**, and `resolveDashboardCards` in
+`queries.ts` is where that is decided. No field at all is an account written
+before cards existed, and reads back as `DEFAULT_DASHBOARD_CARDS` so its
+dashboard is populated on first sight with no migration — the same trick
+`resolveIncomes` and `colorForName` play. A stored `[]` is someone who removed
+every card, and is left alone; re-seeding it would put back what they just
+cleared, on every snapshot. Unknown ids are dropped on read
+(`normalizeDashboardCards`), so retiring a card from the registry makes it
+vanish from the accounts that had it rather than crashing their dashboard.
+
+There is deliberately **no Credit group**. The four credit cards in the source
+design — recurring debts, debt-to-income, credit-limit utilisation — need
+accounts, balances, limits and loan principals, and none of that is in the
+schema; `Transaction.paymentMethod` says *how* something was paid and nothing
+about what is owed. The group key is open for the day that data model lands.
 
 ### Spending alerts
 

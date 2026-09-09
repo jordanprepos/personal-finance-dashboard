@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 import { seriesDates } from '../lib/queries.js';
+import { normalizeDashboardCards } from '../lib/dashboardCards.js';
 import { cycleRange, toYear, toYearMonth, yearMonthOf, yearOfMonth } from '../lib/dates.js';
 import type {
   Account,
@@ -267,6 +268,13 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
 
     async setCycleStartDay(cycleStartDay: number): Promise<void> {
       profile = { ...profile, cycleStartDay };
+      notify();
+    },
+
+    async setDashboardCards(cards: readonly string[]): Promise<void> {
+      // Narrowed here as well as on the Firestore path, so demo mode cannot
+      // hold a selection the live one would have rejected.
+      profile = { ...profile, dashboardCards: normalizeDashboardCards(cards) };
       notify();
     },
 

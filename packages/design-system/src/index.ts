@@ -14,6 +14,15 @@ export {
 export { AlertSheet, type AlertSheetProps } from './components/AlertSheet.js';
 export { AccountsModal, type AccountsModalProps } from './components/AccountsModal.js';
 export { AccountsSheet, type AccountsSheetProps } from './components/AccountsSheet.js';
+export { DashboardCard } from './components/DashboardCard.js';
+export {
+  DashboardCardPicker,
+  type DashboardCardPickerProps,
+} from './components/DashboardCardPicker.js';
+export {
+  DashboardCardSheet,
+  type DashboardCardSheetProps,
+} from './components/DashboardCardSheet.js';
 export {
   DefaultCategoriesButton,
   DEFAULT_CATEGORY_COUNT,
@@ -24,6 +33,8 @@ export type {
   AccountManagerProps,
   AlertSettingsProps,
   CategoryManagerProps,
+  DashboardCardProps,
+  DashboardPickerProps,
   ExpenseFormProps,
   IncomeEditorProps,
 } from './types.js';

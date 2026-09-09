@@ -57,6 +57,10 @@ import {
   toYearMonth,
 } from './dates.js';
 import { colorForName } from '../data/defaultCategories.js';
+import {
+  DEFAULT_DASHBOARD_CARDS,
+  normalizeDashboardCards,
+} from './dashboardCards.js';
 
 /* ------------------------------------------------------------------ paths */
 
@@ -849,6 +853,7 @@ export const DEFAULT_PROFILE: Profile = {
   // Calendar months. A document written before the field existed reads back as
   // this, so an older account's periods are exactly what they were.
   cycleStartDay: 1,
+  dashboardCards: [...DEFAULT_DASHBOARD_CARDS],
 };
 
 const isWarnPct = (value: number): value is WarnPct =>
@@ -880,8 +885,24 @@ function toAlerts(d: unknown): AlertSettings {
   };
 }
 
+/**
+ * The account's dashboard cards.
+ *
+ * Absent and empty are deliberately **not** the same. No field at all is an
+ * account that predates cards, and gets the starter set so its dashboard is
+ * populated on first sight — the same no-migration trick `resolveIncomes` and
+ * `colorForName` play. A stored `[]` is someone who removed every card, and
+ * re-seeding it would put back what they just cleared, on every snapshot.
+ */
+function resolveDashboardCards(stored: unknown): string[] {
+  if (Array.isArray(stored)) return normalizeDashboardCards(stored);
+  return [...DEFAULT_DASHBOARD_CARDS];
+}
+
 function toProfile(d: DocumentData | undefined): Profile {
-  if (!d) return { ...DEFAULT_PROFILE, alerts: defaultAlerts() };
+  if (!d) {
+    return { ...DEFAULT_PROFILE, alerts: defaultAlerts(), dashboardCards: resolveDashboardCards(undefined) };
+  }
   return {
     displayName: String(d['displayName'] ?? DEFAULT_PROFILE.displayName),
     currency: String(d['currency'] ?? DEFAULT_PROFILE.currency),
@@ -890,6 +911,7 @@ function toProfile(d: DocumentData | undefined): Profile {
     // Same narrowing rule as `toIncomeDay`: anything outside the range reads
     // as the default rather than becoming a period nobody can navigate to.
     cycleStartDay: clampCycleStartDay(Number(d['cycleStartDay'] ?? DEFAULT_PROFILE.cycleStartDay)),
+    dashboardCards: resolveDashboardCards(d['dashboardCards']),
   };
 }
 
@@ -936,6 +958,26 @@ export async function saveCycleStartDay(
   cycleStartDay: number,
 ): Promise<void> {
   await setDoc(profileDoc(db, userId), { cycleStartDay: clampCycleStartDay(cycleStartDay) }, { merge: true });
+}
+
+/**
+ * Replaces the account's dashboard card list.
+ *
+ * A whole-list write, for the reason `setIncomes` is one: `merge: true`
+ * replaces an array outright rather than merging it element-wise, so add,
+ * remove and reorder are all the same write. Ids are narrowed on the way in,
+ * so nothing outside the registry is ever stored.
+ */
+export async function saveDashboardCards(
+  db: Firestore,
+  userId: string,
+  cards: readonly string[],
+): Promise<void> {
+  await setDoc(
+    profileDoc(db, userId),
+    { dashboardCards: normalizeDashboardCards(cards) },
+    { merge: true },
+  );
 }
 
 export async function saveAlerts(

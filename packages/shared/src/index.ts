@@ -4,6 +4,7 @@ export * from './lib/dates.js';
 export * from './lib/format.js';
 export * from './lib/derive.js';
 export * from './lib/accounts.js';
+export * from './lib/dashboardCards.js';
 export * from './lib/forms.js';
 export * as queries from './lib/queries.js';
 export * from './data/index.js';

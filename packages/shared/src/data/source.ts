@@ -104,6 +104,12 @@ export interface ExpenseDataSource {
   setAlerts(alerts: AlertSettings): Promise<void>;
   /** The tracking cycle's start day — per account, on the profile like alerts. */
   setCycleStartDay(cycleStartDay: number): Promise<void>;
+  /**
+   * The dashboard card list — per account, on the profile like alerts. Written
+   * whole for the same reason `setIncomes` is: an array cannot be merged
+   * element-wise, so add, remove and reorder are one call.
+   */
+  setDashboardCards(cards: readonly string[]): Promise<void>;
   /** Read-modify-write of one category's allocation for one month. */
   setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void>;
 }
