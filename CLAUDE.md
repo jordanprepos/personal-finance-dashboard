@@ -131,6 +131,7 @@ Workspace layout (pnpm workspaces, `packages/*`):
 
 ```
 users/{userId}
+  ├── accounts/{accountId}
   ├── categories/{categoryId}
   ├── transactions/{transactionId}
   ├── budgets/{yearMonth}        // doc id "2026-08"
@@ -138,8 +139,10 @@ users/{userId}
 ```
 
 ```ts
+Account     { id, name, type: AccountType, balance, balanceAsOf, limit, monthlyPayment, order, archived }
+AccountType 'cash' | 'checking' | 'savings' | 'credit_card' | 'investment' | 'other'
 Category    { id, name, type: 'fixed'|'variable'|'savings', color, icon, order, archived }
-Transaction { id, categoryId, paymentMethod?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
+Transaction { id, categoryId, paymentMethod?, accountId?, item, amount, date, yearMonth, year, note?, seriesId, createdAt }
 PaymentMethod 'credit_card' | 'bank_transfer' | 'e_wallet' | 'cash' | 'other'
 Budget      { id, income, incomes: Income[], categoryBudgets: { [categoryId]: number } }
 Income      { id, name, amount, note? }          // amount is per month
@@ -195,9 +198,9 @@ Two things matter when touching this:
   the generation before calling `set`, and `reset()` both bumps the generation
   and unsubscribes. `watchCurrentMonth` tears down the previous subscription
   before opening a new one, so a month switch never leaves two running.
-- **The Firestore implementation gates its first emit.** It fans out to five
-  listeners and stays silent until all five have reported, so the first paint
-  is a whole month rather than five partial repaints. After that, every change
+- **The Firestore implementation gates its first emit.** It fans out to six
+  listeners and stays silent until all six have reported, so the first paint
+  is a whole month rather than six partial repaints. After that, every change
   emits immediately. The first error tears the whole fan-out down — a partial
   month is worse than a visible failure.
 
@@ -475,6 +478,79 @@ fallback: `queries.resolveIncomes` synthesises a one-source list from it when
 a document has no `incomes` array, so an account written before this change
 keeps its income with no migration. Nothing writes it any more. This is the
 same trick `colorForName` plays with the palette.
+
+### Accounts and balances
+
+`users/{userId}/accounts/{accountId}` is a pot money sits in — a bank account,
+a wallet, a card, a loan. `Transaction.accountId` says which one an expense
+came out of, and `lib/accounts.ts` turns the two into a balance.
+
+**A balance here is confirmed, not derived, and cannot be derived.** The
+identity is `opening + income − expenses ± transfers`, and three of those four
+terms do not exist: there are no opening balances, no transfers, and income is
+a plan on `budgets/{yearMonth}.incomes` rather than a set of transactions. So
+`Account.balance` is the figure last checked against the bank, `balanceAsOf` is
+the day it was true, and `accountBalances` projects forward from there over the
+expenses tagged since.
+
+Two consequences, and both are load-bearing:
+
+- **Balances only ever move down between reconciliations.** Money arriving is
+  invisible. Letting an income source name a destination account was
+  considered and rejected: without transfers the app would credit a payroll
+  account the whole salary and never see the money moved straight out of it, so
+  the figure would read *high* until the next reconcile — worse than one that
+  is knowably a floor. Income destination belongs with transfers, whenever
+  those land.
+- **The projection is only as good as what was logged.** Bank fees, interest,
+  auto-debits and any forgotten expense all push it off. That is why no surface
+  ever shows a bare figure: every one carries `reconciledOn` beside it, and
+  `AccountsPanel` makes Reconcile the primary action on the row rather than a
+  field inside an edit form.
+
+`stale` is the guard against the worst version of that. Movements come from
+`state.yearTransactions`, the widest window the snapshot carries, so a
+reconciliation from several periods back still projects correctly — but one
+older than the loaded year cannot, and the row then shows the **reconciled**
+figure with a prompt rather than a confident wrong number. A missing
+`balanceAsOf` counts as stale for the same reason. Note this makes the horizon
+the *year in view*: stepping the month nav into another year reads stale
+throughout, which is correct — a balance is a now, not a period.
+
+**Liabilities carry the opposite sign, in exactly one place.** `projectedFor`
+adds spend to a card or loan and subtracts it from everything else, so no
+caller has to remember which way round it goes. `accountTotals` is the only
+other place that knows, and it is what both surfaces use for "net" — so they
+cannot disagree about it.
+
+`accountId` follows the **`paymentMethod` contract verbatim** (see the axes
+section above): optional, omitted when unset, `deleteField()` to clear, the
+create spreading it conditionally while the update always sends the key, and
+`denormalize` in `lib/queries.ts` paired with `build` in `data/seedSource.ts`
+— **edit those two together** or the field vanishes in seed mode only. Every
+row written before accounts existed simply reads as unattributed, so there is
+no migration.
+
+The two are **not** the same question and neither replaces the other:
+`paymentMethod` exists to reconcile against a card statement and is
+calendar-shaped; `accountId` exists to say which balance the money left. Both
+composite indexes on `paymentMethod` are untouched, and `accountId` needs none
+— balances filter `yearTransactions` client-side rather than querying.
+
+Deleting an account is a **hard** delete and deliberately does not rewrite the
+transactions that named it: a stale `accountId` already reads as unattributed
+and moves no balance, so rewriting a year of documents to tidy an inert field
+would be the more dangerous of the two. `order` is unique and assigned with
+`nextAccountOrder`, never `accounts.length` — colour resolves from it through
+`colorForOrder`, so the category note's collision applies here too.
+
+**The mobile nav collapsed to fit this.** Accounts made a seventh button in
+`.phone__navgroup`, which overflowed its track by 57px at 375px — enough to
+push Settings off the end, and tightening the gap did not fix it (38px hidden
+at 8px, 58px at 6px once Home is counted too). Accounts, Categories and
+Settings now sit behind one **Manage** button (`mobile-webview/components/
+ManageSheet`), which leaves five items and nothing hidden — and clears the 6px
+the row was already losing before any of this.
 
 ### Spending alerts
 

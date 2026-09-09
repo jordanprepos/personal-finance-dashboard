@@ -21,6 +21,9 @@ import {
   yearOfMonth,
 } from './lib/dates.js';
 import type {
+  Account,
+  AccountInput,
+  AccountPatch,
   AlertSettings,
   Budget,
   Category,
@@ -34,6 +37,11 @@ import type {
   WarnPct,
 } from './types.js';
 import { MAX_INCOME_DAY } from './types.js';
+import {
+  accountBalancesForYear,
+  nextAccountOrder,
+  type AccountBalance,
+} from './lib/accounts.js';
 import { DEFAULT_PROFILE, defaultAlerts } from './lib/queries.js';
 
 /**
@@ -63,6 +71,8 @@ export interface ExpenseState {
   yearMonth: string;
   /** "YYYY-MM-DD", fixed for the session */
   today: string;
+  /** every account, in `order`; balances are projected by `lib/accounts.ts` */
+  accounts: Account[];
   categories: Category[];
   /** transactions of the period `yearMonth` */
   monthTransactions: Transaction[];
@@ -84,6 +94,12 @@ export interface ExpenseDraft {
    * key rather than spreading it in conditionally.
    */
   paymentMethod?: PaymentMethod;
+  /**
+   * Which account the money left. `undefined` on an update means "unset it",
+   * which is why the form always supplies the key rather than spreading it in
+   * conditionally — the same contract `paymentMethod` has.
+   */
+  accountId?: string;
   item: string;
   amount: number;
   /**
@@ -105,6 +121,7 @@ const initialState = (yearMonth: string, today: string): ExpenseState => ({
   userId: '',
   yearMonth,
   today,
+  accounts: [],
   categories: [],
   monthTransactions: [],
   yearTransactions: [],
@@ -265,6 +282,7 @@ export class ExpenseStore {
         this.set({
           status: 'ready',
           error: null,
+          accounts: snapshot.accounts,
           categories: snapshot.categories,
           monthTransactions: snapshot.monthTransactions,
           yearTransactions: snapshot.yearTransactions,
@@ -353,6 +371,7 @@ export class ExpenseStore {
       // On a create there is nothing to unset, so omit it when there's no
       // value rather than writing an empty field.
       ...(draft.paymentMethod ? { paymentMethod: draft.paymentMethod } : {}),
+      ...(draft.accountId ? { accountId: draft.accountId } : {}),
     };
 
     await this.mutate(async () => {
@@ -399,6 +418,7 @@ export class ExpenseStore {
         // Always sent, `undefined` included: the key's presence is what tells
         // `updateTransaction` to remove a method the user just cleared.
         paymentMethod: draft.paymentMethod,
+        accountId: draft.accountId,
       });
       return `${draft.item.trim()} updated`;
     });
@@ -432,6 +452,101 @@ export class ExpenseStore {
         fromDate: transaction.date,
       });
       return `${transaction.item} deleted from ${removed} ${removed === 1 ? 'month' : 'months'}`;
+    });
+  }
+
+  /* ---------------------------------------------------------- accounts */
+
+  /**
+   * Adds an account.
+   *
+   * `order` comes from `nextAccountOrder`, never `accounts.length` — colour is
+   * resolved from it, so a collision after a delete would put two accounts on
+   * one ramp slot and tie them under the sort.
+   *
+   * A new account is reconciled by definition: whatever balance is entered is
+   * true as of today, so `balanceAsOf` defaults to the session's date rather
+   * than being left empty for the projection to choke on.
+   */
+  async addAccount(input: Omit<AccountInput, 'order' | 'archived' | 'balanceAsOf'> & {
+    balanceAsOf?: string;
+  }): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+
+    const name = input.name.trim();
+    if (!name) return;
+    if (this.state.accounts.some((a) => a.name.trim().toLowerCase() === name.toLowerCase())) {
+      this.showToast(`${name} already exists`);
+      return;
+    }
+
+    const order = nextAccountOrder(this.state.accounts);
+    await this.mutate(async () => {
+      await source.createAccount({
+        name,
+        type: input.type,
+        balance: input.balance,
+        balanceAsOf: input.balanceAsOf ?? this.state.today,
+        limit: input.limit,
+        monthlyPayment: input.monthlyPayment,
+        archived: false,
+        order,
+      });
+      return `${name} added`;
+    });
+  }
+
+  async updateAccount(accountId: string, patch: AccountPatch): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const account = this.state.accounts.find((a) => a.id === accountId);
+    if (!account) return;
+
+    const next: AccountPatch = { ...patch };
+    if (next.name !== undefined) {
+      const name = next.name.trim();
+      if (!name) return;
+      next.name = name;
+    }
+    await this.mutate(async () => {
+      await source.updateAccount(accountId, next);
+      return `${next.name ?? account.name} updated`;
+    });
+  }
+
+  /**
+   * Confirms what an account actually holds, as of a date.
+   *
+   * The single most important action on the accounts surface: a projected
+   * balance is only ever as good as the last time this ran, because money
+   * arriving is invisible to an app that records expenses alone.
+   */
+  async reconcileAccount(accountId: string, balance: number, asOf?: string): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const account = this.state.accounts.find((a) => a.id === accountId);
+    if (!account) return;
+
+    const date = asOf ?? this.state.today;
+    await this.mutate(async () => {
+      await source.reconcileAccount(accountId, balance, date);
+      return `${account.name} reconciled`;
+    });
+  }
+
+  /**
+   * Removes an account. The transactions that named it keep the id and read as
+   * unattributed — `accountId` is omitted-when-unset, so a stale one already
+   * moves no balance, and rewriting a year of documents to tidy an inert field
+   * would be the more dangerous of the two.
+   */
+  async deleteAccount(account: Account): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    await this.mutate(async () => {
+      await source.deleteAccount(account.id);
+      return `${account.name} removed`;
     });
   }
 
@@ -799,3 +914,20 @@ export const periodRangeLabel = (state: ExpenseState): string =>
   cycleRangeLabel(state.yearMonth, state.profile.cycleStartDay);
 
 export const currentYearOf = (state: ExpenseState): string => toYear(state.today);
+
+/**
+ * Account balances from the snapshot.
+ *
+ * Lives here rather than in `lib/accounts.ts` because it is the piece that has
+ * to know about `ExpenseState`, and `store.ts` imports the lib rather than the
+ * other way round — the same split `dashboardCardContext` makes.
+ *
+ * Movements come from `yearTransactions`, the widest window the snapshot
+ * carries. Note that makes the projection's horizon the **year in view**: step
+ * the month nav into a different year and every balance reconciled outside it
+ * reports `stale`, which is correct rather than unfortunate. A balance is a
+ * now, not a period, so a stale marker is the honest answer to "what did this
+ * account hold in 2025".
+ */
+export const accountBalancesOf = (state: ExpenseState): AccountBalance[] =>
+  accountBalancesForYear(state.accounts, state.yearTransactions, state.today, state.yearMonth);

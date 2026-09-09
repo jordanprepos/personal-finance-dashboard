@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import {
   evaluateAlerts,
+  accountBalancesOf,
   categoryLimitRows,
   entryCountsByCategory,
   monthLabel,
@@ -26,7 +27,11 @@ import { IncomeView } from './views/IncomeView';
 import { ExpenseModal } from '@expense-tracker/design-system';
 
 import { DesktopAlertBanners as AlertBanners } from '@expense-tracker/design-system';
-import { AlertSettingsModal, CategoryModal } from '@expense-tracker/design-system';
+import {
+  AccountsModal,
+  AlertSettingsModal,
+  CategoryModal,
+} from '@expense-tracker/design-system';
 
 export function App({
   store,
@@ -85,6 +90,7 @@ function Dashboard({
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
 
   const fmt: MoneyFormat = useMemo(
     () => ({ currency: state.profile.currency, locale: state.profile.locale }),
@@ -234,6 +240,13 @@ function Dashboard({
               </button>
               <button
                 type="button"
+                className="cf-ghostbtn dash__catsbtn"
+                onClick={() => setAccountsOpen(true)}
+              >
+                Accounts
+              </button>
+              <button
+                type="button"
                 className="cf-ghostbtn dash__alertsbtn"
                 onClick={() => setAlertsOpen(true)}
               >
@@ -274,6 +287,7 @@ function Dashboard({
           today={state.today}
           cycleStartDay={state.profile.cycleStartDay}
           categories={state.categories}
+          accounts={state.accounts}
           busy={state.busy}
           fmt={fmt}
           onSave={(draft, entry) => {
@@ -293,6 +307,11 @@ function Dashboard({
             setExpenseOpen(false);
             setEditing(null);
             setCategoriesOpen(true);
+          }}
+          onManageAccounts={() => {
+            setExpenseOpen(false);
+            setEditing(null);
+            setAccountsOpen(true);
           }}
         />
       ) : null}
@@ -331,6 +350,22 @@ function Dashboard({
           onSetCategoryLimit={(name, amount) => void store.setCategoryLimit(name, amount)}
           onClearCategoryLimit={(name) => void store.clearCategoryLimit(name)}
           onClose={() => setAlertsOpen(false)}
+        />
+      ) : null}
+
+      {accountsOpen ? (
+        <AccountsModal
+          /* Balances arrive projected from the snapshot — reconciled figure
+             less what has been tagged since. Nothing is computed here. */
+          balances={accountBalancesOf(state)}
+          today={state.today}
+          busy={state.busy}
+          fmt={fmt}
+          onAdd={(input) => void store.addAccount(input)}
+          onUpdate={(id, patch) => void store.updateAccount(id, patch)}
+          onReconcile={(id, balance, asOf) => void store.reconcileAccount(id, balance, asOf)}
+          onDelete={(account) => void store.deleteAccount(account)}
+          onClose={() => setAccountsOpen(false)}
         />
       ) : null}
 

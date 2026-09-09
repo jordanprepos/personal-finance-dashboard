@@ -28,6 +28,11 @@ export interface ExpenseFormValues {
    * from `categoryId`: neither field constrains the other's options.
    */
   paymentMethod: PaymentMethod | '';
+  /**
+   * Which pot it came out of — `''` is unset, and stays valid. A third
+   * dimension again: no field here constrains another's options.
+   */
+  accountId: string;
   item: string;
   /** day of month, as typed */
   dayText: string;
@@ -40,6 +45,7 @@ export const emptyExpenseForm = (day: number): ExpenseFormValues => ({
   amountText: '',
   categoryId: '',
   paymentMethod: '',
+  accountId: '',
   item: '',
   dayText: String(day),
   repeat: false,
@@ -50,6 +56,7 @@ export const expenseFormFrom = (transaction: Transaction): ExpenseFormValues => 
   amountText: transaction.amount > 0 ? String(transaction.amount) : '',
   categoryId: transaction.categoryId,
   paymentMethod: transaction.paymentMethod ?? '',
+  accountId: transaction.accountId ?? '',
   item: transaction.item,
   dayText: String(parseISODate(transaction.date).day),
   repeat: false,
@@ -74,8 +81,8 @@ export function evaluateExpenseForm(
   // which day a typed number means.
   const day = clampDayInCycle(yearMonth, parseInt(values.dayText || '1', 10) || 1, cycleStartDay);
   const item = values.item.trim();
-  // `paymentMethod` is deliberately absent from this predicate: it is optional
-  // and must never block a save.
+  // `paymentMethod` and `accountId` are deliberately absent from this
+  // predicate: both are optional and must never block a save.
   const valid = amount > 0 && item !== '' && values.categoryId !== '';
 
   return {
@@ -89,6 +96,9 @@ export function evaluateExpenseForm(
           // clears the selector reaches `updateTransaction`'s unset path. A
           // conditional spread would read as "leave it alone" instead.
           paymentMethod: values.paymentMethod || undefined,
+          // Same rule, same reason — always carried so clearing the selector
+          // reaches `updateTransaction`'s unset path.
+          accountId: values.accountId || undefined,
           item,
           amount,
           day,

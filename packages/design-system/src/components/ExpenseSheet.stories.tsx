@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { ExpenseSheet } from './ExpenseSheet';
-import { categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
+import { accounts, categories, cycleStartDay, noopHandlers, recurringTransaction, today, transaction, yearMonth } from '../fixtures';
 
 /**
  * The phone shell. `.cf-scrim` is `position: absolute; inset: 0`, so the sheet
@@ -28,6 +28,7 @@ const meta = {
     today,
     cycleStartDay,
     categories,
+    accounts,
     busy: false,
     fmt: IDR,
     transaction: null,

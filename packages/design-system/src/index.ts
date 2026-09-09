@@ -12,6 +12,8 @@ export {
   type AlertSettingsModalProps,
 } from './components/AlertSettingsModal.js';
 export { AlertSheet, type AlertSheetProps } from './components/AlertSheet.js';
+export { AccountsModal, type AccountsModalProps } from './components/AccountsModal.js';
+export { AccountsSheet, type AccountsSheetProps } from './components/AccountsSheet.js';
 export {
   DefaultCategoriesButton,
   DEFAULT_CATEGORY_COUNT,
@@ -19,6 +21,7 @@ export {
 } from './components/DefaultCategoriesButton.js';
 export { catStyle } from './catStyle.js';
 export type {
+  AccountManagerProps,
   AlertSettingsProps,
   CategoryManagerProps,
   ExpenseFormProps,

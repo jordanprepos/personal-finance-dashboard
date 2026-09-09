@@ -24,12 +24,16 @@ import {
 } from 'firebase/firestore';
 
 import {
+  isAccountType,
   isIncomeCadence,
   isIncomeKind,
   isPaymentMethod,
   MAX_INCOME_DAY,
 } from '../types.js';
 import type {
+  Account,
+  AccountInput,
+  AccountPatch,
   AlertSettings,
   Budget,
   Category,
@@ -57,6 +61,9 @@ import { colorForName } from '../data/defaultCategories.js';
 /* ------------------------------------------------------------------ paths */
 
 export const userPath = (userId: string): string => `users/${userId}`;
+
+export const accountsCollection = (db: Firestore, userId: string): CollectionReference<DocumentData> =>
+  collection(db, 'users', userId, 'accounts');
 
 export const categoriesCollection = (db: Firestore, userId: string): CollectionReference<DocumentData> =>
   collection(db, 'users', userId, 'categories');
@@ -124,6 +131,11 @@ function toTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transaction {
   // rather than becoming a typed one.
   const paymentMethod = d['paymentMethod'];
   if (isPaymentMethod(paymentMethod)) tx.paymentMethod = paymentMethod;
+  // Third axis, same conditional-attach. Not validated against the accounts
+  // that exist — that would need a second read here; `lib/accounts.ts` matches
+  // on live ids instead, so a stale one moves no balance.
+  const accountId = d['accountId'];
+  if (typeof accountId === 'string' && accountId !== '') tx.accountId = accountId;
   return tx;
 }
 
@@ -202,6 +214,107 @@ function toBudget(id: string, d: DocumentData | undefined): Budget {
     incomes: resolveIncomes(d?.['incomes'], legacy),
     categoryBudgets: (d?.['categoryBudgets'] ?? {}) as Record<string, number>,
   };
+}
+
+/* --------------------------------------------------------------- accounts */
+
+/**
+ * Narrowing, same rules as everything else read back here: a type outside the
+ * union reads as `'other'`, a malformed number as 0, and a missing
+ * `balanceAsOf` as the empty string — which `lib/accounts.ts` treats as stale,
+ * since a figure with no date attached cannot be projected from.
+ */
+function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
+  const d = snap.data();
+  const type = d['type'];
+  const num = (value: unknown): number => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return {
+    id: snap.id,
+    name: String(d['name'] ?? ''),
+    type: isAccountType(type) ? type : 'other',
+    balance: num(d['balance']),
+    balanceAsOf: String(d['balanceAsOf'] ?? ''),
+    limit: num(d['limit']),
+    monthlyPayment: num(d['monthlyPayment']),
+    archived: Boolean(d['archived'] ?? false),
+    order: num(d['order']),
+  };
+}
+
+/** Shared by `fetchAccounts` and `watchAccounts`, so the two cannot disagree. */
+const accountsQuery = (db: Firestore, userId: string) =>
+  query(accountsCollection(db, userId), orderBy('order', 'asc'));
+
+export async function fetchAccounts(db: Firestore, userId: string): Promise<Account[]> {
+  const snap = await getDocs(accountsQuery(db, userId));
+  return snap.docs.map(toAccount);
+}
+
+/** The accounts, live. Mirrors `fetchAccounts` and shares its mapper. */
+export function watchAccounts(
+  db: Firestore,
+  userId: string,
+  onChange: (accounts: Account[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(accountsQuery(db, userId), (snap) => onChange(snap.docs.map(toAccount)), onError);
+}
+
+export async function createAccount(
+  db: Firestore,
+  userId: string,
+  input: AccountInput,
+): Promise<Account> {
+  const ref = doc(accountsCollection(db, userId));
+  const account: Account = { ...input, id: ref.id };
+  await setDoc(ref, account);
+  return account;
+}
+
+export async function updateAccount(
+  db: Firestore,
+  userId: string,
+  accountId: string,
+  patch: AccountPatch,
+): Promise<void> {
+  await updateDoc(doc(accountsCollection(db, userId), accountId), patch);
+}
+
+/**
+ * Confirms what the account actually holds, as of a date.
+ *
+ * Its own write rather than a two-field `updateAccount`, because the pair is
+ * meaningless apart: a balance without the day it was true cannot be projected
+ * from, and moving one without the other silently invents history.
+ */
+export async function reconcileAccount(
+  db: Firestore,
+  userId: string,
+  accountId: string,
+  balance: number,
+  asOf: string,
+): Promise<void> {
+  assertISODate(asOf);
+  await updateDoc(doc(accountsCollection(db, userId), accountId), { balance, balanceAsOf: asOf });
+}
+
+/**
+ * Hard delete, unlike a category's soft `archived`.
+ *
+ * The transactions that named this account are deliberately **not** rewritten:
+ * `accountId` is omitted-when-unset, so a stale id already reads as
+ * unattributed and moves no balance. Rewriting a year of documents to tidy a
+ * field that is inert would be the more dangerous of the two.
+ */
+export async function deleteAccount(
+  db: Firestore,
+  userId: string,
+  accountId: string,
+): Promise<void> {
+  await deleteDoc(doc(accountsCollection(db, userId), accountId));
 }
 
 /* ------------------------------------------------------------- categories */
@@ -483,6 +596,10 @@ function denormalize(
     // Independent of `categoryId` — passed straight through, never inferred
     // from it and never used to pick one. Omitted when unset, like `note`.
     ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
+    // Which pot it came out of. Independent of both fields above, omitted when
+    // unset, and — like them — this line has a twin in `seedSource.build` that
+    // must be changed with it, or the field vanishes in seed mode only.
+    ...(input.accountId ? { accountId: input.accountId } : {}),
     // Always written, null included — an absent field is not queryable.
     seriesId,
   };
@@ -580,6 +697,11 @@ export async function updateTransaction(
   const body: Record<string, unknown> = { ...patch };
   if ('paymentMethod' in patch && !patch.paymentMethod) {
     body['paymentMethod'] = deleteField();
+  }
+  // Same contract: a patch carrying the key with no value means "unset", one
+  // omitting it means "leave alone". Writing `undefined` would throw.
+  if ('accountId' in patch && !patch.accountId) {
+    body['accountId'] = deleteField();
   }
   if (patch.date !== undefined) {
     body['yearMonth'] = toYearMonth(patch.date);
