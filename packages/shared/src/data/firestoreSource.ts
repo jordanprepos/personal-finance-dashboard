@@ -48,6 +48,8 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
     setAlerts: (alerts: AlertSettings): Promise<void> => q.saveAlerts(db, userId, alerts),
     setCycleStartDay: (cycleStartDay: number): Promise<void> =>
       q.saveCycleStartDay(db, userId, cycleStartDay),
+    setDashboardCards: (cards: readonly string[]): Promise<void> =>
+      q.saveDashboardCards(db, userId, cards),
     setCategoryBudget: (yearMonth: string, categoryId: string, amount: number): Promise<void> =>
       q.setCategoryBudget(db, userId, yearMonth, categoryId, amount),
   };

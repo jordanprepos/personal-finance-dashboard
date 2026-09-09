@@ -6,12 +6,19 @@
  * shipped bundle. Values mirror the seed dataset's shape — IDR amounts in the
  * smallest unit, category colours from the template palette.
  */
-import type {
-  AlertSettings,
-  Category,
-  CategoryLimitRow,
-  Income,
-  Transaction,
+import {
+  buildDashboardCard,
+  DASHBOARD_CARDS,
+  IDR,
+  type AlertSettings,
+  type Budget,
+  type Category,
+  type CategoryLimitRow,
+  type DashboardCardContext,
+  type DashboardCardId,
+  type DashboardCardView,
+  type Income,
+  type Transaction,
 } from '@expense-tracker/shared';
 
 /**
@@ -136,3 +143,78 @@ export const alertHandlers = {
   onClearCategoryLimit: () => {},
   onClose: () => {},
 };
+
+/* ------------------------------------------------------- dashboard cards */
+
+/**
+ * A month with enough shape to make every card body interesting: spend in
+ * four categories, two income sources (one already received), and a repeating
+ * charge. Built through `buildDashboardCard` rather than hand-written as
+ * `DashboardCardView` literals, so a change to a card's shape in `shared`
+ * moves the stories with it instead of leaving them quietly stale.
+ */
+const cardTransactions: Transaction[] = [
+  transaction,
+  recurringTransaction,
+  { ...transaction, id: 't3', categoryId: 'c1', item: 'Pasar mingguan', amount: 1_180_000, date: '2026-08-03' },
+  { ...transaction, id: 't4', categoryId: 'c2', item: 'Internet', amount: 2_740_000, date: '2026-08-05' },
+  { ...transaction, id: 't5', categoryId: 'c4', item: 'Bensin', amount: 620_000, date: '2026-08-09' },
+  { ...transaction, id: 't6', categoryId: 'c5', item: 'Tabungan', amount: 1_000_000, date: '2026-08-12' },
+  { ...transaction, id: 't7', categoryId: 'c1', item: 'Kopi', amount: 96_000, date: '2026-08-13' },
+];
+
+export const budget: Budget = {
+  id: yearMonth,
+  income: 0,
+  incomes: [
+    {
+      id: 'i0',
+      name: 'Full Time Salary',
+      amount: 9_231_805,
+      cadence: 'monthly',
+      kind: 'fixed',
+      day: 27,
+      received: true,
+      paused: false,
+    },
+    incomeSource,
+  ],
+  categoryBudgets: allocations,
+};
+
+export const cardContext: DashboardCardContext = {
+  yearMonth,
+  today,
+  cycleStartDay,
+  categories,
+  monthTransactions: cardTransactions,
+  // One period of a year is enough to give the reports cards a bar to draw;
+  // the other eleven render as the empty state, which is worth seeing.
+  yearTransactions: cardTransactions,
+  budget,
+  fmt: IDR,
+};
+
+/** Every card in the registry, built against the month above. */
+export const cardCatalog: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
+  buildDashboardCard(spec.id, cardContext),
+);
+
+const cardById = (id: DashboardCardId): DashboardCardView =>
+  buildDashboardCard(id, cardContext);
+
+/** One card per body shape — stat, rows, donut, bars. */
+export const statCard = cardById('budget-left');
+export const rowsCard = cardById('top-categories');
+export const donutCard = cardById('category-donut');
+export const barsCard = cardById('year-bars');
+
+/** What a picker needs, as inert no-ops. */
+export const dashboardHandlers = {
+  onAdd: () => {},
+  onRemove: () => {},
+  onClose: () => {},
+};
+
+/** Two of the ten already on the dashboard, so both button states are visible. */
+export const chosenCards: string[] = ['budget-left', 'top-categories'];

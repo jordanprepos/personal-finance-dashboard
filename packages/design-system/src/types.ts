@@ -3,6 +3,8 @@ import type {
   Category,
   CategoryLimitRow,
   CategoryType,
+  DashboardCardId,
+  DashboardCardView,
   ExpenseDraft,
   Income,
   IncomeInput,
@@ -125,5 +127,50 @@ export interface AlertSettingsProps {
   /** name is canonicalised to the category's own `name` by the caller */
   onSetCategoryLimit: (name: string, amount: number) => void;
   onClearCategoryLimit: (name: string) => void;
+  onClose: () => void;
+}
+
+/**
+ * One dashboard card, ready to draw.
+ *
+ * The card arrives fully built by `buildDashboardCard` in `shared` — every
+ * amount already formatted, every arc and bar already measured — so this
+ * surface decides layout and nothing else. That is what lets the same
+ * component render on the desktop grid and in a phone's single column, and
+ * what keeps `Transaction` (whose `createdAt` is a Firestore `Timestamp`) out
+ * of the contract.
+ */
+export interface DashboardCardProps {
+  card: DashboardCardView;
+  /**
+   * The question the card answers. Shown in the picker, where you are
+   * choosing between cards; hidden on the dashboard, where it is noise under
+   * a title you already picked.
+   */
+  showQuestion?: boolean;
+  /** omit to render the card read-only, as the picker preview does */
+  onRemove?: () => void;
+  /** `-1` moves the card one place earlier, `+1` one place later */
+  onMove?: (delta: number) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+}
+
+/**
+ * What a dashboard card picker needs, on either surface.
+ *
+ * `catalog` is every card in the registry, already built against the period in
+ * view — the previews show real numbers rather than sample data, since there
+ * is nothing here to withhold behind a paywall. Grouping into tabs is done by
+ * the component from each card's own `spec.group`.
+ */
+export interface DashboardPickerProps {
+  catalog: readonly DashboardCardView[];
+  /** ids currently on the dashboard, in order */
+  chosen: readonly string[];
+  /** a write is in flight — disables add and remove */
+  busy: boolean;
+  onAdd: (id: DashboardCardId) => void;
+  onRemove: (id: DashboardCardId) => void;
   onClose: () => void;
 }

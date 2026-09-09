@@ -34,15 +34,17 @@ import { ExpenseSheet } from '@expense-tracker/design-system';
 
 import { AlertSheet, CategorySheet } from '@expense-tracker/design-system';
 import { IncomeTab } from './components/IncomeTab';
+import { HomeTab } from './components/HomeTab';
 import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
 
-type Tab = 'daily' | 'monthly' | 'yearly' | 'income';
+type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
 
 /**
  * The nav's primary group. Income sits with them rather than beside
  * Categories and Alerts because it is a page like these three, not a sheet.
  */
 const TABS: [Tab, string][] = [
+  ['home', 'Home'],
   ['daily', 'Today'],
   ['monthly', 'Month'],
   ['yearly', 'Year'],
@@ -293,6 +295,7 @@ function Phone({
 
         {tab === 'monthly' ? <MonthTab state={state} fmt={fmt} /> : null}
         {tab === 'yearly' ? <YearTab store={store} state={state} fmt={fmt} /> : null}
+        {tab === 'home' ? <HomeTab store={store} state={state} fmt={fmt} /> : null}
         {tab === 'income' ? <IncomeTab store={store} state={state} fmt={fmt} /> : null}
       </div>
 
