@@ -1024,6 +1024,9 @@ export const dashboardCardContext = (
   categories: state.categories,
   monthTransactions: state.monthTransactions,
   yearTransactions: state.yearTransactions,
+  // Projected once, here, rather than five times inside the credit cards —
+  // see the note on `DashboardCardContext.balances`.
+  balances: accountBalancesOf(state),
   budget: state.budget,
   fmt,
 });

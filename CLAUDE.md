@@ -566,8 +566,9 @@ against the real stylesheet before adding a seventh; it has no slack left.
 
 ### Dashboard cards — one registry, two consumers
 
-`src/lib/dashboardCards.ts` holds `DASHBOARD_CARDS`, the catalog of ten cards
-the Home tab can draw, grouped `cashflow` / `spending` / `reports`. Two things
+`src/lib/dashboardCards.ts` holds `DASHBOARD_CARDS`, the catalog of fifteen
+cards the Home tab can draw, grouped `cashflow` / `spending` / `credit` /
+`reports`. Two things
 read it, so a card added there appears in both at once: the **Home view**
 (`desktop/views/HomeView`, `mobile-webview/components/HomeTab`) renders the
 chosen ones, and the **picker** (`DashboardCardPicker` / `DashboardCardSheet`)
@@ -590,7 +591,7 @@ Reports-group cards are year-scoped and labelled with the year alone.
 
 **Every card reduces to one of four bodies** — `stat`, `rows`, `donut`,
 `bars` — so the design system ships *one* `DashboardCard` renderer rather than
-ten components. It is surface-neutral (only `.cf-*` classes, charts scaled
+one component per card. It is surface-neutral (only `.cf-*` classes, charts scaled
 through a `viewBox`), which is why the desktop grid and the phone's single
 column need no second implementation. A new card needs a new body type only if
 it cannot be said as a stat, a list, an arc or a bar chart. `DonutSegment` and
@@ -614,11 +615,38 @@ cleared, on every snapshot. Unknown ids are dropped on read
 (`normalizeDashboardCards`), so retiring a card from the registry makes it
 vanish from the accounts that had it rather than crashing their dashboard.
 
-There is deliberately **no Credit group**. The four credit cards in the source
-design — recurring debts, debt-to-income, credit-limit utilisation — need
-accounts, balances, limits and loan principals, and none of that is in the
-schema; `Transaction.paymentMethod` says *how* something was paid and nothing
-about what is owed. The group key is open for the day that data model lands.
+**The Credit group exists now, and what unblocked it was accounts.** The four
+cards in the source design — credit used, utilisation by card, debt to income,
+debt payments — need balances, limits and monthly payments, and until the
+`accounts` collection landed none of that was in the schema. The distinction
+that kept them out still holds and is worth keeping straight:
+`Transaction.paymentMethod` says *how* something was paid and nothing about
+what is owed, so it is `Account.limit` and `Account.monthlyPayment` these read,
+never the payment method. A fifth card, `account-balances`, sits in `cashflow`
+rather than `credit` — it answers where money *is*, not what is owed.
+
+Three rules those five follow:
+
+- **They take `balances`, not `accounts`.** `DashboardCardContext.balances` is
+  already projected, and `store.dashboardCardContext` calls `accountBalancesOf`
+  **once**. Handing the cards raw accounts would have five bodies each call
+  `accountBalancesForYear` with their own `windowStart`, and the Credit tab
+  could then disagree with the accounts sheet about what a card owes.
+- **`scope: 'account'` labels them "as of 10 Sep".** A balance is a now, not a
+  window, so labelling one with the period in view would claim it was read at a
+  date it never consulted — and stepping the month nav would relabel a figure
+  that had not moved. `periodLabelFor` branches on all three scopes
+  explicitly; nothing falls through to the period label. `debt-to-income` is
+  the deliberate exception: its numerator is a standing monthly figure but its
+  denominator is the period's income, so it stays `period`-scoped.
+- **An unset limit is not a limit of zero.** `accountTotals.creditUtilisation`
+  returns 0 through `safeDiv` when no limit is set anywhere, which reads
+  identically to "nothing drawn against a real limit" — so
+  `credit-utilisation` and `debt-to-income` check the denominator and render
+  `—`. This is the same rule as `AlertSettings.monthlyLimit` (an unset cap is
+  silent, not permanently breached) and `budget-left`'s income branch. A stale
+  balance is surfaced rather than hidden: `accountTotals` counts it at its
+  reconciled figure, and the caption says so.
 
 ### Spending alerts
 

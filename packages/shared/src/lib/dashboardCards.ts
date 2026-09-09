@@ -1,5 +1,6 @@
-import type { Budget, Category, Transaction } from '../types.js';
-import { cycleRangeLabel, monthLabel, yearOfMonth } from './dates.js';
+import { isLiabilityAccount, type Budget, type Category, type Transaction } from '../types.js';
+import { accountTotals, type AccountBalance } from './accounts.js';
+import { cycleRangeLabel, monthLabel, shortDayLabel, yearOfMonth } from './dates.js';
 import { formatMoney, formatPercent, type MoneyFormat } from './format.js';
 import {
   bucketByMonth,
@@ -45,18 +46,20 @@ import {
 
 /* ------------------------------------------------------------------ groups */
 
-export type DashboardCardGroup = 'cashflow' | 'spending' | 'reports';
+export type DashboardCardGroup = 'cashflow' | 'spending' | 'reports' | 'credit';
 
 /** Tab order in the picker. */
 export const DASHBOARD_CARD_GROUPS: readonly DashboardCardGroup[] = [
   'cashflow',
   'spending',
+  'credit',
   'reports',
 ];
 
 export const DASHBOARD_CARD_GROUP_LABELS: Record<DashboardCardGroup, string> = {
   cashflow: 'Cash-flow',
   spending: 'Spending',
+  credit: 'Credit',
   reports: 'Reports',
 };
 
@@ -73,6 +76,11 @@ export const DASHBOARD_CARD_IDS = [
   'recurring-spend',
   'year-bars',
   'year-summary',
+  'account-balances',
+  'credit-utilisation',
+  'card-utilisation',
+  'debt-to-income',
+  'recurring-debts',
 ] as const;
 
 export type DashboardCardId = (typeof DASHBOARD_CARD_IDS)[number];
@@ -85,9 +93,13 @@ export interface DashboardCardSpec {
   group: DashboardCardGroup;
   /**
    * Which window the card reads. `period` is the salary cycle or calendar
-   * month in view; `year` is the twelve periods labelled by its year.
+   * month in view; `year` is the twelve periods labelled by its year;
+   * `account` is a balance, which is a **now** rather than a window — those
+   * cards are labelled with the day they were read, not with a period they
+   * never consulted. Every reader of this field must handle all three:
+   * `periodLabelFor` branches on each explicitly rather than falling through.
    */
-  scope: 'period' | 'year';
+  scope: 'period' | 'year' | 'account';
   /** how wide the card sits in the desktop grid */
   size: 'half' | 'full';
 }
@@ -179,6 +191,50 @@ const SPECS: Record<DashboardCardId, DashboardCardSpec> = {
     scope: 'year',
     size: 'half',
   },
+  'account-balances': {
+    id: 'account-balances',
+    title: 'Where the money is',
+    question: 'What is sitting in each account right now?',
+    group: 'cashflow',
+    scope: 'account',
+    size: 'half',
+  },
+  'credit-utilisation': {
+    id: 'credit-utilisation',
+    title: 'Credit used',
+    question: 'How much of my total credit limit am I drawing on?',
+    group: 'credit',
+    scope: 'account',
+    size: 'half',
+  },
+  'card-utilisation': {
+    id: 'card-utilisation',
+    title: 'Utilisation by card',
+    question: 'Which card is closest to its limit?',
+    group: 'credit',
+    scope: 'account',
+    size: 'half',
+  },
+  'debt-to-income': {
+    id: 'debt-to-income',
+    title: 'Debt to income',
+    question: 'How much of this period’s income is already spoken for by debt?',
+    group: 'credit',
+    // Deliberately period-scoped where its four neighbours are account-scoped:
+    // the numerator is a standing monthly figure, but the denominator is the
+    // income of the period in view, and that moves. Labelling it "as of today"
+    // would hide which period's income the ratio was taken against.
+    scope: 'period',
+    size: 'half',
+  },
+  'recurring-debts': {
+    id: 'recurring-debts',
+    title: 'Debt payments',
+    question: 'What leaves for cards and loans every period?',
+    group: 'credit',
+    scope: 'account',
+    size: 'half',
+  },
 };
 
 /** The catalog in registry order — what the picker iterates. */
@@ -192,6 +248,11 @@ export const DASHBOARD_CARDS: readonly DashboardCardSpec[] = DASHBOARD_CARD_IDS.
  * Only an account whose profile has *no* `dashboardCards` field falls back to
  * this — a stored empty array means "I removed them all" and is left alone.
  * See `toProfile` in `lib/queries.ts`.
+ *
+ * Deliberately none of the credit or account cards: a brand-new dashboard
+ * belongs to someone who has not added an account yet, so seeding them would
+ * open the app on four cards all saying nothing is set. They are in the picker
+ * for the day there is something for them to read.
  */
 export const DEFAULT_DASHBOARD_CARDS: readonly DashboardCardId[] = [
   'budget-left',
@@ -252,7 +313,7 @@ export interface DashboardCardRow {
 
 /**
  * The four shapes every card in the catalog reduces to, so the design system
- * ships one card renderer rather than ten. `DonutSegment` and `YearBar` are
+ * ships one card renderer rather than one per card. `DonutSegment` and `YearBar` are
  * `derive.ts`'s own geometry types — reused here rather than mirrored, so the
  * cards and the Monthly/Yearly views cannot disagree about an arc.
  */
@@ -297,6 +358,18 @@ export interface DashboardCardContext {
   categories: readonly Category[];
   monthTransactions: readonly Transaction[];
   yearTransactions: readonly Transaction[];
+  /**
+   * Balances, already projected — **not** the raw accounts.
+   *
+   * The same rule the rest of this file follows: it consumes what a lower
+   * layer computed rather than re-deriving it. Handing the cards `accounts`
+   * would have each of the five call `accountBalancesForYear` itself, which is
+   * five passes over the same year of transactions and five chances to pass a
+   * different `windowStart` — so the Credit tab could disagree with the
+   * accounts sheet about what a card owes. `store.dashboardCardContext` calls
+   * `accountBalancesOf` once.
+   */
+  balances: readonly AccountBalance[];
   budget: Budget | null;
   fmt: MoneyFormat;
 }
@@ -308,6 +381,11 @@ export interface DashboardCardContext {
  */
 function periodLabelFor(spec: DashboardCardSpec, ctx: DashboardCardContext): string {
   if (spec.scope === 'year') return yearOfMonth(ctx.yearMonth);
+  // A balance is a now, not a window. Labelling one with the period in view
+  // would claim it was read at a date it never consulted — and stepping the
+  // month nav would relabel a figure that had not moved. Each branch is
+  // explicit so a fourth scope cannot fall through to the period label.
+  if (spec.scope === 'account') return `as of ${shortDayLabel(ctx.today)}`;
   const range = cycleRangeLabel(ctx.yearMonth, ctx.cycleStartDay);
   return range ? `${monthLabel(ctx.yearMonth)} · ${range}` : monthLabel(ctx.yearMonth);
 }
@@ -528,6 +606,157 @@ function yearSummaryBody(ctx: DashboardCardContext): DashboardCardBody {
   };
 }
 
+/* --------------------------------------------------------------- accounts */
+
+/**
+ * A balance's own provenance, as a row caption.
+ *
+ * Every account surface in this app shows when a figure was confirmed rather
+ * than a bare number, because the projection drifts by exactly what was not
+ * logged. A card is no exception — and a stale row shows the **reconciled**
+ * figure, so without this caption it would silently be reporting a number from
+ * months ago as if it were today's.
+ */
+const balanceCaption = (b: AccountBalance): string =>
+  b.stale
+    ? `confirmed ${b.reconciledOn || 'never'} — too far back to project from`
+    : b.entryCount > 0
+      ? `${b.reconciledOn} · ${b.entryCount} ${b.entryCount === 1 ? 'entry' : 'entries'} since`
+      : `${b.reconciledOn} · nothing logged since`;
+
+/** What a row should show: the projection, unless it cannot be trusted. */
+const shownFigure = (b: AccountBalance): number => (b.stale ? b.reconciled : b.projected);
+
+function accountBalancesBody(ctx: DashboardCardContext): DashboardCardBody {
+  const assets = ctx.balances.filter((b) => !isLiabilityAccount(b.account.type));
+  const total = assets.reduce((sum, b) => sum + shownFigure(b), 0);
+  // Biggest pot first — the same rank-ordering the income composition bar uses,
+  // and the order you actually scan a list of balances in.
+  const rows = assets
+    .slice()
+    .sort((a, b) => shownFigure(b) - shownFigure(a))
+    .slice(0, MAX_ROWS)
+    .map((b) => ({
+      key: b.account.id,
+      label: b.account.name,
+      caption: balanceCaption(b),
+      value: formatMoney(shownFigure(b), ctx.fmt),
+      share: total > 0 ? Math.max(0, shownFigure(b)) / total : undefined,
+      color: b.color,
+      alert: b.stale,
+    }));
+  return {
+    type: 'rows',
+    rows,
+    footer: rows.length > 0 ? { label: 'Across accounts', value: formatMoney(total, ctx.fmt) } : undefined,
+    empty: 'No accounts holding money yet. Add one and reconcile it to see this.',
+  };
+}
+
+function creditUtilisationBody(ctx: DashboardCardContext): DashboardCardBody {
+  const t = accountTotals(ctx.balances);
+  // A limit of 0 is unset, not a limit of nothing — the rule
+  // `AlertSettings.monthlyLimit` already follows, where an unset cap is silent
+  // rather than permanently breached. `safeDiv` would hand back 0 here, which
+  // reads identically to "nothing drawn against a real limit".
+  if (t.creditLimit <= 0) {
+    return {
+      type: 'stat',
+      value: '—',
+      caption: 'No credit limit set on any account yet.',
+    };
+  }
+  return {
+    type: 'stat',
+    value: formatPercent(t.creditUtilisation),
+    caption: `${formatMoney(t.creditUsed, ctx.fmt)} drawn of ${formatMoney(t.creditLimit, ctx.fmt)}${
+      t.anyStale ? ' · includes a balance too old to project from' : ''
+    }`,
+    progress: t.creditUtilisation,
+  };
+}
+
+function cardUtilisationBody(ctx: DashboardCardContext): DashboardCardBody {
+  const carded = ctx.balances.filter((b) => b.account.limit > 0);
+  return {
+    type: 'rows',
+    // Closest to its limit first — the whole question the card asks.
+    rows: carded
+      .slice()
+      .sort((a, b) => b.utilisation - a.utilisation)
+      .slice(0, MAX_ROWS)
+      .map((b) => ({
+        key: b.account.id,
+        label: b.account.name,
+        caption: `${formatMoney(shownFigure(b), ctx.fmt)} of ${formatMoney(b.account.limit, ctx.fmt)}${
+          b.stale ? ' · too old to project from' : ''
+        }`,
+        value: formatPercent(b.utilisation),
+        share: Math.max(0, Math.min(1, b.utilisation)),
+        color: b.color,
+        // The same threshold the accounts sheet draws its bar in danger at, so
+        // a card and the sheet cannot disagree about which card is a problem.
+        alert: b.utilisation > 0.8,
+      })),
+    empty: 'No account has a credit limit yet. Add one to a card to see this.',
+  };
+}
+
+function debtToIncomeBody(ctx: DashboardCardContext): DashboardCardBody {
+  const t = accountTotals(ctx.balances);
+  const income = totalIncome(ctx.budget);
+  // Two different absences, and neither is a ratio of zero. No monthly payment
+  // recorded anywhere is the unset-cap rule again; no income is the rule every
+  // percentage in this app already follows — `—` rather than NaN or 0%.
+  if (t.monthlyDebtPayments <= 0) {
+    return {
+      type: 'stat',
+      value: '—',
+      caption: 'No monthly payment set on any card or loan yet.',
+    };
+  }
+  if (income <= 0) {
+    return {
+      type: 'stat',
+      value: '—',
+      caption: `${formatMoney(t.monthlyDebtPayments, ctx.fmt)} a period — no income set to measure it against`,
+    };
+  }
+  const ratio = t.monthlyDebtPayments / income;
+  return {
+    type: 'stat',
+    value: formatPercent(ratio),
+    caption: `${formatMoney(t.monthlyDebtPayments, ctx.fmt)} of ${formatMoney(income, ctx.fmt)} income`,
+    progress: Math.min(1, ratio),
+  };
+}
+
+function recurringDebtsBody(ctx: DashboardCardContext): DashboardCardBody {
+  // `monthlyPayment` of 0 is unset, so an account with a balance but no payment
+  // recorded is left out rather than listed as costing nothing a period.
+  const paying = ctx.balances.filter(
+    (b) => isLiabilityAccount(b.account.type) && b.account.monthlyPayment > 0,
+  );
+  const total = paying.reduce((sum, b) => sum + b.account.monthlyPayment, 0);
+  return {
+    type: 'rows',
+    rows: paying
+      .slice()
+      .sort((a, b) => b.account.monthlyPayment - a.account.monthlyPayment)
+      .slice(0, MAX_ROWS)
+      .map((b) => ({
+        key: b.account.id,
+        label: b.account.name,
+        caption: `${formatMoney(shownFigure(b), ctx.fmt)} owed`,
+        value: formatMoney(b.account.monthlyPayment, ctx.fmt),
+        share: total > 0 ? b.account.monthlyPayment / total : undefined,
+        color: b.color,
+      })),
+    footer: total > 0 ? { label: 'Every period', value: formatMoney(total, ctx.fmt) } : undefined,
+    empty: 'No card or loan has a monthly payment set yet.',
+  };
+}
+
 const BODIES: Record<DashboardCardId, (ctx: DashboardCardContext) => DashboardCardBody> = {
   'budget-left': budgetLeftBody,
   'income-composition': incomeCompositionBody,
@@ -539,6 +768,11 @@ const BODIES: Record<DashboardCardId, (ctx: DashboardCardContext) => DashboardCa
   'recurring-spend': recurringSpendBody,
   'year-bars': yearBarsBody,
   'year-summary': yearSummaryBody,
+  'account-balances': accountBalancesBody,
+  'credit-utilisation': creditUtilisationBody,
+  'card-utilisation': cardUtilisationBody,
+  'debt-to-income': debtToIncomeBody,
+  'recurring-debts': recurringDebtsBody,
 };
 
 /** One card, ready to render. */

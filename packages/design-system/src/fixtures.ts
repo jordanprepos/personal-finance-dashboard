@@ -230,13 +230,53 @@ export const cardContext: DashboardCardContext = {
   // One period of a year is enough to give the reports cards a bar to draw;
   // the other eleven render as the empty state, which is worth seeing.
   yearTransactions: cardTransactions,
+  // The same four accounts the accounts stories use, already projected — so a
+  // change to the projection moves the credit cards and the accounts sheet
+  // together, rather than leaving one of them quietly stale.
+  balances,
   budget,
   fmt: IDR,
+};
+
+/**
+ * The same context with nothing to draw on: no accounts at all.
+ *
+ * Every credit card has an empty state that is *not* zero — an unset limit is
+ * not a limit of nothing, and 0% would read as "plenty of headroom". This is
+ * what the stories use to prove it.
+ */
+export const emptyAccountsContext: DashboardCardContext = { ...cardContext, balances: [] };
+
+/**
+ * Accounts, but none of them carrying a limit or a monthly payment.
+ *
+ * The control the empty context cannot give: the cards have rows to work with
+ * and must *still* refuse to print a percentage, because the denominator is
+ * unset rather than zero.
+ */
+export const noLimitsContext: DashboardCardContext = {
+  ...cardContext,
+  balances: accountBalances(
+    accounts.map((a) => ({ ...a, limit: 0, monthlyPayment: 0 })),
+    [],
+    today,
+    yearWindowStart(yearMonth),
+  ),
 };
 
 /** Every card in the registry, built against the month above. */
 export const cardCatalog: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
   buildDashboardCard(spec.id, cardContext),
+);
+
+/** The same catalog with no accounts at all — every credit card in its empty state. */
+export const cardCatalogNoAccounts: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
+  buildDashboardCard(spec.id, emptyAccountsContext),
+);
+
+/** Accounts present, but no limit or monthly payment on any of them. */
+export const cardCatalogNoLimits: DashboardCardView[] = DASHBOARD_CARDS.map((spec) =>
+  buildDashboardCard(spec.id, noLimitsContext),
 );
 
 const cardById = (id: DashboardCardId): DashboardCardView =>
