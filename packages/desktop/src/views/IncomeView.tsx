@@ -322,7 +322,7 @@ function SourceRow({
         {canRemove ? (
           <button
             type="button"
-            className="cf-back"
+            className="cf-dangerlink"
             style={{ padding: '9px 4px' }}
             aria-label={`Remove ${source.name}`}
             onClick={onRemove}

@@ -167,7 +167,7 @@ function AccountRow({
               fontWeight: 700,
               fontSize: 17,
               letterSpacing: '-.02em',
-              color: liability && shown > 0 ? 'var(--cf-danger)' : 'var(--cf-ink)',
+              color: liability && shown > 0 ? 'var(--cf-danger-strong)' : 'var(--cf-ink)',
             }}
           >
             {formatMoney(shown, fmt)}
@@ -180,7 +180,7 @@ function AccountRow({
 
       {/* The provenance line — never a bare number. What it was, when that was
           true, and what has happened since. */}
-      <div style={{ fontSize: 11.5, color: stale ? 'var(--cf-danger)' : 'var(--cf-muted)' }}>
+      <div style={{ fontSize: 11.5, color: stale ? 'var(--cf-danger-strong)' : 'var(--cf-muted)' }}>
         {stale ? (
           <>Confirmed {reconciledOn || 'never'} — too far back to project from. Reconcile it.</>
         ) : (
@@ -427,7 +427,7 @@ function EditForm({
       >
         {confirming ? (
           <>
-            <div style={{ fontSize: 11.5, color: 'var(--cf-danger)' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--cf-danger-strong)' }}>
               Remove {account.name}?{' '}
               {liability
                 ? 'The confirmed balance and the limit go with it.'
@@ -443,7 +443,7 @@ function EditForm({
               >
                 Keep it
               </button>
-              <button type="button" className="cf-back" disabled={busy} onClick={onDelete}>
+              <button type="button" className="cf-dangerlink" disabled={busy} onClick={onDelete}>
                 Remove for good
               </button>
             </div>
@@ -451,7 +451,7 @@ function EditForm({
         ) : (
           <button
             type="button"
-            className="cf-back"
+            className="cf-dangerlink"
             style={{ alignSelf: 'flex-start' }}
             disabled={busy}
             onClick={() => setConfirming(true)}

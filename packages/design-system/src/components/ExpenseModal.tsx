@@ -278,7 +278,7 @@ export function ExpenseModal({
           >
             <button
               type="button"
-              className="cf-cta cf-cta--outline"
+              className="cf-cta cf-cta--danger"
               style={{ padding: 13, fontSize: 14 }}
               onClick={() => {
                 onDelete(transaction);
@@ -290,14 +290,8 @@ export function ExpenseModal({
             {isRecurring ? (
               <button
                 type="button"
-                className="cf-cta"
-                style={{
-                  padding: 13,
-                  fontSize: 14,
-                  border: 0,
-                  background: 'var(--cf-ink)',
-                  color: '#fff',
-                }}
+                className="cf-cta cf-cta--danger-solid"
+                style={{ padding: 13, fontSize: 14 }}
                 onClick={() => {
                   onDeleteSeries(transaction);
                   onClose();

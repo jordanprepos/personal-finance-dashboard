@@ -190,7 +190,7 @@ export function IncomeSheet({
         {editing && canRemove ? (
           <button
             type="button"
-            className="cf-back phone__tap"
+            className="cf-dangerlink phone__tap"
             style={{ flex: 'none', alignSelf: 'flex-start' }}
             onClick={() => {
               onRemove(editing.id);

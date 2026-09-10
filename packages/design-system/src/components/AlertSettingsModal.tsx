@@ -207,7 +207,7 @@ export function AlertSettingsModal({
                   style={{
                     fontWeight: 600,
                     fontSize: 13,
-                    color: row.used !== null && row.used > 1 ? 'var(--cf-danger)' : 'var(--cf-slate)',
+                    color: row.used !== null && row.used > 1 ? 'var(--cf-danger-strong)' : 'var(--cf-slate)',
                   }}
                 >
                   {/* No limit means no share to take — never NaN. */}
@@ -215,7 +215,7 @@ export function AlertSettingsModal({
                 </span>
                 <button
                   type="button"
-                  className="cf-back"
+                  className="cf-dangerlink"
                   onClick={() => onClearCategoryLimit(row.name)}
                 >
                   Clear

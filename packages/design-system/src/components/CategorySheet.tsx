@@ -158,9 +158,12 @@ export function CategorySheet({
                     minHeight: 38,
                     padding: '0 12px',
                     borderRadius: 'var(--cf-r-pill)',
-                    border: `1px solid ${pending ? 'var(--cf-ink)' : 'var(--cf-border-strong)'}`,
-                    background: pending ? 'var(--cf-ink)' : 'transparent',
-                    color: pending ? '#fff' : 'var(--cf-slate)',
+                    // Red at rest, solid red once armed — the confirm step is
+                    // the destructive one, so it must not be the quieter of
+                    // the two. Ink made it exactly that.
+                    border: '1px solid var(--cf-danger-strong)',
+                    background: pending ? 'var(--cf-danger-strong)' : 'transparent',
+                    color: pending ? 'var(--cf-surface)' : 'var(--cf-danger-strong)',
                     fontFamily: 'inherit',
                     fontWeight: 600,
                     fontSize: 12,
