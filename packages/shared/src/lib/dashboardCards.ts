@@ -393,7 +393,7 @@ function periodLabelFor(spec: DashboardCardSpec, ctx: DashboardCardContext): str
 /* ------------------------------------------------------------------ bodies */
 
 function budgetLeftBody(ctx: DashboardCardContext): DashboardCardBody {
-  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget);
+  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget, ctx.today);
   // With no income there is no share to take — show what was spent rather
   // than a percentage of zero, exactly as the Monthly hero card does.
   if (!s.hasIncome) {
@@ -432,7 +432,7 @@ function incomeCompositionBody(ctx: DashboardCardContext): DashboardCardBody {
 }
 
 function spendingPaceBody(ctx: DashboardCardContext): DashboardCardBody {
-  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget);
+  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget, ctx.today);
   if (!s.hasIncome) {
     return {
       type: 'stat',
@@ -446,7 +446,9 @@ function spendingPaceBody(ctx: DashboardCardContext): DashboardCardBody {
     type: 'stat',
     value: formatMoney(p.delta, ctx.fmt),
     caption: `${p.under ? 'under' : 'over'} an even burn ${when} · target ${formatMoney(p.target, ctx.fmt)}`,
-    progress: s.spentShare,
+    // The bar has to be measured like the figure above it: `spentShare` would
+    // fill for bills this card's own number has not counted yet.
+    progress: s.spentShareToDate,
   };
 }
 
@@ -535,7 +537,7 @@ function envelopeStatusBody(ctx: DashboardCardContext): DashboardCardBody {
 
 function recurringSpendBody(ctx: DashboardCardContext): DashboardCardBody {
   const repeat = recurringThisMonth(ctx.monthTransactions);
-  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget);
+  const s = monthSummary(ctx.yearMonth, ctx.monthTransactions, ctx.budget, ctx.today);
   const index = indexCategories(ctx.categories);
 
   return {

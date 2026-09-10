@@ -664,6 +664,56 @@ Three rules those five follow:
   balance is surfaced rather than hidden: `accountTotals` counts it at its
   reconciled figure, and the caption says so.
 
+### Committed money vs. spent money — `spent` and `spentToDate`
+
+A period's window includes days that have not happened yet, so a row dated the
+25th is in the snapshot on the 2nd. `monthSummary` therefore reports the same
+total twice, and **which one a caller reads is the whole decision**:
+
+- **`spent`** — the whole window, scheduled charges included. Everything that
+  answers *"how much may I still spend"* reads this: `left` (Budget Left),
+  `spentShare`, `leftShare`. A scheduled bill is money that is committed, and a
+  Budget Left that ignored it would read **high** — the one direction that
+  recreates the problem the app exists to solve.
+- **`spentToDate`** — rows dated `<= today`. Only `pace` and `evaluateAlerts`
+  read it, and both for the same reason: they compare spending against
+  **elapsed time**, so both sides of the comparison must be measured over the
+  same window. `pace` already prorates its target by `throughDay`; taking the
+  actual from `spent` mixed a whole period's fixed costs into a day-2 figure.
+
+Left unbounded, six bills totalling Rp 5.100.000 dated across the second half
+of the period reported "over an even pace by Rp 4.568.497" on **day 1**, with
+nothing paid, converging to "under" only around day 10 — every period, from
+its first day. That trains the reader to ignore the only signal in the app
+that speaks unprompted. A 6.000.000 cap fired an 85% banner on day 1 for the
+same reason.
+
+Three rules to keep true when touching this:
+
+- **`today` is a required argument** on `monthSummary`, `evaluateAlerts` and
+  `categoryLimitRows` — the same reasoning as `accountBalances`'s `windowEnd`.
+  An optional one silently falls back to the whole-window figure, which is the
+  bug itself.
+- **The bound is `<=`**, matching `accountBalances`, which skips only
+  `t.date < balanceAsOf`. A day is spent or it is not; the two surfaces must
+  not disagree about which side of it `today` falls on.
+- **`pace` must be handed a summary built with the same `today` it is passed.**
+  It takes `today` for its target and reads `spentToDate` for its actual, and
+  nothing in the types ties the two together — a summary built for one day and
+  paced against another compares elapsed time to a different window's spend.
+  Every call site derives both from `state.today` / `ctx.today`; keep it that
+  way.
+- **A bar is measured like the figure beside it.** `spentShareToDate` exists
+  only so `spending-pace`'s progress bar matches its own number;
+  `budget-left`'s bar stays on `spentShare`. Desktop `MonthlyView`'s hero bar
+  and mobile's `stackSegments` scale are paired with `categoryTotals`, which
+  counts the whole window, so both deliberately stay unbounded too.
+
+On a closed period every row is `<= today`, so the two figures are equal and
+nothing about history changes — that identity is the control this is tested
+against, since a bound that dropped *everything* would pass a "day 1 is quiet
+now" check just as happily as a correct one.
+
 ### Spending alerts
 
 Settings live on `profile/main.alerts` — one set per account, already carried
@@ -672,6 +722,11 @@ They are *evaluated* against whichever period is in view, by
 `derive.evaluateAlerts`, which both apps render as banners above the
 dashboard on every tab. Both apps reach them from a **Settings** button —
 the same surface now hosts `cycleStartDay`, which also lives on the profile.
+
+Spend is counted to `today` only, never past it — see the section above; the
+filter is applied once inside `evaluateAlerts` so the monthly cap and every
+category cap measure the same window, and `categoryLimitRows` bounds
+identically so the settings list cannot contradict the banner it explains.
 
 Two rules, applied to the monthly cap and to each per-category cap alike:
 over the limit is a breach, at or past `warnPct` of it is a warning. A limit

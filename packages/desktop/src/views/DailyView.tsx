@@ -22,7 +22,7 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
   const index = useMemo(() => indexCategories(categories), [categories]);
   const shown = filterTransactions(monthTransactions, categories, { categoryId, query });
   const days = groupByDate(shown);
-  const summary = monthSummary(yearMonth, monthTransactions, budget);
+  const summary = monthSummary(yearMonth, monthTransactions, budget, today);
   const burn = pace(summary, today, state.profile.cycleStartDay);
 
   // Only categories that actually appear this month get a filter chip.
