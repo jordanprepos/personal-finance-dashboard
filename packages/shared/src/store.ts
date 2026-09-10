@@ -134,7 +134,16 @@ const initialState = (yearMonth: string, today: string): ExpenseState => ({
   monthTransactions: [],
   yearTransactions: [],
   budget: null,
-  profile: { ...DEFAULT_PROFILE, alerts: defaultAlerts() },
+  // `alerts` and `dashboardCards` are both copied out rather than shared: a
+  // bare spread would leave every store pointing at the one array inside the
+  // exported `DEFAULT_PROFILE`, so a single in-place edit would corrupt the
+  // default for every store built afterwards. `queries.toProfile` guards the
+  // same case the same way.
+  profile: {
+    ...DEFAULT_PROFILE,
+    alerts: defaultAlerts(),
+    dashboardCards: [...DEFAULT_PROFILE.dashboardCards],
+  },
   busy: false,
   toast: null,
 });
@@ -997,11 +1006,12 @@ export const currentYearOf = (state: ExpenseState): string => toYear(state.today
  * other way round — the same split `dashboardCardContext` makes.
  *
  * Movements come from `yearTransactions`, the widest window the snapshot
- * carries. Note that makes the projection's horizon the **year in view**: step
- * the month nav into a different year and every balance reconciled outside it
- * reports `stale`, which is correct rather than unfortunate. A balance is a
- * now, not a period, so a stale marker is the honest answer to "what did this
- * account hold in 2025".
+ * carries, and the window's **end** is passed as well as its start. That makes
+ * the projection's horizon the **year in view**: step the month nav into a
+ * past year and every balance reports `stale`, because a window that closes
+ * before today cannot see the movements since. That is correct rather than
+ * unfortunate — a balance is a now, not a period, so a stale marker is the
+ * honest answer to "what did this account hold in 2025".
  */
 export const accountBalancesOf = (state: ExpenseState): AccountBalance[] =>
   accountBalancesForYear(state.accounts, state.yearTransactions, state.today, state.yearMonth);

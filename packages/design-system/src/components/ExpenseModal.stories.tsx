@@ -43,3 +43,15 @@ export const NoCategories: Story = { args: { categories: [] } };
  * lit while the write was in flight.
  */
 export const Saving: Story = { args: { transaction, busy: true } };
+
+/**
+ * The entry was tagged to an account that has since been removed.
+ *
+ * Removing an account is a hard delete that deliberately leaves the id on the
+ * transactions that named it, so the selector must bind to a value none of its
+ * options carries. Without the fallback option it renders blank, and the entry
+ * silently reads as untagged.
+ */
+export const EditRemovedAccount: Story = {
+  args: { transaction: { ...transaction, accountId: 'deleted-account' }, isRecurring: false },
+};
