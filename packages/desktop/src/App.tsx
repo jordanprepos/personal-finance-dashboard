@@ -144,6 +144,7 @@ function Dashboard({
     transactions: state.monthTransactions,
     categories: state.categories,
     alerts: state.profile.alerts,
+    today: state.today,
     // Money is formatted in the profile's locale; the month *name* is not.
     // `monthLabel` in the month nav above is en-US, so a banner saying
     // "for Agustus" under a header saying "August 2026" would read as a bug.
@@ -349,7 +350,12 @@ function Dashboard({
           alerts={state.profile.alerts}
           cycleStartDay={state.profile.cycleStartDay}
           cycleRangeLabel={periodRangeLabel(state)}
-          rows={categoryLimitRows(state.profile.alerts, state.monthTransactions, state.categories)}
+          rows={categoryLimitRows(
+            state.profile.alerts,
+            state.monthTransactions,
+            state.categories,
+            state.today,
+          )}
           monthSpend={sumAmounts(state.monthTransactions)}
           categories={state.categories}
           fmt={fmt}

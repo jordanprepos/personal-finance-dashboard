@@ -21,7 +21,7 @@ const DONUT_RADIUS = 54;
 export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Element {
   const { monthTransactions, categories, budget, yearMonth } = state;
 
-  const summary = monthSummary(yearMonth, monthTransactions, budget);
+  const summary = monthSummary(yearMonth, monthTransactions, budget, state.today);
   const totals = categoryTotals(monthTransactions, categories);
   const segments = donutSegments(totals, { radius: DONUT_RADIUS });
   const top = totals.find((t) => t.total > 0) ?? null;

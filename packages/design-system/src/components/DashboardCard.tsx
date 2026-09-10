@@ -64,7 +64,7 @@ export function DashboardCard({
           </button>
         ) : null}
         {onRemove ? (
-          <button type="button" className="cf-back" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
+          <button type="button" className="cf-dangerlink" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
             Remove
           </button>
         ) : null}
@@ -297,7 +297,7 @@ function Row({ row }: { row: DashboardCardRow }): JSX.Element {
         </span>
         <span
           className="tnum"
-          style={{ fontWeight: 600, color: row.alert ? 'var(--cf-danger)' : 'var(--cf-ink)' }}
+          style={{ fontWeight: 600, color: row.alert ? 'var(--cf-danger-strong)' : 'var(--cf-ink)' }}
         >
           {row.value}
         </span>

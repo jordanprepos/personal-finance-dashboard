@@ -194,7 +194,7 @@ export function AlertSheet({
                   style={{
                     fontWeight: 600,
                     fontSize: 12.5,
-                    color: row.used !== null && row.used > 1 ? 'var(--cf-danger)' : 'var(--cf-slate)',
+                    color: row.used !== null && row.used > 1 ? 'var(--cf-danger-strong)' : 'var(--cf-slate)',
                   }}
                 >
                   {/* No limit, no share to take. */}
@@ -202,7 +202,7 @@ export function AlertSheet({
                 </span>
                 <button
                   type="button"
-                  className="cf-back phone__tap"
+                  className="cf-dangerlink phone__tap"
                   onClick={() => onClearCategoryLimit(row.name)}
                 >
                   Clear

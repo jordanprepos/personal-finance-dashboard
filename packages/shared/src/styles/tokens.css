@@ -27,7 +27,20 @@
   --cf-selection: #d7e4fb;
   --cf-border: #dde5f4;
   --cf-border-strong: #c9d6ee;
+  /*
+   * The danger family, split by contrast rather than by taste.
+   *
+   * `--cf-danger` is the chart-and-border red the design ships: 4.36:1 on the
+   * surface, which clears AA for large text (3:1) and for the bars, rules and
+   * input borders it was introduced for, but *not* the 4.5:1 that 11-13px
+   * label text needs. So anything that is read as words uses
+   * `--cf-danger-strong` (6.07:1) and anything that is read as a shape stays
+   * on `--cf-danger`. Solid destructive buttons take the strong one as their
+   * fill, which puts white on 6.07:1 rather than on a marginal 4.36:1.
+   */
   --cf-danger: #c8553d;
+  --cf-danger-strong: #a8412c;
+  --cf-danger-hover: #8f3623;
   /* pale wash for danger-tinted fills, mirroring --cf-blue-pale */
   --cf-danger-pale: #fbe7e2;
 
@@ -420,6 +433,63 @@ input {
    bug. Mirrors .cf-cta--outline:hover:not(:disabled). */
 .cf-ghostbtn:hover:not(:disabled) {
   background: var(--cf-blue-pale);
+}
+
+/*
+ * Destructive actions, in the three weights the app already has.
+ *
+ * Colour is the *only* thing these change: each mirrors an existing button
+ * class property for property, so swapping a call site over cannot move
+ * anything on the page. That is the whole point — a red Delete has to sit
+ * exactly where the reader last saw it.
+ *
+ * What is deliberately NOT red: "Keep it" and every other opt-out beside a
+ * destroy button (the escape has to read as the safe one), Close/Back, and
+ * anything reversible in a click — a dashboard card toggle removes nothing,
+ * and signing out destroys no data.
+ */
+
+/* text weight — mirrors .cf-back */
+.cf-dangerlink {
+  font-weight: 500;
+  font-size: 13px;
+  background: transparent;
+  border: 0;
+  color: var(--cf-danger-strong);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.cf-dangerlink:hover {
+  color: var(--cf-danger-hover);
+}
+
+/* full-width form action, outline — mirrors .cf-cta--outline */
+.cf-cta--danger {
+  background: var(--cf-surface);
+  color: var(--cf-danger-strong);
+  border: 1.5px solid var(--cf-danger-strong);
+}
+
+.cf-cta--danger:hover:not(:disabled) {
+  background: var(--cf-danger-pale);
+}
+
+/*
+ * Filled — mirrors .cf-cta--primary, and reserved for the *confirmed* step of
+ * a two-tap destroy ("Delete + all entries", "This + future"). Those carried
+ * `--cf-ink` before, which made the more destructive of a pair the quieter of
+ * the two.
+ */
+.cf-cta--danger-solid {
+  background: var(--cf-danger-strong);
+  color: var(--cf-surface);
+  border: 0;
+}
+
+.cf-cta--danger-solid:hover:not(:disabled) {
+  background: var(--cf-danger-hover);
 }
 
 .cf-stepbtn {

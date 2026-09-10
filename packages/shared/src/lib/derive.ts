@@ -251,12 +251,37 @@ export interface MonthSummary {
   income: number;
   /** false when the month has no income sources, or they sum to zero */
   hasIncome: boolean;
-  /** total spent across every category */
+  /**
+   * Total spent across every category, over the **whole** window — including
+   * rows dated later in the period that have not been paid yet.
+   *
+   * That is deliberate for everything that answers "how much may I still
+   * spend": a scheduled bill is money that is committed, and a Budget Left
+   * that ignored it would read *high*, which is the one direction that
+   * recreates the problem this app exists to solve.
+   */
   spent: number;
+  /**
+   * Spent up to and including `today` — the same figure with rows dated in the
+   * future dropped.
+   *
+   * Only `pace` and `evaluateAlerts` read this, and both need it for the same
+   * reason: they compare spending against **elapsed time**, so the two sides of
+   * the comparison have to be measured over the same window. Counting a bill
+   * due on the 25th against the target for day 2 reports an overspend before a
+   * rupiah has moved — every period, from its first day, which teaches the
+   * reader to ignore the one signal in the app that speaks unprompted.
+   *
+   * On a closed period every row is on or before `today`, so this equals
+   * `spent` and nothing changes for history.
+   */
+  spentToDate: number;
   /** income - spent — "Budget Left" */
   left: number;
   /** 0-1 */
   spentShare: number;
+  /** 0-1, from `spentToDate` — the share to pair with a `pace` figure */
+  spentShareToDate: number;
   /** 0-1 */
   leftShare: number;
   /** entries logged with amount 0 */
@@ -264,14 +289,25 @@ export interface MonthSummary {
   entryCount: number;
 }
 
+/**
+ * `today` is **required**, and deliberately so: it is the only thing that can
+ * separate what has been spent from what is merely scheduled, and a caller
+ * that omitted it would silently get the whole-window figure everywhere —
+ * exactly the failure `accountBalances` makes `windowEnd` required to prevent.
+ */
 export function monthSummary(
   yearMonth: string,
   transactions: readonly Transaction[],
   budget: Budget | null,
+  today: string,
 ): MonthSummary {
   const income = totalIncome(budget);
   const hasIncome = income > 0;
   const spent = sumAmounts(transactions);
+  // `<=`, so a row dated today counts — matching `accountBalances`, which
+  // skips only `t.date < balanceAsOf`. A day is spent or it is not; the two
+  // surfaces must not disagree about which side of it "today" falls on.
+  const spentToDate = sumAmounts(transactions.filter((t) => t.date <= today));
   // With no income set there is nothing to take a share of — reporting
   // "100% remaining" against a negative balance would be worse than zero.
   const spentShare = hasIncome ? Math.min(1, spent / income) : 0;
@@ -280,8 +316,10 @@ export function monthSummary(
     income,
     hasIncome,
     spent,
+    spentToDate,
     left: income - spent,
     spentShare,
+    spentShareToDate: hasIncome ? Math.min(1, spentToDate / income) : 0,
     leftShare: hasIncome ? 1 - spentShare : 0,
     unpricedCount: transactions.filter((t) => t.amount === 0).length,
     entryCount: transactions.length,
@@ -585,6 +623,13 @@ export interface Pace {
  * counted from the window, not from the calendar month it is named after. At
  * `1` every term below collapses to the calendar-month arithmetic this had
  * before cycles existed.
+ *
+ * Both sides of the comparison are measured to the same instant: the target is
+ * prorated by the days elapsed, so the actual is `spentToDate`, not `spent`.
+ * Mixing them in reads a bill scheduled for the 25th as money already burnt on
+ * day 2 — the card then says "over" for the first third of every period while
+ * nothing at all has been paid. On a closed period the two are equal, so
+ * history is untouched.
  */
 export function pace(summary: MonthSummary, today: string, cycleStartDay = 1): Pace {
   const start = clampCycleStartDay(cycleStartDay);
@@ -592,7 +637,7 @@ export function pace(summary: MonthSummary, today: string, cycleStartDay = 1): P
   const length = cycleLength(summary.yearMonth, start);
   const throughDay = closed ? length : dayInCycle(today, summary.yearMonth, start);
   const target = closed ? summary.income : Math.round((summary.income * throughDay) / length);
-  const delta = target - summary.spent;
+  const delta = target - summary.spentToDate;
   return { target, delta: Math.abs(delta), under: delta >= 0, closed, throughDay };
 }
 
@@ -803,6 +848,17 @@ export interface AlertInput {
   transactions: readonly Transaction[];
   categories: readonly Category[];
   alerts: AlertSettings;
+  /**
+   * Spending is counted up to and including this day, never past it.
+   *
+   * Required, and filtered *inside* rather than by the caller: both call sites
+   * hand over `state.monthTransactions` whole, so anywhere else would be a
+   * place to forget. A cap measures what has been spent against it — a bill
+   * scheduled for the 25th has not been spent on the 2nd, and a banner that
+   * fired on it every period from day one would be trained away long before
+   * the period it mattered in.
+   */
+  today: string;
   /** money formatting — the profile's currency and locale */
   fmt?: MoneyFormat;
   /**
@@ -893,6 +949,7 @@ export function evaluateAlerts({
   transactions,
   categories,
   alerts,
+  today,
   fmt = IDR,
   locale = 'en-US',
 }: AlertInput): SpendAlert[] {
@@ -900,12 +957,15 @@ export function evaluateAlerts({
 
   const monthName = monthNameLabel(yearMonth, locale);
   const out: SpendAlert[] = [];
+  // Bounded once, so the monthly cap and every category cap are measured over
+  // the same window — `<=`, matching `monthSummary.spentToDate`.
+  const sofar = transactions.filter((t) => t.date <= today);
 
   const monthly = applyRule({
     id: 'month',
     scope: 'month',
     categoryName: null,
-    spent: sumAmounts(transactions),
+    spent: sumAmounts(sofar),
     limit: alerts.monthlyLimit,
     warnPct: alerts.warnPct,
     monthName,
@@ -920,7 +980,7 @@ export function evaluateAlerts({
       id: `category:${name}`,
       scope: 'category',
       categoryName: name,
-      spent: spendForCategoryName(transactions, categories, name),
+      spent: spendForCategoryName(sofar, categories, name),
       limit,
       warnPct: alerts.warnPct,
       monthName,
@@ -949,16 +1009,23 @@ export interface CategoryLimitRow {
 /**
  * The per-category caps as the settings list renders them. Orphans are kept
  * rather than hidden — a cap nothing can clear is worse than a stale row.
+ *
+ * `today` bounds the spend exactly as `evaluateAlerts` does, and for the same
+ * reason twice over: this list is where someone reads *why* a banner did or
+ * did not fire, so a row counting a scheduled bill the banner ignored would
+ * make the two contradict each other on one screen.
  */
 export function categoryLimitRows(
   alerts: AlertSettings,
   transactions: readonly Transaction[],
   categories: readonly Category[],
+  today: string,
 ): CategoryLimitRow[] {
   const known = new Set(categories.map((c) => normalizeCategoryName(c.name)));
+  const sofar = transactions.filter((t) => t.date <= today);
   return Object.entries(alerts.categoryLimits)
     .map(([name, limit]) => {
-      const spent = spendForCategoryName(transactions, categories, name);
+      const spent = spendForCategoryName(sofar, categories, name);
       return {
         name,
         limit,
