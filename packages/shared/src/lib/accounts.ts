@@ -1,6 +1,6 @@
 import { isLiabilityAccount, type Account, type Transaction } from '../types.js';
 import { daysBetween, monthsOfYear, yearOfMonth } from './dates.js';
-import { colorForOrder } from '../data/defaultCategories.js';
+import { CATEGORY_RAMP, colorForOrder } from '../data/defaultCategories.js';
 
 /**
  * Account balances — confirmed, then projected.
@@ -33,8 +33,33 @@ import { colorForOrder } from '../data/defaultCategories.js';
  *   surface shows `reconciledOn` beside the figure.
  */
 
-/** Colour for an account's row and bar — by `order`, like a category off-template. */
-export const accountColor = (account: Account): string => colorForOrder(account.order);
+/**
+ * The colours the account picker offers.
+ *
+ * The six `CATEGORY_RAMP` hues an account can already land on by `order`, plus
+ * a deep amber the ramp has no room for. Every entry is dark enough that a
+ * solid fill still separates from the page and light text sits on it — the
+ * constraint the ramp's own comment sets — which is why this is an amber and
+ * not a bright yellow.
+ */
+export const ACCOUNT_COLORS = [...CATEGORY_RAMP, '#b8860b'] as const;
+
+/** `#rrggbb`. A stored value that isn't one reads as unset — see `Account.color`. */
+const isHexColor = (value: unknown): value is string =>
+  typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+
+/**
+ * Colour for an account's row and bar — **the one place** the picked colour
+ * and the `order` ramp are reconciled.
+ *
+ * Stored first, unlike a category: `colorForName` ignores `Category.color`
+ * because the template gives a name its canonical colour, and an account has
+ * no template. So an account that picked a colour gets it, and one that never
+ * did keeps the ramp slot its `order` gave it — which is what makes the
+ * picker need no migration.
+ */
+export const accountColor = (account: Account): string =>
+  isHexColor(account.color) ? account.color : colorForOrder(account.order);
 
 export interface AccountBalance {
   account: Account;

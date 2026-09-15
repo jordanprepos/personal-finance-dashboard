@@ -153,14 +153,27 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     },
 
     async createAccount(input: AccountInput): Promise<Account> {
-      const account: Account = { ...input, id: newAccountId() };
+      // Twin of `createAccount` in lib/queries.ts, and kept in step with it
+      // the way `build` is with `denormalize`: `color` is omitted when unset
+      // rather than stored undefined, so `accountColor` falls back to the
+      // `order` ramp here exactly as it does on the live path.
+      const { color, ...rest } = input;
+      const account: Account = { ...rest, ...(color ? { color } : {}), id: newAccountId() };
       accounts = [...accounts, account];
       notify();
       return { ...account };
     },
 
     async updateAccount(accountId: string, patch: AccountPatch): Promise<void> {
-      accounts = accounts.map((a) => (a.id === accountId ? { ...a, ...patch } : a));
+      accounts = accounts.map((a) => {
+        if (a.id !== accountId) return a;
+        const next: Account = { ...a, ...patch };
+        // Mirrors the `deleteField()` branch on the live path: the key present
+        // with no value means unset, so the property goes rather than sitting
+        // there as undefined.
+        if ('color' in patch && !patch.color) delete next.color;
+        return next;
+      });
       notify();
     },
 

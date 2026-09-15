@@ -231,6 +231,10 @@ function toBudget(id: string, d: DocumentData | undefined): Budget {
  * which `lib/accounts.ts` treats as stale, since a figure with no date
  * attached cannot be projected from.
  */
+/** `#rrggbb`, mirroring the guard `accountColor` applies on the way out. */
+const isHexColor = (value: unknown): boolean =>
+  typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+
 function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
   const d = snap.data();
   const type = d['type'];
@@ -247,6 +251,11 @@ function toAccount(snap: QueryDocumentSnapshot<DocumentData>): Account {
     limit: num(d['limit']),
     monthlyPayment: num(d['monthlyPayment']),
     order: num(d['order']),
+    // Same narrowing rule as `paymentMethod`: a stored value outside the shape
+    // reads as unset rather than becoming a typed one — here that keeps a
+    // junk string out of an SVG `fill`. `accountColor` falls back to the
+    // `order` ramp, so an account written before the picker is unchanged.
+    ...(isHexColor(d['color']) ? { color: d['color'] as string } : {}),
   };
 }
 
@@ -275,7 +284,13 @@ export async function createAccount(
   input: AccountInput,
 ): Promise<Account> {
   const ref = doc(accountsCollection(db, userId));
-  const account: Account = { ...input, id: ref.id };
+  // `color` follows the `paymentMethod` contract: spread in conditionally on
+  // create, because there is nothing to unset on a new document and writing
+  // `undefined` would throw. Its twin is `createAccount` in
+  // `data/seedSource.ts` — **edit the two together** or a picked colour
+  // vanishes in seed mode only.
+  const { color, ...rest } = input;
+  const account: Account = { ...rest, ...(color ? { color } : {}), id: ref.id };
   await setDoc(ref, account);
   return account;
 }
@@ -286,7 +301,12 @@ export async function updateAccount(
   accountId: string,
   patch: AccountPatch,
 ): Promise<void> {
-  await updateDoc(doc(accountsCollection(db, userId), accountId), patch);
+  const body: Record<string, unknown> = { ...patch };
+  // The other half of the contract, as `updateTransaction` does it: a patch
+  // carrying the key with no value means "unset" — back to the `order` ramp —
+  // and one omitting it means "leave alone".
+  if ('color' in patch && !patch.color) body['color'] = deleteField();
+  await updateDoc(doc(accountsCollection(db, userId), accountId), body);
 }
 
 /**

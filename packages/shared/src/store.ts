@@ -508,6 +508,9 @@ export class ExpenseStore {
         limit: input.limit,
         monthlyPayment: input.monthlyPayment,
         order,
+        // Conditional, not `color: input.color` — the create must omit the key
+        // rather than write `undefined`, which Firestore rejects.
+        ...(input.color ? { color: input.color } : {}),
       });
       return `${name} added`;
     });

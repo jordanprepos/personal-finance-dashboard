@@ -1,5 +1,6 @@
 import { useEffect, useState, type JSX } from 'react';
 import {
+  ACCOUNT_COLORS,
   ACCOUNT_TYPE_HINTS,
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPES,
@@ -137,7 +138,7 @@ function AccountRow({
   onStartReconcile: () => void;
   onStartEdit: () => void;
   onReconcile: (amount: number, asOf: string) => void;
-  onUpdate: (patch: { name?: string; limit?: number; monthlyPayment?: number }) => void;
+  onUpdate: (patch: { name?: string; limit?: number; monthlyPayment?: number; color?: string | undefined }) => void;
   onDelete: () => void;
 }): JSX.Element {
   const { account, projected, reconciled, reconciledOn, spentSince, entryCount, stale, ageInDays } =
@@ -338,7 +339,7 @@ function EditForm({
   account: Account;
   fmt: MoneyFormat;
   busy: boolean;
-  onSubmit: (patch: { name?: string; limit?: number; monthlyPayment?: number }) => void;
+  onSubmit: (patch: { name?: string; limit?: number; monthlyPayment?: number; color?: string | undefined }) => void;
   onDelete: () => void;
 }): JSX.Element {
   const [name, setName] = useState(account.name);
@@ -347,7 +348,11 @@ function EditForm({
     account.monthlyPayment > 0 ? String(account.monthlyPayment) : '',
   );
   const [confirming, setConfirming] = useState(false);
+  // `undefined` is "no colour picked" — the ramp — and is what Save sends as a
+  // present-but-empty key to clear a stored one.
+  const [color, setColor] = useState<string | undefined>(account.color);
   useEffect(() => setName(account.name), [account.name]);
+  useEffect(() => setColor(account.color), [account.color, account.id]);
   // A different account behind the same open form must not inherit an armed
   // confirm.
   useEffect(() => setConfirming(false), [account.id]);
@@ -395,6 +400,44 @@ function EditForm({
           />
         </>
       ) : null}
+      {/* Colour. Unlike a category — whose colour is resolved from its name
+          against the template palette, and whose stored field is ignored —
+          an account has no template, so this is the authority and the `order`
+          ramp is only the default. Swatches rather than a free colour input:
+          the set is chosen to stay dark enough for a solid fill, which an
+          arbitrary hex would not be. */}
+      <div className="cf-fieldlabel">Colour</div>
+      <div className="cf-opts" style={{ flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+        {ACCOUNT_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-label={`Colour ${c}`}
+            aria-pressed={color === c}
+            onClick={() => setColor(c)}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              padding: 0,
+              cursor: 'pointer',
+              background: c,
+              border:
+                color === c ? '2px solid var(--cf-ink)' : '1px solid var(--cf-border)',
+              boxShadow: color === c ? '0 0 0 2px var(--cf-surface-1)' : 'none',
+            }}
+          />
+        ))}
+        <button
+          type="button"
+          className={`cf-opt ${color === undefined ? 'cf-opt--on' : 'cf-opt--off'}`}
+          aria-pressed={color === undefined}
+          onClick={() => setColor(undefined)}
+        >
+          Default
+        </button>
+      </div>
+
       <button
         type="button"
         className="cf-add"
@@ -403,6 +446,9 @@ function EditForm({
         onClick={() =>
           onSubmit({
             name: name.trim(),
+            // Always sent, never omitted: the key present with no value is
+            // what clears a stored colour back to the ramp.
+            color,
             ...(liability
               ? { limit: parseAmountInput(limit), monthlyPayment: parseAmountInput(payment) }
               : {}),

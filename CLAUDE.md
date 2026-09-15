@@ -295,10 +295,10 @@ there moves all of them at once:
 (`toCategory`, `seedCategories`), and the stored `color` field is deliberately
 ignored. That is what lets an account created before the current palette pick
 it up with no migration. The field is still *written* on create, as the escape
-hatch for the day a colour picker lands — at which point this has to invert and
-consult the stored value first. Until then, changing `color` in Firestore has
-no visible effect, which is worth knowing before debugging why it "won't
-save". Matching is by name because ids are Firestore-assigned on the live
+hatch for the day a colour picker lands — at which point this has to invert
+and consult the stored value first, the way `Account.color` already does.
+Until then, changing `color` in Firestore has no visible effect, which is
+worth knowing before debugging why it "won't save". Matching is by name because ids are Firestore-assigned on the live
 path; only the name is stable between the template and an account.
 
 A name outside the template falls back to `colorForOrder(order)`, so **`order`
@@ -568,8 +568,29 @@ gives for keeping a destructive third button away from a thumb-width of Pause,
 applied to both surfaces here since they share one `AccountsPanel`.
 
 `order` is unique and assigned with `nextAccountOrder`, never
-`accounts.length` — colour resolves from it through `colorForOrder`, so the
-category note's collision applies here too.
+`accounts.length` — it is the colour **fallback** through `colorForOrder`, so
+the category note's collision applies here too.
+
+**Account colour is the mirror image of category colour.** A category's stored
+`color` is ignored in favour of `colorForName`, because the template gives a
+name its canonical colour; an account has no template, so `Account.color` is
+the authority and `colorForOrder(order)` is only what an account that never
+picked one falls back to. `accountColor` in `lib/accounts.ts` is the single
+place that decision is made, and it is the one the picker in `AccountsPanel`'s
+edit form writes to. `ACCOUNT_COLORS` is the offered set — the six
+`CATEGORY_RAMP` hues plus a deep amber `#b8860b` the ramp has no room for;
+swatches rather than a free hex input, because every entry has to stay dark
+enough that a solid fill separates from the page.
+
+The field follows the **`paymentMethod` contract verbatim**: optional, omitted
+when unset, `deleteField()` to clear (the picker's Default swatch always sends
+the key with no value), the create spreading it conditionally while the update
+always sends it — and `createAccount` in `lib/queries.ts` paired with its twin
+in `data/seedSource.ts`, **edited together** or a picked colour vanishes in
+seed mode only. A value that isn't `#rrggbb` reads as unset rather than
+reaching an SVG `fill`, the same narrowing rule the union fields follow. Every
+account written before the picker simply keeps its ramp slot, so there is no
+migration.
 
 **The mobile nav collapsed to fit this.** Accounts made a seventh button in
 `.phone__navgroup`, which overflowed its track by 57px at 375px — enough to

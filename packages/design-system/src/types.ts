@@ -163,7 +163,12 @@ export interface AccountManagerProps {
   busy: boolean;
   fmt: MoneyFormat;
   onAdd: (input: Omit<AccountInput, 'order' | 'balanceAsOf'>) => void;
-  onUpdate: (accountId: string, patch: { name?: string; type?: AccountType; limit?: number; monthlyPayment?: number }) => void;
+  /**
+   * `color` present with no value means "back to the `order` ramp" — the
+   * omitted-field contract the store and both data sources implement, so the
+   * picker's Default swatch has to send the key rather than drop it.
+   */
+  onUpdate: (accountId: string, patch: { name?: string; type?: AccountType; limit?: number; monthlyPayment?: number; color?: string | undefined }) => void;
   onReconcile: (accountId: string, balance: number, asOf: string) => void;
   onDelete: (account: Account) => void;
   onClose: () => void;
