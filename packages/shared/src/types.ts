@@ -159,12 +159,29 @@ export interface Account {
   /** Cards and loans: what leaves each period. `0` is unset. */
   monthlyPayment: number;
   /**
-   * Sort key, and the colour ramp slot — resolved through `colorForOrder`, so
-   * it **must be unique**. Assign one past the highest in use, never
-   * `accounts.length`, which collides after a delete for the same reason the
-   * category note gives.
+   * Sort key, and the *fallback* colour ramp slot — resolved through
+   * `colorForOrder` whenever `color` below is unset, so it **must be unique**.
+   * Assign one past the highest in use, never `accounts.length`, which
+   * collides after a delete for the same reason the category note gives.
    */
   order: number;
+  /**
+   * The colour picked for this account, `#rrggbb`.
+   *
+   * Deliberately the **opposite** of `Category.color`, which is written and
+   * then ignored in favour of `colorForName`: an account has no template to
+   * match a name against, so the stored value is the authority and
+   * `colorForOrder(order)` is only what an account that never picked one
+   * falls back to. `accountColor` is the single place that decision is made.
+   *
+   * Follows the `paymentMethod` contract verbatim — optional, omitted when
+   * unset, `deleteField()` to clear, the create spreading it conditionally
+   * while the update always sends the key — so every account written before
+   * the picker existed simply reads as unset and keeps its ramp colour with
+   * no migration. A stored value that isn't a hex colour reads as unset
+   * rather than reaching a `fill` attribute.
+   */
+  color?: string;
 }
 
 /** Write shape — the id is assigned by Firestore. */
