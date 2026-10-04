@@ -1,4 +1,5 @@
 import type { JSX } from 'react';
+import { useDismiss } from '@expense-tracker/design-system';
 
 /**
  * The phone's manage menu — Accounts, Categories, Settings behind one nav
@@ -27,6 +28,7 @@ export function ManageSheet({
   onSettings: () => void;
   onClose: () => void;
 }): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   const items: { label: string; hint: string; action: () => void }[] = [
     { label: 'Accounts', hint: 'Balances, limits, reconcile', action: onAccounts },
     { label: 'Categories', hint: 'What expenses are for, and their allocations', action: onCategories },
@@ -34,7 +36,7 @@ export function ManageSheet({
   ];
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}

@@ -30,6 +30,7 @@ export {
 } from './components/DefaultCategoriesButton.js';
 export { GettingStarted, type GettingStartedProps } from './components/GettingStarted.js';
 export { catStyle } from './catStyle.js';
+export { useDismiss, type Dismiss } from './useDismiss.js';
 export type {
   AccountManagerProps,
   AlertSettingsProps,

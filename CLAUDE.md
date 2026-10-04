@@ -209,7 +209,7 @@ re-emits after every write, so demo mode behaves like the live path instead of
 going stale after the first paint.
 
 **All three tabs are live, not just Monthly.** No view calls the data source
-directly — Daily renders from `state.monthTransactions` (the day rows are
+directly — Entries (the `daily` tab) renders from `state.monthTransactions` (the day rows are
 filtered client-side) and Yearly from `state.yearTransactions`, both of which
 `watchMonth` carries in its snapshot. So the subscription repaints every tab.
 The one-shot `listTransactionsByDate` / `listTransactionsByYear` remain on
@@ -421,8 +421,8 @@ re-derives both).
   `mobile-webview/components/IncomeTab`), not a block on the Monthly/Month tab.
   Desktop reaches it from the toolbar's Income button, which is `tab: 'income'`
   rather than a modal and so is deliberately absent from `SPEND_TABS`, the
-  segmented control's list; mobile gives it a fourth nav tab beside Today /
-  Month / Year. Add, edit and delete all write the whole array through
+  segmented control's list; mobile gives it a fifth nav tab beside Home /
+  Entries / Month / Year. Add, edit and delete all write the whole array through
   `setIncomes`, since a merge replaces an array rather than merging it
   element-wise. Editing itself is a modal/sheet (`IncomeModal` /
   `IncomeSheet`), not inline fields — a source carries six fields, and six
@@ -598,8 +598,23 @@ push Settings off the end, and tightening the gap did not fix it (38px hidden
 at 8px, 58px at 6px once Home is counted too). Accounts, Categories and
 Settings now sit behind one **Manage** button (`mobile-webview/components/
 ManageSheet`), which leaves the five tabs plus Manage and nothing hidden — and
-clears the 6px the row was already losing before any of this. Measure the row
-against the real stylesheet before adding a seventh; it has no slack left.
+clears the 6px the row was already losing before any of this.
+
+That still left each tab 23–41px wide with 11px labels, under the 44px a thumb
+needs, because the add button took its own slot in the row. **The add button
+now floats** above the bottom-right of the content (`.phone__fab`), the tabs
+share the whole bar equally (`flex: 1 1 0`), and labels are back at 12px:
+measured 47px per tab in the 360px frame, 50 at 375, 52 at 390. A seventh tab
+would still take that to ~40px — measure before adding one. `.phone__scroll`
+carries 72px of bottom padding so the last row of a list scrolls clear of the
+floating button.
+
+The phone's month label has **previous/next arrows** either side
+(`.phone__monthnav`), as desktop does; before them the only way to change
+month on the phone was the Year tab. They share the status row with the mode
+label and the Sign out pill, which is why a cycle's range stacks *under* the
+month inside the pill rather than beside it — side by side the row needed
+~386px on a 360px phone once signed in.
 
 ### Dashboard cards — one registry, two consumers
 
@@ -755,9 +770,42 @@ point at "below" (desktop) and "the Month tab" (mobile), neither of which held
 income. That button hides while the panel is up, since step two is the same
 button.
 
-Desktop Daily's Pace check follows the same rule as the Home tab's Spending
+Desktop Entries tab's Pace check follows the same rule as the Home tab's Spending
 pace card: with no income there is no target, so it says to set one rather
 than calling every rupiah "over".
+
+### Tabs, and how modals close
+
+Both apps open on **Home**, and the tab that lists the period's entries is
+called **Entries** on both. Its key is still `daily`, but it shows the whole
+period grouped by day; "Daily" (desktop) and "Today" (mobile) both promised a
+single day. Desktop takes its labels from `TAB_LABELS` in `appTypes.ts`. The
+phone's Home tab drops the "Left to spend" summary that heads its other tabs,
+because Home's Budget left card says the same thing directly below it.
+Desktop's Home never had the summary. The summary's **Add income** button
+lives outside it, so Home still offers it.
+
+Every modal and sheet is dismissed through `useDismiss` (design-system):
+
+- **Escape** closes only the topmost layer, because mounted layers form a
+  stack.
+- **On the expense and income forms, Escape or a click on the scrim never
+  discards typed input.** Those forms pass `dirty` (the values differ from
+  what they opened with). While it is set, a dismiss only raises `nudged`, the
+  form shows "You have unsaved changes", and its own Cancel is the one way to
+  discard. On the phone the note sits under the sheet's header beside Cancel,
+  because the sheets are taller than the screen. A new modal should take the
+  hook rather than wire `onClick={onClose}` to its scrim.
+- **The other modals are not guarded.** Categories, Accounts, Settings and the
+  card picker still close on Escape or a scrim click even mid-edit, for
+  example while typing a new category name or an account balance. Guarding
+  AccountsPanel would mean lifting its edit state out to the modal. Inside the
+  expense form, "Add my own" and "Add an account to track balances" still
+  close it and drop what was typed.
+
+When Save is disabled, the expense form says why. `evaluateExpenseForm`
+returns `missing` and a ready-worded `hint` ("To save, add a category and
+what it was for."), so both surfaces use the same sentence.
 
 ### Spending alerts
 

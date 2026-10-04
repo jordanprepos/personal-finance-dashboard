@@ -10,6 +10,7 @@ import {
 
 import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';
 import type { CategoryManagerProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type CategorySheetProps = CategoryManagerProps;
 
@@ -29,12 +30,13 @@ export function CategorySheet({
   onAddDefaultCategories,
   onClose,
 }: CategorySheetProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   const [values, setValues] = useState(emptyCategoryForm);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const result = evaluateCategoryForm(values, categories);
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}
@@ -67,8 +69,8 @@ export function CategorySheet({
             }}
           >
             <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
-              Start with the {DEFAULT_CATEGORY_COUNT} categories from your spreadsheet, with their
-              monthly allocations.
+              Start with {DEFAULT_CATEGORY_COUNT} suggested categories, each with a starting monthly
+              allocation you can change.
             </div>
             <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} />
           </div>

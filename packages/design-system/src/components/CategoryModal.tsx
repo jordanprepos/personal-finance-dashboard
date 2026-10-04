@@ -5,12 +5,14 @@ import {
   evaluateCategoryForm,
   formatAmountInput,
   formatMoney,
+  monthLabel,
   parseAmountInput,
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
 import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';
 import type { CategoryManagerProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export interface CategoryModalProps extends CategoryManagerProps {
   /** Writes this month's allocation for one category. */
@@ -34,12 +36,13 @@ export function CategoryModal({
   onAddDefaultCategories,
   onClose,
 }: CategoryModalProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   const [values, setValues] = useState(emptyCategoryForm);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const result = evaluateCategoryForm(values, categories);
 
   return (
-    <div className="cf-modal-scrim" style={{ zIndex: 55 }} onClick={onClose} role="presentation">
+    <div className="cf-modal-scrim" style={{ zIndex: 55 }} onClick={dismiss} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
         style={{ width: '100%', maxWidth: 580 }}
@@ -69,8 +72,8 @@ export function CategoryModal({
             }}
           >
             <div style={{ flex: 1, fontSize: 13, color: 'var(--cf-slate)' }}>
-              Start with the {DEFAULT_CATEGORY_COUNT} categories from your spreadsheet, with their
-              monthly allocations.
+              Start with {DEFAULT_CATEGORY_COUNT} suggested categories, each with a starting monthly
+              allocation you can change.
             </div>
             <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} style={{ flex: 'none' }} />
           </div>
@@ -133,9 +136,11 @@ export function CategoryModal({
           >
             {result.duplicate ? 'Already exists' : 'Add category'}
           </button>
+          {/* Said in a person's terms: this used to print the Firestore path
+              the figure is written to. What matters to the reader is that an
+              allocation belongs to one month, not to the category. */}
           <div style={{ fontSize: 12, color: 'var(--cf-muted)' }}>
-            The allocation is stored on{' '}
-            <code>budgets/{yearMonth}.categoryBudgets</code>, not on the category.
+            Allocations are set month by month. This one applies to {monthLabel(yearMonth)}.
           </div>
         </div>
 

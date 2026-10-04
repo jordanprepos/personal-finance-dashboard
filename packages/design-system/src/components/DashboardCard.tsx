@@ -54,17 +54,17 @@ export function DashboardCard({
             you are looking at, not the catalog. Hidden at either end rather
             than disabled — there is nowhere for it to go. */}
         {onMove && canMoveUp ? (
-          <button type="button" className="cf-back" aria-label={`Move ${spec.title} up`} onClick={() => onMove(-1)}>
+          <button type="button" className="cf-back cf-cardctl" aria-label={`Move ${spec.title} up`} onClick={() => onMove(-1)}>
             ↑
           </button>
         ) : null}
         {onMove && canMoveDown ? (
-          <button type="button" className="cf-back" aria-label={`Move ${spec.title} down`} onClick={() => onMove(1)}>
+          <button type="button" className="cf-back cf-cardctl" aria-label={`Move ${spec.title} down`} onClick={() => onMove(1)}>
             ↓
           </button>
         ) : null}
         {onRemove ? (
-          <button type="button" className="cf-dangerlink" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
+          <button type="button" className="cf-dangerlink cf-cardctl" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
             Remove
           </button>
         ) : null}

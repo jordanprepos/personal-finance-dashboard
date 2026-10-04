@@ -11,6 +11,7 @@ import {
 } from '@expense-tracker/shared';
 
 import type { AlertSettingsProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type AlertSheetProps = AlertSettingsProps;
 
@@ -41,6 +42,7 @@ export function AlertSheet({
   onClearCategoryLimit,
   onClose,
 }: AlertSheetProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
 
   const [pickedCategory, setPickedCategory] = useState('');
   const [limitText, setLimitText] = useState('');
@@ -57,7 +59,7 @@ export function AlertSheet({
   };
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}

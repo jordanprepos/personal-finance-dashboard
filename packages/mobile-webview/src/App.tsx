@@ -16,6 +16,7 @@ import {
   monthSummary,
   periodRangeLabel,
   setupProgress,
+  shiftMonth,
   sumAmounts,
   shortMonthLabel,
   stackSegments,
@@ -49,7 +50,8 @@ type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
  */
 const TABS: [Tab, string][] = [
   ['home', 'Home'],
-  ['daily', 'Today'],
+  // The whole period's ledger, not today's — "Today" promised one day.
+  ['daily', 'Entries'],
   ['monthly', 'Month'],
   ['yearly', 'Year'],
   ['income', 'Income'],
@@ -117,7 +119,9 @@ function Phone({
   authState: AuthState;
 }): JSX.Element {
   const state = useStore(store);
-  const [tab, setTab] = useState<Tab>('daily');
+  // Home first, matching desktop: the view you assemble yourself, and where a
+  // fresh account's getting-started panel sits above the cards.
+  const [tab, setTab] = useState<Tab>('home');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -186,12 +190,34 @@ function Phone({
     <div className="cf-phone">
       <div className="phone__status">
         <span>{state.mode === 'firestore' ? 'live' : 'demo'}</span>
-        <span className="phone__period">
-          {monthLabel(yearMonth)}
-          {/* Empty on calendar months, where the label already says it all. */}
-          {periodRangeLabel(state) ? (
-            <span className="phone__periodrange">{periodRangeLabel(state)}</span>
-          ) : null}
+        {/* Previous/next sit either side of the label, as on desktop. The
+            label used to be the only month control on the phone and it was
+            plain text — changing month meant finding the Year tab and tapping
+            a row there. */}
+        <span className="phone__monthnav">
+          <button
+            type="button"
+            className="phone__stepbtn"
+            aria-label="Previous month"
+            onClick={() => void store.setYearMonth(shiftMonth(yearMonth, -1))}
+          >
+            ‹
+          </button>
+          <span className="phone__period">
+            {monthLabel(yearMonth)}
+            {/* Empty on calendar months, where the label already says it all. */}
+            {periodRangeLabel(state) ? (
+              <span className="phone__periodrange">{periodRangeLabel(state)}</span>
+            ) : null}
+          </span>
+          <button
+            type="button"
+            className="phone__stepbtn"
+            aria-label="Next month"
+            onClick={() => void store.setYearMonth(shiftMonth(yearMonth, 1))}
+          >
+            ›
+          </button>
         </span>
         {authState.status === 'signed-in' ? (
           <button type="button" className="phone__signout" onClick={() => void auth.signOut()}>
@@ -201,62 +227,79 @@ function Phone({
       </div>
 
       <div className="phone__scroll">
-        <div style={{ flex: 'none' }}>
-          <div className="cf-group__label" style={{ marginBottom: 2 }}>
-            {summary.hasIncome ? 'Left to spend' : 'Spent this month'}
+        {/* The period summary heads every tab but Home. Home's own Budget left
+            card says the same thing a few pixels lower, so the two read as a
+            repeat; desktop's Home has no banner either. */}
+        {tab === 'home' ? null : (
+          <div style={{ flex: 'none' }}>
+            <div className="cf-group__label" style={{ marginBottom: 2 }}>
+              {summary.hasIncome ? 'Left to spend' : 'Spent this month'}
+            </div>
+            <div className="tnum phone__amount">
+              {formatMoney(summary.hasIncome ? summary.left : summary.spent, fmt)}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--cf-slate)', marginTop: 4 }}>
+              {summary.hasIncome
+                ? `${formatMoney(summary.spent, fmt)} spent of ${formatMoney(summary.income, fmt)}`
+                : 'No income set for this month yet.'}
+            </div>
           </div>
-          <div className="tnum phone__amount">
-            {formatMoney(summary.hasIncome ? summary.left : summary.spent, fmt)}
-          </div>
-          <div style={{ fontSize: 12.5, color: 'var(--cf-slate)', marginTop: 4 }}>
-            {summary.hasIncome
-              ? `${formatMoney(summary.spent, fmt)} spent of ${formatMoney(summary.income, fmt)}`
-              : 'No income set for this month yet.'}
-          </div>
-          {/* The hint used to send you to the Month tab, which has never held
-              income. It carries the way to the Income tab itself now, and
-              drops the button once you are there — or while the
-              getting-started panel is up, whose step two is the same button. */}
-          {summary.hasIncome || tab === 'income' || setup.show ? null : (
+        )}
+
+        {/* The hint used to send you to the Month tab, which has never held
+            income. It carries the way to the Income tab itself now, and drops
+            the button once you are there — or while the getting-started panel
+            is up, whose step two is the same button. Outside the summary so
+            Home, which has no summary, still offers it. */}
+        {summary.hasIncome || tab === 'income' || setup.show ? null : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none' }}>
             <button
               type="button"
               className="cf-ghostbtn"
-              style={{ height: 44, marginTop: 10 }}
+              style={{ height: 44, flex: 'none' }}
               onClick={() => setTab('income')}
             >
               Add income
             </button>
-          )}
-        </div>
+            {/* Home has no summary to explain the button, so it says why. */}
+            {tab === 'home' ? (
+              <span style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
+                No income set for this month yet.
+              </span>
+            ) : null}
+          </div>
+        )}
 
-        <svg
-          width="100%"
-          height="10"
-          viewBox="0 0 100 10"
-          preserveAspectRatio="none"
-          style={{ flex: 'none' }}
-        >
-          <rect
-            x="0"
-            y="0"
-            width="100"
+        {tab === 'home' ? null : (
+          <svg
+            width="100%"
             height="10"
-            rx="5"
-            fill="var(--cf-surface)"
-            stroke="var(--cf-border)"
-            strokeWidth="1"
-          />
-          {segments.map((s) => (
-            <rect key={s.categoryId} x={s.x} y="0" width={s.width} height="10" fill={s.color} />
-          ))}
-        </svg>
+            viewBox="0 0 100 10"
+            preserveAspectRatio="none"
+            style={{ flex: 'none' }}
+          >
+            <rect
+              x="0"
+              y="0"
+              width="100"
+              height="10"
+              rx="5"
+              fill="var(--cf-surface)"
+              stroke="var(--cf-border)"
+              strokeWidth="1"
+            />
+            {segments.map((s) => (
+              <rect key={s.categoryId} x={s.x} y="0" width={s.width} height="10" fill={s.color} />
+            ))}
+          </svg>
+        )}
 
-        {/* Above the tab content and outside the switch, so Today, Month and
+        {/* Above the tab content and outside the switch, so Entries, Month and
             Year all show the same alerts. */}
         <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
 
         {/* A fresh account's next steps, above whichever tab it is on — the
-            Today list and the Month envelopes are both blank until these are
+            Entries list and the Month envelopes are both blank until these are
             done. Not on Income: step two is what sends you there. */}
         {setup.show && tab !== 'income' ? (
           <GettingStarted
@@ -372,11 +415,14 @@ function Phone({
             Manage
           </button>
         </div>
-        <span className="cf-spacer" />
-        <button type="button" className="cf-fab" aria-label="Add expense" onClick={openAdd}>
-          +
-        </button>
       </div>
+
+      {/* Floats above the nav rather than sitting in it. In the row it took
+          the width six tabs needed: they were squeezed to 23–41px wide, under
+          the 44px a thumb needs, with no slack left to give them. */}
+      <button type="button" className="cf-fab phone__fab" aria-label="Add expense" onClick={openAdd}>
+        +
+      </button>
 
       {sheetOpen ? (
         <ExpenseSheet

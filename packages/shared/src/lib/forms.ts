@@ -63,12 +63,35 @@ export const expenseFormFrom = (transaction: Transaction): ExpenseFormValues => 
   note: transaction.note ?? '',
 });
 
+/** The fields a save cannot go ahead without, in the order the form shows them. */
+export type ExpenseRequiredField = 'amount' | 'category' | 'item';
+
 export interface ExpenseFormResult {
   amount: number;
   day: number;
   valid: boolean;
+  /** what is still missing — empty exactly when `valid` */
+  missing: ExpenseRequiredField[];
+  /**
+   * Why Save is disabled, worded for a person ("To save, add an amount and a
+   * category."), or null when it is not. Save used to dim with nothing on
+   * screen saying which field was holding it back.
+   */
+  hint: string | null;
   draft: ExpenseDraft | null;
 }
+
+const REQUIRED_LABELS: Record<ExpenseRequiredField, string> = {
+  amount: 'an amount',
+  category: 'a category',
+  item: 'what it was for',
+};
+
+/** "a", "a and b", "a, b and c" */
+const listOf = (parts: string[]): string =>
+  parts.length <= 1
+    ? (parts[0] ?? '')
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
 
 export function evaluateExpenseForm(
   values: ExpenseFormValues,
@@ -83,12 +106,18 @@ export function evaluateExpenseForm(
   const item = values.item.trim();
   // `paymentMethod` and `accountId` are deliberately absent from this
   // predicate: both are optional and must never block a save.
-  const valid = amount > 0 && item !== '' && values.categoryId !== '';
+  const missing: ExpenseRequiredField[] = [];
+  if (amount <= 0) missing.push('amount');
+  if (values.categoryId === '') missing.push('category');
+  if (item === '') missing.push('item');
+  const valid = missing.length === 0;
 
   return {
     amount,
     day,
     valid,
+    missing,
+    hint: valid ? null : `To save, add ${listOf(missing.map((f) => REQUIRED_LABELS[f]))}.`,
     draft: valid
       ? {
           categoryId: values.categoryId,

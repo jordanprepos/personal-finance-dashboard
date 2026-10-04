@@ -17,6 +17,20 @@ export type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
  */
 export const SPEND_TABS: readonly Tab[] = ['home', 'daily', 'monthly', 'yearly'];
 
+/**
+ * What each tab is called on screen. `daily` keeps its key but reads
+ * "Entries": the view is the whole period's ledger, grouped by day, and
+ * "Daily" promised one day's worth. Mobile's tab, which was "Today", reads the
+ * same now.
+ */
+export const TAB_LABELS: Record<Tab, string> = {
+  home: 'Home',
+  daily: 'Entries',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+  income: 'Income',
+};
+
 export interface ViewProps {
   store: ExpenseStore;
   state: ExpenseState;

@@ -22,7 +22,7 @@ import {
   type Transaction,
 } from '@expense-tracker/shared';
 
-import { SPEND_TABS, type Tab } from './appTypes';
+import { SPEND_TABS, TAB_LABELS, type Tab } from './appTypes';
 import { useAuth, useStore } from './useStore';
 import { LoginView } from './views/LoginView';
 import { HomeView } from './views/HomeView';
@@ -93,7 +93,10 @@ function Dashboard({
   authState: AuthState;
 }): JSX.Element {
   const state = useStore(store);
-  const [tab, setTab] = useState<Tab>('monthly');
+  // Home first, on both apps: it is the view you assemble yourself, and it is
+  // where a fresh account's getting-started panel sits above the cards. This
+  // opened on Monthly while the phone opened on its ledger.
+  const [tab, setTab] = useState<Tab>('home');
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -236,10 +239,10 @@ function Dashboard({
                     key={t}
                     type="button"
                     className={`cf-cat ${tab === t ? 'cf-cat--active' : 'cf-cat--idle'}`}
-                    style={{ border: 0, textTransform: 'capitalize' }}
+                    style={{ border: 0 }}
                     onClick={() => setTab(t)}
                   >
-                    {t}
+                    {TAB_LABELS[t]}
                   </button>
                 ))}
               </div>
@@ -293,7 +296,7 @@ function Dashboard({
 
           {/*
             Above the dashboard and outside the tab switch, so the same alerts
-            are in view on Daily, Monthly and Yearly alike. They are derived
+            are in view on Entries, Monthly and Yearly alike. They are derived
             straight from the current snapshot, so they follow every edit and
             every month change without anything having to invalidate them.
           */}

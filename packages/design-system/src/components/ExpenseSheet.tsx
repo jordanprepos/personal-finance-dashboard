@@ -16,6 +16,7 @@ import {
 import { DefaultCategoriesButton } from './DefaultCategoriesButton.js';
 import { catStyle } from '../catStyle.js';
 import type { ExpenseFormProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type ExpenseSheetProps = ExpenseFormProps;
 
@@ -49,9 +50,15 @@ export function ExpenseSheet({
   // period opens on — which is `1` for a calendar month, as it always was.
   const defaultDay =
     yearMonth === cycleOf(today, cycleStartDay) ? parseISODate(today).day : cycleStartDay;
-  const [values, setValues] = useState(() =>
+  const [initial] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
+  const [values, setValues] = useState(initial);
+  // Anything typed since opening — a tap on the scrim then refuses to close
+  // the sheet, so a thumb grazing the dimmed page cannot throw an entry away.
+  // Cancel still discards.
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const { dismiss, nudged } = useDismiss({ onClose, dirty });
 
   const selectable = categories.filter((c) => !c.archived);
   const result = evaluateExpenseForm(values, yearMonth, cycleStartDay);
@@ -64,7 +71,7 @@ export function ExpenseSheet({
   };
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}
@@ -82,6 +89,15 @@ export function ExpenseSheet({
             Cancel
           </button>
         </div>
+
+        {/* Up here, beside the Cancel it names: the sheet is taller than the
+            screen, and a note at the foot would be out of sight of the tap
+            above the sheet that raised it. */}
+        {nudged ? (
+          <div className="cf-unsaved" role="status" style={{ flex: 'none' }}>
+            You have unsaved changes. Save them, or tap Cancel to discard.
+          </div>
+        ) : null}
 
         <div>
           <div className="cf-fieldlabel">Amount</div>
@@ -260,6 +276,12 @@ export function ExpenseSheet({
               ? 'Written into every remaining month of the year as its own entry.'
               : `Logged once, in ${monthLabel(yearMonth)}.`}
         </div>
+
+        {/* Which field is holding Save back — it used to dim with no reason
+            given. Muted rather than red: an empty form is not a mistake. */}
+        {result.hint ? (
+          <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>{result.hint}</div>
+        ) : null}
 
         <button
           type="button"

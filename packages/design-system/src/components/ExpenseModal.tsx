@@ -16,6 +16,7 @@ import {
 import { catStyle } from '../catStyle.js';
 import { DefaultCategoriesButton } from './DefaultCategoriesButton.js';
 import type { ExpenseFormProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type ExpenseModalProps = ExpenseFormProps;
 
@@ -49,9 +50,15 @@ export function ExpenseModal({
   // period opens on — which is `1` for a calendar month, as it always was.
   const defaultDay =
     yearMonth === cycleOf(today, cycleStartDay) ? parseISODate(today).day : cycleStartDay;
-  const [values, setValues] = useState(() =>
+  const [initial] = useState(() =>
     transaction ? expenseFormFrom(transaction) : emptyExpenseForm(defaultDay),
   );
+  const [values, setValues] = useState(initial);
+  // Anything typed since opening. Escape and a click beside the dialog then
+  // refuse to close it, so a stray click cannot throw an entry away; Cancel
+  // still discards.
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const { dismiss, nudged } = useDismiss({ onClose, dirty });
 
   const result = evaluateExpenseForm(values, yearMonth, cycleStartDay);
   const editing = transaction !== null;
@@ -64,7 +71,7 @@ export function ExpenseModal({
   };
 
   return (
-    <div className="cf-modal-scrim" onClick={onClose} role="presentation">
+    <div className="cf-modal-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
         style={{ width: '100%', maxWidth: 520 }}
@@ -300,6 +307,21 @@ export function ExpenseModal({
                 Delete this + future months
               </button>
             ) : null}
+          </div>
+        ) : null}
+
+        {nudged ? (
+          <div className="cf-unsaved" role="status">
+            You have unsaved changes. Save them, or press Cancel to discard.
+          </div>
+        ) : null}
+
+        {/* Says which field is holding Save back, rather than leaving it
+            dimmed with no reason given. Muted rather than red: an empty form
+            is not a mistake. */}
+        {result.hint ? (
+          <div style={{ fontSize: 12.5, color: 'var(--cf-slate)', textAlign: 'right' }}>
+            {result.hint}
           </div>
         ) : null}
 
