@@ -89,8 +89,10 @@ export const DEFAULT_CATEGORIES: readonly DefaultCategory[] = [
     allocation: 300_000,
   },
   {
-    id: 'apparell',
-    name: 'Apparell',
+    id: 'apparel',
+    // Spelled "Apparell" until 2026-10, after the source spreadsheet; accounts
+    // seeded before then still store that name — see `FORMER_NAMES` below.
+    name: 'Apparel',
     type: 'variable',
     icon: '👕',
     color: '#4a8fd8',
@@ -142,7 +144,26 @@ export const colorForOrder = (order: number): string =>
  * trims) while the "use my defaults" dedupe (which didn't) missed it and
  * created a second Groceries.
  */
-export const normalizeCategoryName = (name: string): string => name.trim().toLowerCase();
+export const normalizeCategoryName = (name: string): string => {
+  const key = name.trim().toLowerCase();
+  return FORMER_NAMES[key] ?? key;
+};
+
+/**
+ * Spellings a template category used to carry, folded into the current one
+ * by `normalizeCategoryName`.
+ *
+ * Renaming a template entry does not rename the documents already written
+ * from it — nothing stored is migrated — so an account seeded with the old
+ * spelling keeps it. Without this the old name would match no template entry:
+ * the category would drop off its canonical colour onto the `order` ramp, and
+ * "Use my default categories" would add the new spelling beside it as a second
+ * category. Folding it here keeps colour, the defaults dedupe, the add-category
+ * duplicate check and alert keys all treating the two as one category.
+ */
+const FORMER_NAMES: Record<string, string> = {
+  apparell: 'apparel',
+};
 
 /**
  * The `order` to give the next category: one past the highest in use.

@@ -54,7 +54,7 @@ export function CategoryModal({
           <span style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-.025em' }}>Categories</span>
           <span className="cf-spacer" />
           <span style={{ fontSize: 12.5, color: 'var(--cf-muted)' }}>
-            {categories.length} categories
+            {categories.length} {categories.length === 1 ? 'category' : 'categories'}
           </span>
         </div>
 

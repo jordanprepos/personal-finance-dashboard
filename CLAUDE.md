@@ -114,9 +114,16 @@ Workspace layout (pnpm workspaces, `packages/*`):
     `queries.fetch*` is still exported for a genuinely one-off read.
   - `src/data/defaultCategories.ts` — the spreadsheet's category set, plus
     `normalizeCategoryName`, the single way category names are compared
-    anywhere (trim + lowercase). Three call sites once disagreed about
-    trimming, which let `" Groceries"` take the canonical colour while the
-    seeding dedupe missed it and created a second one. Also
+    anywhere (trim + lowercase, then `FORMER_NAMES`). Three call sites once
+    disagreed about trimming, which let `" Groceries"` take the canonical
+    colour while the seeding dedupe missed it and created a second one. The
+    add-category form's duplicate check was a fourth, and now goes through it
+    too. `FORMER_NAMES` folds a template entry's old spelling into its current
+    one. The template's "Apparell" (the source spreadsheet's typo) became
+    "Apparel" in 2026-10, and nothing stored was renamed, so an account seeded
+    earlier still shows "Apparell". The fold keeps that category on its
+    canonical colour, and stops "Use my default categories" adding a second
+    Apparel beside it. Rename a template entry only with an entry here. Also
     `nextCategoryOrder` — always use it to assign `order`, never
     `categories.length`, which collides after a delete (see below) — and
     `collidingCategoryOrders`, the invariant check `addDefaultCategories`

@@ -221,9 +221,14 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 12 }}>
+              {/* "Everything has landed" is only true if something was due:
+                  with no active source it read as good news about money
+                  that was never expected. */}
               {upcoming.length > 0
                 ? `${formatMoney(stillToLand, fmt)} still to land.`
-                : 'Everything for this month has landed.'}
+                : breakdown.activeCount === 0
+                  ? 'Nothing is expected this month. Add a source to see when income lands.'
+                  : 'Everything for this month has landed.'}
             </div>
           </div>
         </div>
