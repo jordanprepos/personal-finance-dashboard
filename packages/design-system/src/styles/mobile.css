@@ -375,12 +375,30 @@ body {
   font-weight: 700;
 }
 
-.login__muted {
+.login__forgot {
+  border: 0;
+  background: none;
+  /* A thumb target: the text is small, the hit area is not. */
+  min-height: 44px;
+  padding: 0 4px;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   color: var(--cf-muted);
 }
 
+.login__forgot:hover:not(:disabled) {
+  color: var(--cf-blue);
+}
+
+.login__forgot:disabled {
+  cursor: default;
+}
+
+/* Same box as .login__error — it is the same message slot, used for news
+   rather than a problem (today only "reset link sent"). */
+.login__notice,
 .login__error {
   background: var(--cf-blue-pale);
   border: 1px solid var(--cf-border);
@@ -429,6 +447,20 @@ body {
  * surfaces rather than adding a colour: a breach takes the dark ink card, a
  * warning the pale accent that `.cf-banner` already uses.
  */
+
+/* The getting-started panel's buttons are .cf-ghostbtn, 36px tall — fine
+   under a cursor, short of the 44px a thumb needs. On the phone the step's
+   actions also drop under its text (the body's flex-basis forces the wrap),
+   so they get the full row to sit in. */
+.cf-phone .cf-setup .cf-ghostbtn {
+  height: 44px;
+}
+
+/* .phone__scroll is a flex column; without this the panel shrinks to fit
+   instead of pushing the content below it down. */
+.cf-phone .cf-setup {
+  flex: none;
+}
 
 .phone__alerts {
   display: flex;

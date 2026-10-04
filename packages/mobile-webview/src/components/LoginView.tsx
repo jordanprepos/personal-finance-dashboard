@@ -129,11 +129,31 @@ export function LoginView({
             Keep me signed in
           </button>
           <span className="cf-spacer" />
-          {/* Inert in the design too — there is no reset flow yet. */}
-          <span className="login__muted">Forgot?</span>
+          {/* Sends a reset link to whatever is in the Email field — there is
+              no second screen. Hidden while creating an account, where there
+              is no password to forget yet. */}
+          {signingUp ? null : (
+            <button
+              type="button"
+              className="login__forgot"
+              disabled={busy}
+              onClick={() => void auth.sendPasswordReset(email)}
+            >
+              {state.busy === 'reset' ? 'Sending…' : 'Forgot?'}
+            </button>
+          )}
         </div>
 
-        {state.error ? <div className="login__error">{state.error}</div> : null}
+        {state.error ? (
+          <div className="login__error" role="alert">
+            {state.error}
+          </div>
+        ) : null}
+        {state.notice ? (
+          <div className="login__notice" role="status">
+            {state.notice}
+          </div>
+        ) : null}
 
         <button type="submit" className="cf-cta cf-cta--primary login__submit" disabled={busy}>
           {state.busy === 'email'

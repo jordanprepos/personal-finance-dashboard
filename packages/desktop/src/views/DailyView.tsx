@@ -137,9 +137,16 @@ export function DailyView({ state, fmt, onEdit }: ViewProps): JSX.Element {
             <div className="cf-promo__sub">
               {/* "Closed" rather than "Closed month": under a salary cycle the
                   period is not a month, and the header above already names it. */}
+              {/* With no income there is no target to be over or under — the
+                  pace would compare spend against zero and call every rupiah
+                  "over". Same wording as the Home tab's Spending pace card. */}
               {burn.closed
-                ? `Closed · ${formatMoney(summary.spent, fmt)} spent, ${formatMoney(summary.left, fmt)} left over.`
-                : `${formatMoney(burn.delta, fmt)} ${burn.under ? 'under' : 'over'} an even pace for day ${burn.throughDay}.`}
+                ? summary.hasIncome
+                  ? `Closed · ${formatMoney(summary.spent, fmt)} spent, ${formatMoney(summary.left, fmt)} left over.`
+                  : `Closed · ${formatMoney(summary.spent, fmt)} spent.`
+                : summary.hasIncome
+                  ? `${formatMoney(burn.delta, fmt)} ${burn.under ? 'under' : 'over'} an even pace for day ${burn.throughDay}.`
+                  : 'Set an income for this period to see a pace target.'}
             </div>
           </div>
         </div>

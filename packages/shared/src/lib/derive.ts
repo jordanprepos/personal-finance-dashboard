@@ -1052,3 +1052,53 @@ export function entryCountsByCategory(
   for (const t of transactions) counts[t.categoryId] = (counts[t.categoryId] ?? 0) + 1;
   return counts;
 }
+
+/** The three things a fresh account needs before the dashboard means anything. */
+export interface SetupProgress {
+  categories: boolean;
+  income: boolean;
+  expense: boolean;
+  /** whether the getting-started panel should render at all */
+  show: boolean;
+}
+
+/**
+ * Where a new account is in setting itself up: categories, then income, then
+ * a first expense. Both apps render it as the getting-started panel, which is
+ * what an empty account sees in place of a page of blank envelopes.
+ *
+ * `show` is deliberately narrower than "something is missing". Income is
+ * per period and does not carry over, so every account starts each month with
+ * none — the income hint on the summary card covers that, and the panel stays
+ * out of it. A missing expense only counts on the period containing `today`:
+ * stepping into next January (recurring runs stop at the year's last period)
+ * or a year before the app was used is empty for an established account too,
+ * and greeting that with "log your first expense" would be wrong. A missing
+ * category list is a fresh account on any period.
+ */
+export function setupProgress({
+  categories,
+  transactions,
+  budget,
+  yearMonth,
+  today,
+  cycleStartDay = 1,
+}: {
+  categories: readonly Category[];
+  /** the widest window the snapshot carries — `yearTransactions` */
+  transactions: readonly Transaction[];
+  budget: Budget | null;
+  yearMonth: string;
+  today: string;
+  cycleStartDay?: number;
+}): SetupProgress {
+  const hasCategories = categories.length > 0;
+  const hasExpense = transactions.length > 0;
+  const onCurrentPeriod = cycleOf(today, cycleStartDay) === yearMonth;
+  return {
+    categories: hasCategories,
+    income: totalIncome(budget) > 0,
+    expense: hasExpense,
+    show: !hasCategories || (onCurrentPeriod && !hasExpense),
+  };
+}

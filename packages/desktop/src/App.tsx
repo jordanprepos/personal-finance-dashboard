@@ -9,6 +9,7 @@ import {
   entryCountsByCategory,
   monthLabel,
   periodRangeLabel,
+  setupProgress,
   sumAmounts,
   shiftMonth,
   yearOfMonth,
@@ -37,6 +38,7 @@ import {
   AlertSettingsModal,
   CategoryModal,
   DashboardCardPicker,
+  GettingStarted,
 } from '@expense-tracker/design-system';
 
 export function App({
@@ -151,7 +153,24 @@ function Dashboard({
     fmt,
   });
 
-  const viewProps = { store, state, fmt, onEdit: openEdit, onAdd: openAdd };
+  const setup = setupProgress({
+    categories: state.categories,
+    transactions: state.yearTransactions,
+    budget: state.budget,
+    yearMonth: state.yearMonth,
+    today: state.today,
+    cycleStartDay: state.profile.cycleStartDay,
+  });
+
+  const viewProps = {
+    store,
+    state,
+    fmt,
+    onEdit: openEdit,
+    onAdd: openAdd,
+    onOpenIncome: () => setTab('income'),
+    setupShowing: setup.show && tab !== 'income',
+  };
 
   return (
     <div className="dash">
@@ -279,6 +298,22 @@ function Dashboard({
             every month change without anything having to invalidate them.
           */}
           <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
+
+          {/*
+            What a fresh account sees above whichever spend tab it opened on,
+            so no tab is a page of blank envelopes with no next step. Not on
+            the Income page: step two is what sends you there.
+          */}
+          {setup.show && tab !== 'income' ? (
+            <GettingStarted
+              progress={setup}
+              busy={state.busy}
+              onAddDefaultCategories={() => void store.addDefaultCategories()}
+              onManageCategories={() => setCategoriesOpen(true)}
+              onAddIncome={() => setTab('income')}
+              onAddExpense={openAdd}
+            />
+          ) : null}
 
           {tab === 'home' ? (
             <HomeView {...viewProps} onCustomize={() => setPickerOpen(true)} />

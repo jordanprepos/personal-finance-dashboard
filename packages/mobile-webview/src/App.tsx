@@ -15,6 +15,7 @@ import {
   monthLabel,
   monthSummary,
   periodRangeLabel,
+  setupProgress,
   sumAmounts,
   shortMonthLabel,
   stackSegments,
@@ -38,6 +39,7 @@ import { IncomeTab } from './components/IncomeTab';
 import { HomeTab } from './components/HomeTab';
 import { ManageSheet } from './components/ManageSheet';
 import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
+import { GettingStarted } from '@expense-tracker/design-system';
 
 type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
 
@@ -166,6 +168,14 @@ function Phone({
     fmt,
   });
   const present = categories.filter((c) => monthTransactions.some((t) => t.categoryId === c.id));
+  const setup = setupProgress({
+    categories,
+    transactions: state.yearTransactions,
+    budget,
+    yearMonth,
+    today: state.today,
+    cycleStartDay: state.profile.cycleStartDay,
+  });
 
   const openAdd = (): void => {
     setEditing(null);
@@ -201,8 +211,22 @@ function Phone({
           <div style={{ fontSize: 12.5, color: 'var(--cf-slate)', marginTop: 4 }}>
             {summary.hasIncome
               ? `${formatMoney(summary.spent, fmt)} spent of ${formatMoney(summary.income, fmt)}`
-              : 'No income set — add one on the Month tab.'}
+              : 'No income set for this month yet.'}
           </div>
+          {/* The hint used to send you to the Month tab, which has never held
+              income. It carries the way to the Income tab itself now, and
+              drops the button once you are there — or while the
+              getting-started panel is up, whose step two is the same button. */}
+          {summary.hasIncome || tab === 'income' || setup.show ? null : (
+            <button
+              type="button"
+              className="cf-ghostbtn"
+              style={{ height: 44, marginTop: 10 }}
+              onClick={() => setTab('income')}
+            >
+              Add income
+            </button>
+          )}
         </div>
 
         <svg
@@ -230,6 +254,20 @@ function Phone({
         {/* Above the tab content and outside the switch, so Today, Month and
             Year all show the same alerts. */}
         <AlertBanners alerts={alerts} onOpenSettings={() => setAlertsOpen(true)} />
+
+        {/* A fresh account's next steps, above whichever tab it is on — the
+            Today list and the Month envelopes are both blank until these are
+            done. Not on Income: step two is what sends you there. */}
+        {setup.show && tab !== 'income' ? (
+          <GettingStarted
+            progress={setup}
+            busy={state.busy}
+            onAddDefaultCategories={() => void store.addDefaultCategories()}
+            onManageCategories={() => setCategoriesOpen(true)}
+            onAddIncome={() => setTab('income')}
+            onAddExpense={openAdd}
+          />
+        ) : null}
 
         {tab === 'daily' ? (
           <>

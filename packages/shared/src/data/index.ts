@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -102,6 +103,16 @@ export function signInWithGoogle(auth: Auth): Promise<User> {
 
 export function signOutUser(auth: Auth): Promise<void> {
   return signOut(auth);
+}
+
+/**
+ * Emails a reset link. No `actionCodeSettings`: without a `continueUrl` the
+ * link lands on Firebase's own `/__/auth/action` page on the auth domain,
+ * which is served whatever the default Hosting site's state (see the handler
+ * note in CLAUDE.md) and needs no entry in the authorized-domains list.
+ */
+export function sendPasswordReset(auth: Auth, email: string): Promise<void> {
+  return sendPasswordResetEmail(auth, email);
 }
 
 const describe = (error: unknown): string =>

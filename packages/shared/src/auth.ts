@@ -9,12 +9,13 @@ import {
 
 import { initFirebase, readFirebaseConfig, type EnvRecord } from './firebase.js';
 import {
+  sendPasswordReset,
   signInWithEmail,
   signInWithGoogle,
   signOutUser,
   signUpWithEmail,
 } from './data/index.js';
-import { validateCredentials, type CredentialField } from './lib/forms.js';
+import { validateCredentials, validateEmail, type CredentialField } from './lib/forms.js';
 
 /**
  * Framework-agnostic authentication state, shaped like `ExpenseStore` so both
@@ -45,8 +46,10 @@ export interface AuthState {
   error: string | null;
   /** set when the error belongs to one field, so that input can turn red */
   errorField: CredentialField | null;
-  /** which sign-in is in flight, '' when idle */
-  busy: '' | 'email' | 'google';
+  /** a non-error message for the same slot — today only "reset link sent" */
+  notice: string | null;
+  /** which request is in flight, '' when idle */
+  busy: '' | 'email' | 'google' | 'reset';
 }
 
 const initialState: AuthState = {
@@ -55,6 +58,7 @@ const initialState: AuthState = {
   email: null,
   error: null,
   errorField: null,
+  notice: null,
   busy: '',
 };
 
@@ -130,9 +134,12 @@ export class AuthController {
 
   /* ----------------------------------------------------------- actions */
 
+  /** Clears the message slot — the error and the notice share it. */
   clearError(): void {
-    if (this.state.error === null && this.state.errorField === null) return;
-    this.set({ error: null, errorField: null });
+    if (this.state.error === null && this.state.errorField === null && this.state.notice === null) {
+      return;
+    }
+    this.set({ error: null, errorField: null, notice: null });
   }
 
   /**
@@ -151,11 +158,11 @@ export class AuthController {
 
     const invalid = validateCredentials(email, password);
     if (invalid) {
-      this.set({ error: invalid.message, errorField: invalid.field });
+      this.set({ error: invalid.message, errorField: invalid.field, notice: null });
       return;
     }
 
-    this.set({ busy: 'email', error: null, errorField: null });
+    this.set({ busy: 'email', error: null, errorField: null, notice: null });
     try {
       await this.applyPersistence(auth, remember);
       const user =
@@ -174,7 +181,7 @@ export class AuthController {
     const auth = this.auth;
     if (!auth || this.state.busy !== '') return;
 
-    this.set({ busy: 'google', error: null, errorField: null });
+    this.set({ busy: 'google', error: null, errorField: null, notice: null });
     try {
       await this.applyPersistence(auth, remember);
       this.adopt(await signInWithGoogle(auth));
@@ -183,10 +190,54 @@ export class AuthController {
     }
   }
 
+  /**
+   * "Forgot password?". Takes the address already typed into the form, so
+   * there is no second screen to collect it on.
+   *
+   * The confirmation is worded the same whether or not the address has an
+   * account. With email-enumeration protection on (the default for projects
+   * created since 2023) Firebase reports success either way, so a "no such
+   * account" branch would be dead code — and saying "sent" outright would be
+   * a promise the app cannot check.
+   */
+  async sendPasswordReset(email: string): Promise<void> {
+    const auth = this.auth;
+    if (!auth || this.state.busy !== '') return;
+
+    const invalid = validateEmail(email);
+    if (invalid) {
+      this.set({
+        error: 'Enter your email address above first, then try again.',
+        errorField: invalid.field,
+        notice: null,
+      });
+      return;
+    }
+
+    const address = email.trim();
+    this.set({ busy: 'reset', error: null, errorField: null, notice: null });
+    try {
+      await sendPasswordReset(auth, address);
+      this.set({
+        busy: '',
+        notice: `If ${address} has an account, a reset link is on its way. Check your inbox.`,
+      });
+    } catch (error) {
+      this.set({ busy: '', ...describe(error) });
+    }
+  }
+
   async signOut(): Promise<void> {
     if (!this.auth) return;
     await signOutUser(this.auth);
-    this.set({ status: 'signed-out', userId: null, email: null, error: null, errorField: null });
+    this.set({
+      status: 'signed-out',
+      userId: null,
+      email: null,
+      error: null,
+      errorField: null,
+      notice: null,
+    });
   }
 
   private applyPersistence(auth: Auth, remember: boolean): Promise<void> {
