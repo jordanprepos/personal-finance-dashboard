@@ -633,6 +633,18 @@ input {
   margin-top: 3px;
 }
 
+/* "You have unsaved changes" — what a form says when Escape or a click on the
+   scrim was refused because closing would lose what was typed (useDismiss).
+   The same pale box as the login notice: news, not an error. */
+.cf-unsaved {
+  background: var(--cf-blue-pale);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-r-chip);
+  padding: 9px 13px;
+  font-size: 12.5px;
+  color: var(--cf-ink);
+}
+
 .cf-setup {
   background: var(--cf-surface);
   border: 1px solid var(--cf-border);

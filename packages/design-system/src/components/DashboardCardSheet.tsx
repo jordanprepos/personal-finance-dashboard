@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 
 import { DashboardCatalog } from './DashboardCatalog.js';
 import type { DashboardPickerProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type DashboardCardSheetProps = DashboardPickerProps;
 
@@ -21,8 +22,9 @@ export function DashboardCardSheet({
   onRemove,
   onClose,
 }: DashboardCardSheetProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}

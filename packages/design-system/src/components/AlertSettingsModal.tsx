@@ -11,6 +11,7 @@ import {
 } from '@expense-tracker/shared';
 
 import type { AlertSettingsProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type AlertSettingsModalProps = AlertSettingsProps;
 
@@ -43,6 +44,7 @@ export function AlertSettingsModal({
   onClearCategoryLimit,
   onClose,
 }: AlertSettingsModalProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
 
   const [pickedCategory, setPickedCategory] = useState('');
   const [limitText, setLimitText] = useState('');
@@ -59,7 +61,7 @@ export function AlertSettingsModal({
   };
 
   return (
-    <div className="cf-modal-scrim" style={{ zIndex: 56 }} onClick={onClose} role="presentation">
+    <div className="cf-modal-scrim" style={{ zIndex: 56 }} onClick={dismiss} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
         style={{ width: '100%', maxWidth: 560 }}

@@ -13,6 +13,7 @@ import {
 } from '@expense-tracker/shared';
 
 import type { IncomeEditorProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export interface IncomeSheetProps extends IncomeEditorProps {
   /** false for the month's last source — a month always keeps one */
@@ -34,9 +35,14 @@ export function IncomeSheet({
   onRemove,
   onClose,
 }: IncomeSheetProps): JSX.Element {
-  const [values, setValues] = useState(() =>
+  const [initial] = useState(() =>
     editing ? incomeFormFrom(editing) : emptyIncomeForm(),
   );
+  const [values, setValues] = useState(initial);
+  // As on the expense form: once something is typed, Escape and the scrim
+  // refuse to close, and Cancel is the one way to discard.
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const { dismiss, nudged } = useDismiss({ onClose, dirty });
   const result = evaluateIncomeForm(values);
 
   // Functional update rather than spreading the render's `values`: two field
@@ -51,7 +57,7 @@ export function IncomeSheet({
   };
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}
@@ -70,6 +76,14 @@ export function IncomeSheet({
             Cancel
           </button>
         </div>
+
+        {/* Up here, beside the Cancel it names: a note at the foot of the
+            sheet would be out of sight of the tap that raised it. */}
+        {nudged ? (
+          <div className="cf-unsaved" role="status" style={{ flex: 'none' }}>
+            You have unsaved changes. Save them, or tap Cancel to discard.
+          </div>
+        ) : null}
 
         <div style={{ fontSize: 12, color: 'var(--cf-muted)', flex: 'none' }}>
           {editing ? `Changes apply to ${monthLabel(yearMonth)}` : `Added to ${monthLabel(yearMonth)}`}

@@ -3,6 +3,7 @@ import { accountTotals, formatMoney } from '@expense-tracker/shared';
 
 import { AccountsPanel } from './AccountsPanel.js';
 import type { AccountManagerProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type AccountsModalProps = AccountManagerProps;
 
@@ -24,12 +25,13 @@ export function AccountsModal({
   onDelete,
   onClose,
 }: AccountsModalProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   // The asset/liability split and its sign convention live in `shared`, so the
   // two surfaces cannot arrive at different notions of "net".
   const { net } = accountTotals(balances);
 
   return (
-    <div className="cf-modal-scrim" style={{ zIndex: 56 }} onClick={onClose} role="presentation">
+    <div className="cf-modal-scrim" style={{ zIndex: 56 }} onClick={dismiss} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
         style={{ width: '100%', maxWidth: 560, maxHeight: '86vh', overflowY: 'auto' }}

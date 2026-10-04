@@ -3,6 +3,7 @@ import { accountTotals, formatMoney } from '@expense-tracker/shared';
 
 import { AccountsPanel } from './AccountsPanel.js';
 import type { AccountManagerProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type AccountsSheetProps = AccountManagerProps;
 
@@ -25,10 +26,11 @@ export function AccountsSheet({
   onDelete,
   onClose,
 }: AccountsSheetProps): JSX.Element {
+  const { dismiss } = useDismiss({ onClose });
   const { net } = accountTotals(balances);
 
   return (
-    <div className="cf-scrim" onClick={onClose} role="presentation">
+    <div className="cf-scrim" onClick={dismiss} role="presentation">
       <div
         className="cf-sheet cf-anim-in-fast"
         onClick={(e) => e.stopPropagation()}

@@ -13,6 +13,7 @@ import {
 } from '@expense-tracker/shared';
 
 import type { IncomeEditorProps } from '../types.js';
+import { useDismiss } from '../useDismiss.js';
 
 export type IncomeModalProps = IncomeEditorProps;
 
@@ -33,9 +34,14 @@ export function IncomeModal({
   onSave,
   onClose,
 }: IncomeModalProps): JSX.Element {
-  const [values, setValues] = useState(() =>
+  const [initial] = useState(() =>
     editing ? incomeFormFrom(editing) : emptyIncomeForm(),
   );
+  const [values, setValues] = useState(initial);
+  // As on the expense form: once something is typed, Escape and the scrim
+  // refuse to close, and Cancel is the one way to discard.
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const { dismiss, nudged } = useDismiss({ onClose, dirty });
   const result = evaluateIncomeForm(values);
 
   // Functional update rather than spreading the render's `values`: two field
@@ -50,7 +56,7 @@ export function IncomeModal({
   };
 
   return (
-    <div className="cf-modal-scrim" style={{ zIndex: 60 }} onClick={onClose} role="presentation">
+    <div className="cf-modal-scrim" style={{ zIndex: 60 }} onClick={dismiss} role="presentation">
       <div
         className="cf-modal cf-anim-in-fast"
         style={{ width: '100%', maxWidth: 520 }}
@@ -191,6 +197,12 @@ export function IncomeModal({
             {values.received ? 'Yes' : 'Not yet'}
           </button>
         </div>
+
+        {nudged ? (
+          <div className="cf-unsaved" role="status">
+            You have unsaved changes. Save them, or press Cancel to discard.
+          </div>
+        ) : null}
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button
