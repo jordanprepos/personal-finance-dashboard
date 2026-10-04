@@ -3,6 +3,7 @@ import { accountTotals, type AccountBalance } from './accounts.js';
 import { cycleRangeLabel, monthLabel, shortDayLabel, yearOfMonth } from './dates.js';
 import { formatMoney, formatPercent, type MoneyFormat } from './format.js';
 import {
+  activeIncomes,
   bucketByMonth,
   categoryOf,
   categoryTotals,
@@ -466,7 +467,12 @@ function incomeExpectedBody(ctx: DashboardCardContext): DashboardCardBody {
       value: formatMoney(u.amount, ctx.fmt),
     })),
     footer: { label: 'Still expected', value: formatMoney(still, ctx.fmt) },
-    empty: 'Everything expected this period has landed.',
+    // Only "all landed" when something was due — with no active source it
+    // would congratulate the reader on income that was never coming.
+    empty:
+      activeIncomes(ctx.budget).length === 0
+        ? 'No active income sources this period.'
+        : 'Everything expected this period has landed.',
   };
 }
 

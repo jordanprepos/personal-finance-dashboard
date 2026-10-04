@@ -615,7 +615,7 @@ function YearTab({
           <span style={{ fontWeight: 600, width: 44 }}>{bucket.label}</span>
           <span className="cf-spacer" />
           <span className="tnum" style={{ color: 'var(--cf-muted)', fontSize: 12 }}>
-            {bucket.transactions.length} entries
+            {bucket.transactions.length} {bucket.transactions.length === 1 ? 'entry' : 'entries'}
           </span>
           <span className="tnum" style={{ fontWeight: 600, minWidth: 76, textAlign: 'right' }}>
             {bucket.total === 0 ? '—' : formatMoneyShort(bucket.total, fmt)}

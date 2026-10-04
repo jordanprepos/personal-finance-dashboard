@@ -243,7 +243,8 @@ export function MonthlyView({
               Saved this month {formatMoney(savedThisMonth, fmt)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 6 }}>
-              {summary.entryCount} entries · {formatMoney(sumAmounts(monthTransactions), fmt)} logged
+              {summary.entryCount} {summary.entryCount === 1 ? 'entry' : 'entries'} ·{' '}
+              {formatMoney(sumAmounts(monthTransactions), fmt)} logged
             </div>
           </div>
         </div>

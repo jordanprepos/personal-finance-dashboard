@@ -10,6 +10,7 @@ import type {
   Transaction,
 } from '../types.js';
 import { MAX_INCOME_DAY } from '../types.js';
+import { normalizeCategoryName } from '../data/defaultCategories.js';
 import { clampDayInCycle, parseISODate } from './dates.js';
 import { parseAmountInput } from './format.js';
 
@@ -164,7 +165,11 @@ export function evaluateCategoryForm(
   categories: readonly Category[],
 ): CategoryFormResult {
   const name = values.name.trim();
-  const duplicate = name !== '' && categories.some((c) => c.name.toLowerCase() === name.toLowerCase());
+  // `normalizeCategoryName`, not a local lowercase: this check is what greys
+  // out Add, and `store.addCategory` refuses by the shared rule — a form that
+  // compared differently would offer a save the store then rejects.
+  const wanted = normalizeCategoryName(name);
+  const duplicate = name !== '' && categories.some((c) => normalizeCategoryName(c.name) === wanted);
   return {
     name,
     allocation: parseAmountInput(values.allocationText),

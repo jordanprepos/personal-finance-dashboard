@@ -63,8 +63,12 @@ export function DashboardCard({
             ↓
           </button>
         ) : null}
+        {/* Grey, not the danger red: taking a card off Home destroys nothing
+            and Customize puts it back — the same toggle as the picker's
+            "Remove from Dashboard", which was already grey. Red on every card
+            made Remove the loudest thing on the page. */}
         {onRemove ? (
-          <button type="button" className="cf-dangerlink cf-cardctl" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
+          <button type="button" className="cf-back cf-cardctl" aria-label={`Remove ${spec.title}`} onClick={onRemove}>
             Remove
           </button>
         ) : null}
