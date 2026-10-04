@@ -18,7 +18,14 @@ import { catStyle } from '@expense-tracker/design-system';
 
 const DONUT_RADIUS = 54;
 
-export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Element {
+export function MonthlyView({
+  store,
+  state,
+  fmt,
+  onAdd,
+  onOpenIncome,
+  setupShowing,
+}: ViewProps): JSX.Element {
   const { monthTransactions, categories, budget, yearMonth } = state;
 
   const summary = monthSummary(yearMonth, monthTransactions, budget, state.today);
@@ -54,8 +61,23 @@ export function MonthlyView({ store, state, fmt, onAdd }: ViewProps): JSX.Elemen
             <div className="cf-darkcard__sub">
               {summary.hasIncome
                 ? `of ${formatMoney(summary.income, fmt)} · ${formatPercent(summary.leftShare)} remaining`
-                : 'No income set for this month — add one below to see what is left.'}
+                : 'No income set for this month, so there is nothing to count down from yet.'}
             </div>
+            {/* Income lives on its own page, behind the toolbar's Income
+                button. The hint used to say "add one below" — there was
+                nothing below — so it now carries the way there itself.
+                Not while the getting-started panel is up: its step two is
+                the same button, a few rows higher. */}
+            {summary.hasIncome || setupShowing ? null : (
+              <button
+                type="button"
+                className="cf-ghostbtn"
+                style={{ marginTop: 14 }}
+                onClick={onOpenIncome}
+              >
+                Add income
+              </button>
+            )}
           </div>
           <div style={{ marginTop: 22 }}>
             <svg width="100%" height="8" viewBox="0 0 100 8" preserveAspectRatio="none">

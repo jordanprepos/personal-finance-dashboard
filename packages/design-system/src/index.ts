@@ -28,6 +28,7 @@ export {
   DEFAULT_CATEGORY_COUNT,
   type DefaultCategoriesButtonProps,
 } from './components/DefaultCategoriesButton.js';
+export { GettingStarted, type GettingStartedProps } from './components/GettingStarted.js';
 export { catStyle } from './catStyle.js';
 export type {
   AccountManagerProps,

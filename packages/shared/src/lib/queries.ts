@@ -858,9 +858,17 @@ export async function setIncomes(
 
 /* ----------------------------------------------------------------- profile */
 
+/**
+ * Alerts are on, but with nothing to watch until the person sets a cap. The
+ * monthly limit used to default to 8.000.000 — a number nobody chose, which a
+ * new account was then warned against. 0 is "unset" everywhere (`toAlerts`,
+ * `evaluateAlerts`, the settings surfaces), so it is silent until a real cap
+ * is entered. An account that has saved its alert settings stored its own
+ * `monthlyLimit` alongside them and is unaffected.
+ */
 export const DEFAULT_ALERTS: AlertSettings = {
   enabled: true,
-  monthlyLimit: 8_000_000,
+  monthlyLimit: 0,
   warnPct: 80,
   categoryLimits: {},
 };

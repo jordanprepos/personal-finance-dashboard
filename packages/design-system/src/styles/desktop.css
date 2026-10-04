@@ -854,12 +854,28 @@
   font-weight: 700;
 }
 
-.login__muted {
+.login__forgot {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   color: var(--cf-muted);
 }
 
+.login__forgot:hover:not(:disabled) {
+  color: var(--cf-blue);
+}
+
+.login__forgot:disabled {
+  cursor: default;
+}
+
+/* Same box as .login__error — it is the same message slot, used for news
+   rather than a problem (today only "reset link sent"). */
+.login__notice,
 .login__error {
   background: var(--cf-blue-pale);
   border: 1px solid var(--cf-border);

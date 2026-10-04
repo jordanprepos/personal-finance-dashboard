@@ -170,7 +170,9 @@ export const seedProfile = (): Profile => ({
   displayName: 'Demo',
   currency: 'IDR',
   locale: 'id-ID',
-  alerts: defaultAlerts(),
+  // A live account starts with no cap; the demo sets one so the alert banners
+  // and the settings rows have something to show.
+  alerts: { ...defaultAlerts(), monthlyLimit: 8_000_000 },
   // Calendar months. Demo mode is the control the cycle behaviour is checked
   // against, so this stays 1 — set it here to eyeball a cycle on seed data.
   cycleStartDay: 1,

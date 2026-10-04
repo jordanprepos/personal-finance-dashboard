@@ -735,6 +735,30 @@ nothing about history changes — that identity is the control this is tested
 against, since a bound that dropped *everything* would pass a "day 1 is quiet
 now" check just as happily as a correct one.
 
+### First run — the getting-started panel
+
+An account with nothing in it used to open on a bare "Fixed envelopes" label
+(desktop) or "Nothing here yet." (mobile), with no next step. Both apps now
+render `GettingStarted` (design-system, surface-neutral) above the spend tabs:
+categories, then income, then a first expense, each with its own button.
+Progress comes from `derive.setupProgress`.
+
+When it shows is the part to keep straight. A missing category list shows it
+on any period. A missing expense shows it only on the period containing
+`today`, because an established account's next January (recurring runs stop at
+the year's last period) or a year before the app was used is empty too, and
+"log your first expense" would be wrong there. **Income never shows it on its
+own**: income is per period and does not carry over, so every account starts
+each month without any. The summary card's own "No income set" hint carries an
+**Add income** button for that case instead, on both apps — the copy used to
+point at "below" (desktop) and "the Month tab" (mobile), neither of which held
+income. That button hides while the panel is up, since step two is the same
+button.
+
+Desktop Daily's Pace check follows the same rule as the Home tab's Spending
+pace card: with no income there is no target, so it says to set one rather
+than calling every rupiah "over".
+
 ### Spending alerts
 
 Settings live on `profile/main.alerts` — one set per account, already carried
@@ -754,6 +778,14 @@ over the limit is a breach, at or past `warnPct` of it is a warning. A limit
 of 0 is unset and evaluates to nothing — an unset cap is silent, not
 permanently breached. A breach takes the dark ink surface, a warning the pale
 accent; no colour is introduced beyond the existing tokens.
+
+**A new account starts with no monthly cap.** `DEFAULT_ALERTS.monthlyLimit` is
+0, not the 8.000.000 it once was — a fresh account was being warned against a
+number nobody chose. Every alert write stores the whole settings object, so an
+account that has ever saved its alerts carries its own `monthlyLimit` and is
+unaffected; one that never opened Settings was reading the old default and now
+has no cap until it sets one. The seed profile sets 8.000.000 explicitly, so
+demo mode still has banners to show.
 
 `categoryLimits` is keyed by **category name**, not id — the alert copy reads
 the key back out ("Groceries is over its limit"). Keys are canonicalised to
@@ -786,8 +818,13 @@ formatted in the profile's locale. Passing the money locale through would put
   screens in both apps; Google Sign-in is exercised too, but uses
   `signInWithPopup`, which a real native webview commonly blocks — it works in a
   desktop browser and would need the redirect flow to be reliable inside the
-  mobile webview. "Forgot password?" is inert, matching the design —
-  `sendPasswordResetEmail` is not wired up in `shared`.
+  mobile webview. "Forgot password?" sends a reset link to whatever is in the
+  Email field (`AuthController.sendPasswordReset`, wrapping
+  `sendPasswordResetEmail` with no `actionCodeSettings`, so the link lands on
+  Firebase's own `/__/auth/action` page). The confirmation is worded the same
+  whether or not the address has an account: email-enumeration protection is on
+  for this project, so Firebase reports success either way and a "no such
+  account" branch would never run. It is hidden while creating an account.
 - **`signInWithGoogle` sets `prompt: 'select_account'`, deliberately.** A bare
   `new GoogleAuthProvider()` sends no `prompt`, and Google's default is then to
   complete silently whenever exactly one account is signed in to the browser and

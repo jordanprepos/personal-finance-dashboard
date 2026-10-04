@@ -23,4 +23,9 @@ export interface ViewProps {
   fmt: MoneyFormat;
   onEdit: (transaction: Transaction) => void;
   onAdd: () => void;
+  /** Switch to the Income page — the "no income set" hints point here. */
+  onOpenIncome: () => void;
+  /** The getting-started panel is on screen, so its step two already offers
+   * "Add income" — the summary card's own button would be a duplicate. */
+  setupShowing: boolean;
 }
