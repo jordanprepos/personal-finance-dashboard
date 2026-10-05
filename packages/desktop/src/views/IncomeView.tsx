@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react';
 import {
+  expectedIncome,
   formatMoney,
   formatPercent,
   INCOME_KIND_LABELS,
@@ -7,8 +8,6 @@ import {
   incomeBreakdown,
   incomeStatus,
   monthLabel,
-  upcomingIncome,
-  upcomingIncomeTotal,
   type Income,
   type IncomeShare,
   type MoneyFormat,
@@ -47,8 +46,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
   const { budget, yearMonth } = state;
   const breakdown = incomeBreakdown(budget);
-  const upcoming = upcomingIncome(budget, yearMonth, state.profile.cycleStartDay);
-  const stillToLand = upcomingIncomeTotal(budget);
+  const expected = expectedIncome(budget, yearMonth, state.profile.cycleStartDay);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<Income | null>(null);
@@ -210,7 +208,7 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
           <div className="dash__incomecard">
             <div className="cf-fieldlabel">Expected next</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {upcoming.map((u) => (
+              {expected.upcoming.map((u) => (
                 <div key={u.id} className="dash__incomenext">
                   <span className="dash__incomeday">{u.dateLabel}</span>
                   <span className="dash__incomenextname">{u.name}</span>
@@ -221,14 +219,11 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 12 }}>
-              {/* "Everything has landed" is only true if something was due:
-                  with no active source it read as good news about money
-                  that was never expected. */}
-              {upcoming.length > 0
-                ? `${formatMoney(stillToLand, fmt)} still to land.`
-                : breakdown.activeCount === 0
-                  ? 'Nothing is expected this month. Add a source to see when income lands.'
-                  : 'Everything for this month has landed.'}
+              {/* Why nothing is listed comes from `derive.expectedIncome`,
+                  shared with the phone and the Income expected card. */}
+              {expected.empty
+                ? expected.empty.label
+                : `${formatMoney(expected.stillToLand, fmt)} still to land.`}
             </div>
           </div>
         </div>

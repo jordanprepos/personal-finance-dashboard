@@ -11,6 +11,7 @@ import {
 } from '@expense-tracker/shared';
 
 import type { AlertSettingsProps } from '../types.js';
+import { useCategoryLimitDraft } from '../useCategoryLimitDraft.js';
 import { useDismiss } from '../useDismiss.js';
 
 export type AlertSettingsModalProps = AlertSettingsProps;
@@ -46,19 +47,12 @@ export function AlertSettingsModal({
 }: AlertSettingsModalProps): JSX.Element {
   const { dismiss } = useDismiss({ onClose });
 
-  const [pickedCategory, setPickedCategory] = useState('');
-  const [limitText, setLimitText] = useState('');
-
-  const capped = new Set(rows.map((r) => r.name.toLowerCase()));
-  const available = categories.filter((c) => !capped.has(c.name.toLowerCase()));
-
-  const addLimit = (): void => {
-    const amount = parseAmountInput(limitText);
-    if (!pickedCategory || amount <= 0) return;
-    onSetCategoryLimit(pickedCategory, amount);
-    setPickedCategory('');
-    setLimitText('');
-  };
+  const { pickedCategory, setPickedCategory, limitText, setLimitText, available, addLimit } =
+    useCategoryLimitDraft({
+      categories,
+      categoryLimits: alerts.categoryLimits,
+      onSetCategoryLimit,
+    });
 
   return (
     <div className="cf-modal-scrim" style={{ zIndex: 56 }} onClick={dismiss} role="presentation">

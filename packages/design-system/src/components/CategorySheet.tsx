@@ -5,7 +5,6 @@ import {
   evaluateCategoryForm,
   formatAmountInput,
   formatMoney,
-  type MoneyFormat,
 } from '@expense-tracker/shared';
 
 import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';

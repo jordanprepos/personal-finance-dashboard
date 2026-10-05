@@ -206,27 +206,79 @@ export interface UpcomingIncome {
   amount: number;
 }
 
+/** Active sources not yet marked received — the one "still expected" test. */
+const pendingIncomes = (budget: Budget | null): Income[] =>
+  activeIncomes(budget).filter((i) => !i.received);
+
+/** Why a period has no active income, worded for an empty state. */
+export interface IncomeEmptyState {
+  reason: 'no-sources' | 'all-paused';
+  label: string;
+}
+
+/** Why `expectedIncome` lists nothing — no active income, or all of it in. */
+export type ExpectedIncomeEmptyState =
+  | IncomeEmptyState
+  | { reason: 'all-landed'; label: string };
+
 /**
- * What is still expected in the month in view: the active sources that have
- * not been marked received, soonest first.
+ * Why a period has no active income — no sources at all, or every one paused —
+ * or null when at least one source is active.
  *
- * Scoped to the month in view on purpose. Nothing stored says *which* months a
- * quarterly source pays — only how big the cheque is — so projecting the next
- * payment into a future month would be a guess. A source is expected in the
- * month you are looking at until you mark it received there.
+ * The reasons are kept apart because the next step differs: add a source, or
+ * resume a paused one. The composition card renders this as its empty state,
+ * and `expectedIncome` builds on it, so the income surfaces cannot disagree
+ * about why a period is empty.
  */
-export function upcomingIncome(
+export function incomeEmptyState(budget: Budget | null): IncomeEmptyState | null {
+  if (activeIncomes(budget).length > 0) return null;
+  if ((budget?.incomes ?? []).length === 0) {
+    return {
+      reason: 'no-sources',
+      label: 'No income sources this period yet. Add one to see what is coming in.',
+    };
+  }
+  return {
+    reason: 'all-paused',
+    label: 'Every source is paused this period, so nothing is expected. Resume one to count it.',
+  };
+}
+
+export interface ExpectedIncome {
+  /** still to land, soonest first */
+  upcoming: UpcomingIncome[];
+  /** the sum of `upcoming` — "still to land" */
+  stillToLand: number;
+  /** why `upcoming` is empty; null exactly when it is not */
+  empty: ExpectedIncomeEmptyState | null;
+}
+
+/**
+ * What is still expected in the period in view: the active sources not yet
+ * marked received, soonest first, with their total and — when there are none
+ * — the reason why.
+ *
+ * One call, so the list, its total and its empty state come from the same
+ * filter and every surface branches on a single value: the desktop Income
+ * page, the phone's Income tab and the Income expected card had each decided
+ * "empty" their own way, and two said "everything has landed" with nothing
+ * ever due.
+ *
+ * Scoped to the period in view on purpose. Nothing stored says *which* months
+ * a quarterly source pays — only how big the cheque is — so projecting the
+ * next payment into a future month would be a guess. A source is expected in
+ * the period you are looking at until you mark it received there.
+ */
+export function expectedIncome(
   budget: Budget | null,
   yearMonth: string,
   cycleStartDay = 1,
-): UpcomingIncome[] {
+): ExpectedIncome {
   const start = clampCycleStartDay(cycleStartDay);
   // Soonest first means soonest *in the window*, which under a cycle is not
   // the lowest day number: a 27th-start period runs 27, 28 ... 31, 1, 2 ... 26.
   const position = (day: number): number => dayInCycle(dateInCycle(yearMonth, day, start), yearMonth, start);
-  return activeIncomes(budget)
-    .filter((i) => !i.received)
-    .slice()
+  const upcoming = pendingIncomes(budget)
     .sort((a, b) => position(a.day) - position(b.day))
     .map((i) => ({
       id: i.id,
@@ -236,13 +288,19 @@ export function upcomingIncome(
       dateLabel: shortDayLabel(dateInCycle(yearMonth, i.day, start)),
       amount: i.amount,
     }));
-}
 
-/** The sum of what `upcomingIncome` lists — "still to land". */
-export const upcomingIncomeTotal = (budget: Budget | null): number =>
-  activeIncomes(budget)
-    .filter((i) => !i.received)
-    .reduce((sum, i) => sum + i.amount, 0);
+  return {
+    upcoming,
+    stillToLand: upcoming.reduce((sum, u) => sum + u.amount, 0),
+    empty:
+      upcoming.length > 0
+        ? null
+        : (incomeEmptyState(budget) ?? {
+            reason: 'all-landed',
+            label: 'Everything expected this period has landed.',
+          }),
+  };
+}
 
 /* ----------------------------------------------------------- month summary */
 
@@ -1035,6 +1093,21 @@ export function categoryLimitRows(
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The categories that can still take a cap — those with no key in
+ * `categoryLimits` under any spelling `normalizeCategoryName` treats as the
+ * same. The settings pickers offer exactly these: offering a capped one let
+ * "Set" silently replace its existing cap, since the store re-keys by the same
+ * rule.
+ */
+export function uncappedCategories(
+  categories: readonly Category[],
+  categoryLimits: Readonly<Record<string, number>>,
+): Category[] {
+  const capped = new Set(Object.keys(categoryLimits).map(normalizeCategoryName));
+  return categories.filter((c) => !capped.has(normalizeCategoryName(c.name)));
 }
 
 /**

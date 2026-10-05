@@ -1,4 +1,4 @@
-import type { CategoryType } from '../types.js';
+import type { AlertSettings, Category, CategoryType } from '../types.js';
 
 /**
  * The category set from the source spreadsheet ("Alokasi Keuangan", Monthly
@@ -91,7 +91,7 @@ export const DEFAULT_CATEGORIES: readonly DefaultCategory[] = [
   {
     id: 'apparel',
     // Spelled "Apparell" until 2026-10, after the source spreadsheet; accounts
-    // seeded before then still store that name — see `FORMER_NAMES` below.
+    // seeded before then still store that name — see `resolveFormerNames`.
     name: 'Apparel',
     type: 'variable',
     icon: '👕',
@@ -144,26 +144,7 @@ export const colorForOrder = (order: number): string =>
  * trims) while the "use my defaults" dedupe (which didn't) missed it and
  * created a second Groceries.
  */
-export const normalizeCategoryName = (name: string): string => {
-  const key = name.trim().toLowerCase();
-  return FORMER_NAMES[key] ?? key;
-};
-
-/**
- * Spellings a template category used to carry, folded into the current one
- * by `normalizeCategoryName`.
- *
- * Renaming a template entry does not rename the documents already written
- * from it — nothing stored is migrated — so an account seeded with the old
- * spelling keeps it. Without this the old name would match no template entry:
- * the category would drop off its canonical colour onto the `order` ramp, and
- * "Use my default categories" would add the new spelling beside it as a second
- * category. Folding it here keeps colour, the defaults dedupe, the add-category
- * duplicate check and alert keys all treating the two as one category.
- */
-const FORMER_NAMES: Record<string, string> = {
-  apparell: 'apparel',
-};
+export const normalizeCategoryName = (name: string): string => name.trim().toLowerCase();
 
 /**
  * The `order` to give the next category: one past the highest in use.
@@ -223,6 +204,100 @@ const CANONICAL = new Map(DEFAULT_CATEGORIES.map((c) => [normalizeCategoryName(c
  */
 export const colorForName = (name: string, order = 0): string =>
   CANONICAL.get(normalizeCategoryName(name)) ?? colorForOrder(order);
+
+/**
+ * Spellings a template category used to carry, keyed by the old name
+ * normalised, valued with the current name. A `Map`, not an object literal:
+ * an object lookup would answer "constructor" or "__proto__" with a prototype
+ * member rather than "no such name".
+ */
+const FORMER_NAMES: ReadonlyMap<string, string> = new Map([
+  // The source spreadsheet's typo, carried into the template until 2026-10.
+  ['apparell', 'Apparel'],
+]);
+
+/**
+ * Corrects former template spellings in what an account has stored, at read
+ * time — the same no-migration trick `colorForName` and `resolveIncomes` play.
+ * Nothing in Firestore is rewritten.
+ *
+ * Renaming a template entry does not rename the documents already written
+ * from it, so an account seeded before the rename still stores the old name.
+ * Read back verbatim, that category would show the typo, drop off its
+ * canonical colour (colour is resolved by name), and let "Use my default
+ * categories" add the new spelling beside it as a second category.
+ *
+ * Three rules keep this from merging or losing anything:
+ *
+ * - **A category is renamed only while the current name is free** — free of
+ *   the account's own categories *and* of any category this pass has already
+ *   renamed. An account holding "Apparel" beside the seeded "Apparell", or two
+ *   "Apparell"s, keeps them apart under their stored names and colours.
+ * - **An alert cap follows its category.** `categoryLimits` is keyed by name,
+ *   so a cap stored under the old spelling is re-keyed to the new one.
+ * - **That cap wins over one already under the new name.** A category is only
+ *   renamed when no category holds the new name, so a cap stored there can
+ *   only be an orphan — left behind by a deleted category, and never firing.
+ *   The re-keyed cap is the one that was live. The next alert write saves the
+ *   resolved map whole, which deletes both stale keys from Firestore.
+ *
+ * Returns its inputs untouched when nothing matches, which is every account
+ * that was not seeded before a rename.
+ */
+export function resolveFormerNames(
+  categories: readonly Category[],
+  alerts: AlertSettings,
+): { categories: readonly Category[]; alerts: AlertSettings } {
+  if (!categories.some((c) => FORMER_NAMES.has(normalizeCategoryName(c.name)))) {
+    return { categories, alerts };
+  }
+
+  const taken = new Set(categories.map((c) => normalizeCategoryName(c.name)));
+  /** old spelling, normalised → the name it now reads as */
+  const renamed = new Map<string, string>();
+
+  const resolved = categories.map((c) => {
+    const key = normalizeCategoryName(c.name);
+    const current = FORMER_NAMES.get(key);
+    if (current === undefined || taken.has(normalizeCategoryName(current))) return c;
+    taken.add(normalizeCategoryName(current));
+    renamed.set(key, current);
+    return { ...c, name: current, color: colorForName(current, c.order) };
+  });
+
+  if (renamed.size === 0) return { categories, alerts };
+
+  const replaced = new Set([...renamed.values()].map(normalizeCategoryName));
+  const limits: Record<string, number> = {};
+  for (const [name, limit] of Object.entries(alerts.categoryLimits)) {
+    const key = normalizeCategoryName(name);
+    const current = renamed.get(key);
+    if (current !== undefined) limits[current] = limit; // re-keyed, and wins
+    else if (!replaced.has(key)) limits[name] = limit; // an orphan under the new name drops
+  }
+
+  return { categories: resolved, alerts: { ...alerts, categoryLimits: limits } };
+}
+
+/**
+ * A data source's snapshot with `resolveFormerNames` applied — the one call
+ * both sources make as they assemble a month, so every consumer of the store
+ * sees one name per category. The one-shot `queries.fetch*` reads skip it:
+ * no app code calls them, and they return what is stored.
+ */
+export function withCurrentCategoryNames<
+  T extends { categories: Category[]; profile: { alerts: AlertSettings } },
+>(snapshot: T): T {
+  const named = resolveFormerNames(snapshot.categories, snapshot.profile.alerts);
+  if (named.categories === snapshot.categories && named.alerts === snapshot.profile.alerts) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    categories: [...named.categories],
+    profile: { ...snapshot.profile, alerts: named.alerts },
+  };
+}
 
 /**
  * `hex` mixed toward white by `amount` (0-1).

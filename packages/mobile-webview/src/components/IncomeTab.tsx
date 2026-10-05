@@ -1,11 +1,11 @@
 import { useState, type JSX } from 'react';
 import {
+  expectedIncome,
   formatMoney,
   formatPercent,
   INCOME_CADENCE_LABELS,
   incomeBreakdown,
   incomeStatus,
-  upcomingIncome,
   type ExpenseState,
   type ExpenseStore,
   type Income,
@@ -46,7 +46,7 @@ export function IncomeTab({
 }): JSX.Element {
   const { budget, yearMonth } = state;
   const breakdown = incomeBreakdown(budget);
-  const upcoming = upcomingIncome(budget, yearMonth, state.profile.cycleStartDay);
+  const expected = expectedIncome(budget, yearMonth, state.profile.cycleStartDay);
 
   const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<Income | null>(null);
@@ -124,22 +124,30 @@ export function IncomeTab({
         </div>
       ) : null}
 
-      {upcoming.length > 0 ? (
+      {/* Hidden only when there are no sources at all, which the list's own
+          empty state above already says. Otherwise an empty list explains
+          itself — all landed, or all paused — through the same
+          `derive.expectedIncome` the desktop page and the card use. */}
+      {expected.empty?.reason === 'no-sources' ? null : (
         <div className="phone__incomecard">
           <div className="cf-fieldlabel">Expected next</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {upcoming.map((u) => (
-              <div key={u.id} className="phone__incomenext">
-                <span className="phone__incomeday">{u.dateLabel}</span>
-                <span className="phone__incomenextname">{u.name}</span>
-                <span className="tnum" style={{ fontWeight: 600 }}>
-                  {formatMoney(u.amount, fmt)}
-                </span>
-              </div>
-            ))}
-          </div>
+          {expected.empty ? (
+            <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>{expected.empty.label}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              {expected.upcoming.map((u) => (
+                <div key={u.id} className="phone__incomenext">
+                  <span className="phone__incomeday">{u.dateLabel}</span>
+                  <span className="phone__incomenextname">{u.name}</span>
+                  <span className="tnum" style={{ fontWeight: 600 }}>
+                    {formatMoney(u.amount, fmt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      ) : null}
+      )}
 
       <button
         type="button"
