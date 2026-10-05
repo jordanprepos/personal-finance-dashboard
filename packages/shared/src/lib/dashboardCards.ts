@@ -3,21 +3,20 @@ import { accountTotals, type AccountBalance } from './accounts.js';
 import { cycleRangeLabel, monthLabel, shortDayLabel, yearOfMonth } from './dates.js';
 import { formatMoney, formatPercent, type MoneyFormat } from './format.js';
 import {
-  activeIncomes,
   bucketByMonth,
   categoryOf,
   categoryTotals,
   donutSegments,
   envelopesByType,
+  expectedIncome,
   incomeBreakdown,
+  incomeEmptyState,
   indexCategories,
   monthSummary,
   pace,
   recurringThisMonth,
   sumAmounts,
   totalIncome,
-  upcomingIncome,
-  upcomingIncomeTotal,
   yearBars,
   yearSummary,
   type DonutSegment,
@@ -428,7 +427,10 @@ function incomeCompositionBody(ctx: DashboardCardContext): DashboardCardBody {
       label: b.pausedCount > 0 ? `Total income · ${b.pausedCount} paused` : 'Total income',
       value: b.total > 0 ? formatMoney(b.total, ctx.fmt) : '—',
     },
-    empty: 'No income sources for this period yet.',
+    // Same reasons as the Income expected card: with every source paused this
+    // said "no sources" above its own "· 2 paused" footer. The fallback is
+    // never shown — rows are empty exactly when no source is active.
+    empty: incomeEmptyState(ctx.budget)?.label ?? '',
   };
 }
 
@@ -454,11 +456,10 @@ function spendingPaceBody(ctx: DashboardCardContext): DashboardCardBody {
 }
 
 function incomeExpectedBody(ctx: DashboardCardContext): DashboardCardBody {
-  const upcoming = upcomingIncome(ctx.budget, ctx.yearMonth, ctx.cycleStartDay);
-  const still = upcomingIncomeTotal(ctx.budget);
+  const expected = expectedIncome(ctx.budget, ctx.yearMonth, ctx.cycleStartDay);
   return {
     type: 'rows',
-    rows: upcoming.slice(0, MAX_ROWS).map((u) => ({
+    rows: expected.upcoming.slice(0, MAX_ROWS).map((u) => ({
       key: u.id,
       label: u.name,
       caption: u.dateLabel,
@@ -466,13 +467,14 @@ function incomeExpectedBody(ctx: DashboardCardContext): DashboardCardBody {
       // per-month contribution is a third of it.
       value: formatMoney(u.amount, ctx.fmt),
     })),
-    footer: { label: 'Still expected', value: formatMoney(still, ctx.fmt) },
-    // Only "all landed" when something was due — with no active source it
-    // would congratulate the reader on income that was never coming.
-    empty:
-      activeIncomes(ctx.budget).length === 0
-        ? 'No active income sources this period.'
-        : 'Everything expected this period has landed.',
+    // No "Still expected Rp 0" under an empty list: with nothing due it is a
+    // total of nothing, and under "no active sources" it read as reassurance.
+    footer: expected.empty
+      ? undefined
+      : { label: 'Still expected', value: formatMoney(expected.stillToLand, ctx.fmt) },
+    // Why nothing is listed — the same decision the Income page and tab use.
+    // The fallback is never shown: `empty` is set exactly when rows are empty.
+    empty: expected.empty?.label ?? '',
   };
 }
 

@@ -574,7 +574,7 @@ export class ExpenseStore {
     if (!source) return;
 
     const trimmed = name.trim();
-    const { categories, yearMonth, budget } = this.state;
+    const { categories } = this.state;
     if (!trimmed) return;
     if (categories.some((c) => normalizeCategoryName(c.name) === normalizeCategoryName(trimmed))) {
       this.showToast(`${trimmed} already exists`);

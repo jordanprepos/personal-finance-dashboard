@@ -94,7 +94,11 @@ Workspace layout (pnpm workspaces, `packages/*`):
     `createTransaction`, `createTransactionSeries`, `updateTransaction`),
     plus the `watch*` counterparts built on `onSnapshot`. Each watcher mirrors
     the `fetch*` of the same name and shares its mapper, so a live subscriber
-    and a one-shot caller can't disagree about the same data.
+    and a one-shot caller can't disagree about the same data. One deliberate
+    exception: `withCurrentCategoryNames` corrects former template spellings
+    as each *data source* assembles a month, so `fetchCategories` and
+    `fetchProfile` return the stored names and cap keys uncorrected. No app
+    code calls them.
   - `src/lib/derive.ts` — **all** derived values (Budget Left, Expense Per
     Bulan, category totals, envelope fill, donut shares, pace, yearly
     rollups, `totalIncome`/`incomeShares`, and `evaluateAlerts`) as pure
@@ -114,16 +118,29 @@ Workspace layout (pnpm workspaces, `packages/*`):
     `queries.fetch*` is still exported for a genuinely one-off read.
   - `src/data/defaultCategories.ts` — the spreadsheet's category set, plus
     `normalizeCategoryName`, the single way category names are compared
-    anywhere (trim + lowercase, then `FORMER_NAMES`). Three call sites once
+    anywhere (trim + lowercase, and nothing else). Three call sites once
     disagreed about trimming, which let `" Groceries"` take the canonical
     colour while the seeding dedupe missed it and created a second one. The
-    add-category form's duplicate check was a fourth, and now goes through it
-    too. `FORMER_NAMES` folds a template entry's old spelling into its current
-    one. The template's "Apparell" (the source spreadsheet's typo) became
-    "Apparel" in 2026-10, and nothing stored was renamed, so an account seeded
-    earlier still shows "Apparell". The fold keeps that category on its
-    canonical colour, and stops "Use my default categories" adding a second
-    Apparel beside it. Rename a template entry only with an entry here. Also
+    add-category form's duplicate check and the alert-cap pickers were later
+    found comparing their own way, and now go through it too.
+    **A renamed template entry is corrected at read time**, by
+    `resolveFormerNames`. Both data sources apply it, through
+    `withCurrentCategoryNames`, as they assemble each month. The template's "Apparell" (the source spreadsheet's
+    typo) became "Apparel" in 2026-10, and nothing stored is renamed. An
+    account seeded earlier therefore reads its "Apparell" back as "Apparel":
+    canonical colour, no second Apparel from "Use my default categories", and
+    an alert cap stored under the old key re-keyed to the new one. The next
+    alert write saves the resolved map whole, which deletes the old key. The
+    correction is skipped while the new name is taken, either by one of the
+    account's categories or by one this pass already renamed, so two real
+    categories are never merged. A cap moved from the old key beats one
+    already stored under the new name. That one can only be an orphan, since
+    no category held the name. An earlier attempt folded
+    the spelling inside `normalizeCategoryName` itself. That merged such pairs,
+    left the typo on screen, and answered prototype names like "constructor"
+    with non-strings, because the lookup was an object literal; the table is a
+    `Map` now. Rename a template entry only with an entry in `FORMER_NAMES`.
+    Also
     `nextCategoryOrder` — always use it to assign `order`, never
     `categories.length`, which collides after a delete (see below) — and
     `collidingCategoryOrders`, the invariant check `addDefaultCategories`
@@ -280,7 +297,7 @@ correction yanking someone off a period they navigated to themselves.
 The consequences elsewhere are all in `derive.ts`, and all take `cycleStartDay`
 defaulting to `1`: `pace` counts elapsed days and period length from the window;
 `bucketByMonth` assigns rows by `cycleOf(t.date)` rather than the stored
-`yearMonth` (still twelve buckets a year, just cycle-shaped); `upcomingIncome`
+`yearMonth` (still twelve buckets a year, just cycle-shaped); `expectedIncome`
 sorts by position in the window, not by day number, since 27 comes before 3.
 `store.addExpense`'s repeat bound is the calendar month the year's **last
 period opens in** (`"2026-11"` at a 27th start), not `"${year}-12"` — left as
@@ -457,7 +474,7 @@ than NaN.
 The panel's other figures — composition segments and their rank-ordered colour
 ramp, the fixed/variable/paused split, received, the status pill, "Expected
 next" — are all `derive.ts` too (`incomeBreakdown`, `incomeStatus`,
-`upcomingIncome`), so the two apps only lay them out. Source colour is
+`expectedIncome`), so the two apps only lay them out. Source colour is
 resolved from **rank among active sources**, biggest first: unlike a category,
 a source has no identity outside the month's list, so bar, legend and row
 agree with no stored field to keep in step.
@@ -473,6 +490,18 @@ the default rather than becoming a typed one.
 months a quarterly source actually pays — only how big the cheque is — so
 projecting a payment into a future month would be a guess; a source is
 expected in the month you are looking at until you mark it received there.
+
+`derive.expectedIncome` returns the "Expected next" list, its total and, when
+the list is empty, **why**, all from one filter (`pendingIncomes`). The why is
+one of three reasons, each with its own label: no sources, every source
+paused, or everything landed. The desktop Income page, the phone's Income tab
+and the Income expected card each branch on that single `empty` value. They
+had drifted into three separate tests, two of which said "everything has
+landed" when nothing was ever due. The first two reasons come from
+`incomeEmptyState`, which the Income composition card uses too. "No sources"
+says to add one. "All paused" says to resume one instead, because a month
+always keeps at least one (see below). The expected card drops its "Still
+expected" footer when the list is empty, rather than reporting Rp 0.
 
 **A month always keeps at least one source.** `ExpenseStore.deleteIncome`
 refuses the last one and the views stop offering a Remove button for it — the

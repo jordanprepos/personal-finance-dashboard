@@ -4,7 +4,6 @@ import {
   emptyCategoryForm,
   evaluateCategoryForm,
   formatAmountInput,
-  formatMoney,
   monthLabel,
   parseAmountInput,
   type MoneyFormat,
