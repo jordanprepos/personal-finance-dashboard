@@ -127,7 +127,7 @@ function Body({ body }: { body: DashboardCardBody }): JSX.Element {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {body.rows.length === 0 ? (
-            <Empty text={body.empty} />
+            body.empty ? <Empty text={body.empty} /> : null
           ) : (
             body.rows.map((row) => <Row key={row.key} row={row} />)
           )}

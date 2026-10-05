@@ -5,6 +5,7 @@ import {
   formatPercent,
   INCOME_KIND_LABELS,
   INCOME_CADENCE_LABELS,
+  INCOME_EMPTY_LABELS,
   incomeBreakdown,
   incomeStatus,
   monthLabel,
@@ -140,7 +141,7 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
           {rows.length === 0 ? (
             <div className="dash__incomeempty">
               {breakdown.sources.length === 0
-                ? 'Nothing here yet. Add a source to start tracking what comes in.'
+                ? INCOME_EMPTY_LABELS['no-sources']
                 : 'No sources match this filter.'}
             </div>
           ) : null}
@@ -205,27 +206,31 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
             </div>
           </div>
 
-          <div className="dash__incomecard">
-            <div className="cf-fieldlabel">Expected next</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {expected.upcoming.map((u) => (
-                <div key={u.id} className="dash__incomenext">
-                  <span className="dash__incomeday">{u.dateLabel}</span>
-                  <span className="dash__incomenextname">{u.name}</span>
-                  <span className="tnum" style={{ fontWeight: 600 }}>
-                    {formatMoney(u.amount, fmt)}
-                  </span>
-                </div>
-              ))}
+          {/* Hidden when there are no sources at all, which the list's own
+              empty state already says — as on the phone. */}
+          {expected.empty?.reason === 'no-sources' ? null : (
+            <div className="dash__incomecard">
+              <div className="cf-fieldlabel">Expected next</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {expected.items.map((u) => (
+                  <div key={u.id} className="dash__incomenext">
+                    <span className="dash__incomeday">{u.dateLabel}</span>
+                    <span className="dash__incomenextname">{u.name}</span>
+                    <span className="tnum" style={{ fontWeight: 600 }}>
+                      {formatMoney(u.amount, fmt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 12 }}>
+                {/* Why nothing is listed comes from `derive.expectedIncome`,
+                    shared with the phone and the Income expected card. */}
+                {expected.empty
+                  ? expected.empty.label
+                  : `${formatMoney(expected.stillToLand, fmt)} still to land.`}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 12 }}>
-              {/* Why nothing is listed comes from `derive.expectedIncome`,
-                  shared with the phone and the Income expected card. */}
-              {expected.empty
-                ? expected.empty.label
-                : `${formatMoney(expected.stillToLand, fmt)} still to land.`}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

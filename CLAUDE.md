@@ -95,10 +95,12 @@ Workspace layout (pnpm workspaces, `packages/*`):
     plus the `watch*` counterparts built on `onSnapshot`. Each watcher mirrors
     the `fetch*` of the same name and shares its mapper, so a live subscriber
     and a one-shot caller can't disagree about the same data. One deliberate
-    exception: `withCurrentCategoryNames` corrects former template spellings
-    as each *data source* assembles a month, so `fetchCategories` and
-    `fetchProfile` return the stored names and cap keys uncorrected. No app
-    code calls them.
+    exception: `ExpenseStore` corrects former template spellings on each
+    snapshot (`withCurrentCategoryNames`), so `fetchCategories` and
+    `fetchProfile` return the stored names and cap keys uncorrected.
+    `saveAlerts` relies on that. It calls `fetchProfile` on every alert write
+    and diffs the *stored* keys against the resolved map to decide which keys
+    to delete.
   - `src/lib/derive.ts` — **all** derived values (Budget Left, Expense Per
     Bulan, category totals, envelope fill, donut shares, pace, yearly
     rollups, `totalIncome`/`incomeShares`, and `evaluateAlerts`) as pure
@@ -124,24 +126,31 @@ Workspace layout (pnpm workspaces, `packages/*`):
     add-category form's duplicate check and the alert-cap pickers were later
     found comparing their own way, and now go through it too.
     **A renamed template entry is corrected at read time**, by
-    `resolveFormerNames`. Both data sources apply it, through
-    `withCurrentCategoryNames`, as they assemble each month. The template's "Apparell" (the source spreadsheet's
-    typo) became "Apparel" in 2026-10, and nothing stored is renamed. An
-    account seeded earlier therefore reads its "Apparell" back as "Apparel":
-    canonical colour, no second Apparel from "Use my default categories", and
-    an alert cap stored under the old key re-keyed to the new one. The next
-    alert write saves the resolved map whole, which deletes the old key. The
-    correction is skipped while the new name is taken, either by one of the
-    account's categories or by one this pass already renamed, so two real
-    categories are never merged. A cap moved from the old key beats one
-    already stored under the new name. That one can only be an orphan, since
-    no category held the name. An earlier attempt folded
-    the spelling inside `normalizeCategoryName` itself. That merged such pairs,
-    left the typo on screen, and answered prototype names like "constructor"
-    with non-strings, because the lookup was an object literal; the table is a
-    `Map` now. Rename a template entry only with an entry in `FORMER_NAMES`.
-    Also
-    `nextCategoryOrder` — always use it to assign `order`, never
+    `resolveFormerNames`. `ExpenseStore` applies it once, through
+    `withCurrentCategoryNames`, to each snapshot from whichever data source.
+    The template's "Apparell" (the source spreadsheet's typo) became "Apparel"
+    in 2026-10, and nothing stored is renamed. An account seeded earlier
+    therefore reads its "Apparell" back as "Apparel": canonical colour, no
+    second Apparel from "Use my default categories", and an alert cap stored
+    under the old key re-keyed to the new one. The correction is skipped while
+    the new name is taken, either by one of the account's categories or by one
+    this pass already renamed, so two real categories are never merged.
+    **Cap keys need care.**
+    - **A cap under the new name is kept.** Once the category reads as
+      "Apparel", the app writes its cap under "Apparel", and that same write
+      deletes the old key. So for a corrected account this is the normal
+      state, not an orphan. #28 dropped such caps, which made a legacy
+      account's Apparel cap vanish after its next alert write.
+    - **When both keys exist, the old-spelling cap wins.** It is the one the
+      category was firing on before the correction.
+
+    An earlier attempt folded the spelling inside `normalizeCategoryName`
+    itself. That merged such pairs, left the typo on screen, and answered
+    prototype names like "constructor" with non-strings, because the lookup
+    was an object literal; the table is a `Map` now. Rename a template entry
+    only with an entry in `FORMER_NAMES`.
+
+    Also `nextCategoryOrder` — always use it to assign `order`, never
     `categories.length`, which collides after a delete (see below) — and
     `collidingCategoryOrders`, the invariant check `addDefaultCategories`
     runs before its bulk write.
@@ -491,10 +500,13 @@ months a quarterly source actually pays — only how big the cheque is — so
 projecting a payment into a future month would be a guess; a source is
 expected in the month you are looking at until you mark it received there.
 
-`derive.expectedIncome` returns the "Expected next" list, its total and, when
-the list is empty, **why**, all from one filter (`pendingIncomes`). The why is
-one of three reasons, each with its own label: no sources, every source
-paused, or everything landed. The desktop Income page, the phone's Income tab
+`derive.expectedIncome` returns the "Expected next" list (`items`), its total
+and, when the list is empty, **why**, all from one filter (`pendingIncomes`).
+The why is one of three reasons: no sources, every source paused, or
+everything landed. Each reason's wording lives once, in `INCOME_EMPTY_LABELS`,
+which the income lists also read for their no-sources line. Both apps hide
+the Expected next block for "no sources", because the list above already says
+it. The desktop Income page, the phone's Income tab
 and the Income expected card each branch on that single `empty` value. They
 had drifted into three separate tests, two of which said "everything has
 landed" when nothing was ever due. The first two reasons come from
