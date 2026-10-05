@@ -6,6 +6,7 @@ import {
   nextCategoryOrder,
   normalizeCategoryName,
   resolveSession,
+  withCurrentCategoryNames,
   type ExpenseDataSource,
 } from './data/index.js';
 import {
@@ -273,8 +274,12 @@ export class ExpenseStore {
     this.stopWatching = source.watchMonth(
       yearMonth,
       cycleStartDay,
-      (snapshot) => {
+      (incoming) => {
         if (generation !== this.generation) return;
+
+        // Former template spellings corrected once, here, for every data
+        // source — see `withCurrentCategoryNames`.
+        const snapshot = withCurrentCategoryNames(incoming);
 
         /*
          * How wide a period is lives on the profile, which arrives *with* this

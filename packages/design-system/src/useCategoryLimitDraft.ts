@@ -19,20 +19,29 @@ export function useCategoryLimitDraft({
   categoryLimits: Readonly<Record<string, number>>;
   onSetCategoryLimit: (categoryName: string, amount: number) => void;
 }): {
+  /** the picked category, or '' once it is no longer offered */
   pickedCategory: string;
   setPickedCategory: (name: string) => void;
   limitText: string;
   setLimitText: (text: string) => void;
   available: Category[];
+  /** a category still on offer is picked and the amount is above zero */
+  canAdd: boolean;
   addLimit: () => void;
 } {
-  const [pickedCategory, setPickedCategory] = useState('');
+  const [picked, setPickedCategory] = useState('');
   const [limitText, setLimitText] = useState('');
 
+  const available = uncappedCategories(categories, categoryLimits);
+  // The snapshot is live: another tab can cap the picked category while this
+  // picker is open. It then leaves `available`, and is treated as unpicked —
+  // otherwise "Set" would still be enabled and silently replace that cap.
+  const pickedCategory = available.some((c) => c.name === picked) ? picked : '';
+  const canAdd = pickedCategory !== '' && parseAmountInput(limitText) > 0;
+
   const addLimit = (): void => {
-    const amount = parseAmountInput(limitText);
-    if (!pickedCategory || amount <= 0) return;
-    onSetCategoryLimit(pickedCategory, amount);
+    if (!canAdd) return;
+    onSetCategoryLimit(pickedCategory, parseAmountInput(limitText));
     setPickedCategory('');
     setLimitText('');
   };
@@ -42,7 +51,8 @@ export function useCategoryLimitDraft({
     setPickedCategory,
     limitText,
     setLimitText,
-    available: uncappedCategories(categories, categoryLimits),
+    available,
+    canAdd,
     addLimit,
   };
 }

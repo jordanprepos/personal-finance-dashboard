@@ -16,7 +16,6 @@ import type {
   TransactionSeriesKey,
 } from '../types.js';
 import { cycleRange, yearOfMonth, yearMonthOf } from '../lib/dates.js';
-import { withCurrentCategoryNames } from './defaultCategories.js';
 import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
 
 /** Live Firestore, scoped to one authenticated user. */
@@ -132,11 +131,7 @@ function watchMonth(
     ) {
       return;
     }
-    // Former template spellings corrected on the way out, as the seed source
-    // does — see `withCurrentCategoryNames`.
-    onChange(
-      withCurrentCategoryNames({ accounts, categories, monthTransactions, yearTransactions, budget, profile }),
-    );
+    onChange({ accounts, categories, monthTransactions, yearTransactions, budget, profile });
   };
 
   const fail = (error: Error): void => {

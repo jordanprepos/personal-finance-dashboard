@@ -197,7 +197,8 @@ export function incomeStatus(income: Income): IncomeStatus {
   return { tone: 'expected', label: `Expected day ${income.day}` };
 }
 
-export interface UpcomingIncome {
+/** One source still to land, as the "Expected next" list shows it. */
+export interface ExpectedIncomeItem {
   id: string;
   name: string;
   /** e.g. "25 Aug" — inside the period in view, since that is what is planned */
@@ -206,51 +207,56 @@ export interface UpcomingIncome {
   amount: number;
 }
 
+/**
+ * Why an income list is empty. The reasons are kept apart because the next
+ * step differs: add a source, resume a paused one, or nothing at all.
+ */
+export type IncomeEmptyReason = 'no-sources' | 'all-paused' | 'all-landed';
+
+/**
+ * The one wording of each income empty state — the lists, the Expected next
+ * blocks and both income cards all read it here, so changing a sentence is
+ * one edit.
+ */
+export const INCOME_EMPTY_LABELS: Readonly<Record<IncomeEmptyReason, string>> = {
+  'no-sources': 'No income sources this period yet. Add one to see what is coming in.',
+  'all-paused': 'Every source is paused this period, so nothing is expected. Resume one to count it.',
+  'all-landed': 'Everything expected this period has landed.',
+};
+
+export interface IncomeEmptyState<R extends IncomeEmptyReason = IncomeEmptyReason> {
+  reason: R;
+  label: string;
+}
+
+const emptyState = <R extends IncomeEmptyReason>(reason: R): IncomeEmptyState<R> => ({
+  reason,
+  label: INCOME_EMPTY_LABELS[reason],
+});
+
 /** Active sources not yet marked received — the one "still expected" test. */
 const pendingIncomes = (budget: Budget | null): Income[] =>
   activeIncomes(budget).filter((i) => !i.received);
 
-/** Why a period has no active income, worded for an empty state. */
-export interface IncomeEmptyState {
-  reason: 'no-sources' | 'all-paused';
-  label: string;
-}
-
-/** Why `expectedIncome` lists nothing — no active income, or all of it in. */
-export type ExpectedIncomeEmptyState =
-  | IncomeEmptyState
-  | { reason: 'all-landed'; label: string };
-
 /**
  * Why a period has no active income — no sources at all, or every one paused —
- * or null when at least one source is active.
- *
- * The reasons are kept apart because the next step differs: add a source, or
- * resume a paused one. The composition card renders this as its empty state,
- * and `expectedIncome` builds on it, so the income surfaces cannot disagree
- * about why a period is empty.
+ * or null when at least one source is active. The composition card renders it
+ * as its empty state, and `expectedIncome` builds on it.
  */
-export function incomeEmptyState(budget: Budget | null): IncomeEmptyState | null {
+export function incomeEmptyState(
+  budget: Budget | null,
+): IncomeEmptyState<'no-sources' | 'all-paused'> | null {
   if (activeIncomes(budget).length > 0) return null;
-  if ((budget?.incomes ?? []).length === 0) {
-    return {
-      reason: 'no-sources',
-      label: 'No income sources this period yet. Add one to see what is coming in.',
-    };
-  }
-  return {
-    reason: 'all-paused',
-    label: 'Every source is paused this period, so nothing is expected. Resume one to count it.',
-  };
+  return emptyState((budget?.incomes ?? []).length === 0 ? 'no-sources' : 'all-paused');
 }
 
 export interface ExpectedIncome {
   /** still to land, soonest first */
-  upcoming: UpcomingIncome[];
-  /** the sum of `upcoming` — "still to land" */
+  items: ExpectedIncomeItem[];
+  /** the sum of `items` — "still to land" */
   stillToLand: number;
-  /** why `upcoming` is empty; null exactly when it is not */
-  empty: ExpectedIncomeEmptyState | null;
+  /** why `items` is empty; null exactly when it is not */
+  empty: IncomeEmptyState | null;
 }
 
 /**
@@ -259,10 +265,7 @@ export interface ExpectedIncome {
  * — the reason why.
  *
  * One call, so the list, its total and its empty state come from the same
- * filter and every surface branches on a single value: the desktop Income
- * page, the phone's Income tab and the Income expected card had each decided
- * "empty" their own way, and two said "everything has landed" with nothing
- * ever due.
+ * filter and every surface branches on a single value.
  *
  * Scoped to the period in view on purpose. Nothing stored says *which* months
  * a quarterly source pays — only how big the cheque is — so projecting the
@@ -278,7 +281,7 @@ export function expectedIncome(
   // Soonest first means soonest *in the window*, which under a cycle is not
   // the lowest day number: a 27th-start period runs 27, 28 ... 31, 1, 2 ... 26.
   const position = (day: number): number => dayInCycle(dateInCycle(yearMonth, day, start), yearMonth, start);
-  const upcoming = pendingIncomes(budget)
+  const items = pendingIncomes(budget)
     .sort((a, b) => position(a.day) - position(b.day))
     .map((i) => ({
       id: i.id,
@@ -290,15 +293,9 @@ export function expectedIncome(
     }));
 
   return {
-    upcoming,
-    stillToLand: upcoming.reduce((sum, u) => sum + u.amount, 0),
-    empty:
-      upcoming.length > 0
-        ? null
-        : (incomeEmptyState(budget) ?? {
-            reason: 'all-landed',
-            label: 'Everything expected this period has landed.',
-          }),
+    items,
+    stillToLand: items.reduce((sum, u) => sum + u.amount, 0),
+    empty: items.length > 0 ? null : (incomeEmptyState(budget) ?? emptyState('all-landed')),
   };
 }
 

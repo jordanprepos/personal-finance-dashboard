@@ -26,7 +26,6 @@ import {
   seedTransactions,
   SEED_INCOME,
 } from './seedData.js';
-import { withCurrentCategoryNames } from './defaultCategories.js';
 import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
 
 /**
@@ -103,17 +102,14 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       : { id: yearMonth, income: SEED_INCOME, incomes: seedIncomes(), categoryBudgets: {} };
   };
   const readAccounts = (): Account[] => clone(accounts).sort((a, b) => a.order - b.order);
-  // Former template spellings corrected on the way out, as the Firestore
-  // source does — see `withCurrentCategoryNames`.
-  const monthSnapshot = (yearMonth: string, cycleStartDay: number): MonthSnapshot =>
-    withCurrentCategoryNames({
-      accounts: readAccounts(),
-      categories: readCategories(),
-      monthTransactions: readPeriod(yearMonth, cycleStartDay),
-      yearTransactions: readYear(yearMonth, cycleStartDay),
-      budget: readBudget(yearMonth),
-      profile: { ...profile },
-    });
+  const monthSnapshot = (yearMonth: string, cycleStartDay: number): MonthSnapshot => ({
+    accounts: readAccounts(),
+    categories: readCategories(),
+    monthTransactions: readPeriod(yearMonth, cycleStartDay),
+    yearTransactions: readYear(yearMonth, cycleStartDay),
+    budget: readBudget(yearMonth),
+    profile: { ...profile },
+  });
 
   /* Live subscribers. The seed source is the only thing that mutates these
      arrays, so it can notify precisely: every write re-emits to everyone

@@ -1,10 +1,8 @@
-import { useEffect, useState, type JSX } from 'react';
+import type { JSX } from 'react';
 import {
-  clampCycleStartDay,
   formatAmountInput,
   formatMoney,
   formatPercent,
-  MAX_CYCLE_START_DAY,
   parseAmountInput,
   type MoneyFormat,
   type WarnPct,
@@ -12,6 +10,8 @@ import {
 
 import type { AlertSettingsProps } from '../types.js';
 import { useCategoryLimitDraft } from '../useCategoryLimitDraft.js';
+import { amountFieldText, useCommittedInput } from '../useCommittedInput.js';
+import { CycleStartDayField } from './CycleStartDayField.js';
 import { useDismiss } from '../useDismiss.js';
 
 export type AlertSheetProps = AlertSettingsProps;
@@ -45,12 +45,19 @@ export function AlertSheet({
 }: AlertSheetProps): JSX.Element {
   const { dismiss } = useDismiss({ onClose });
 
-  const { pickedCategory, setPickedCategory, limitText, setLimitText, available, addLimit } =
-    useCategoryLimitDraft({
-      categories,
-      categoryLimits: alerts.categoryLimits,
-      onSetCategoryLimit,
-    });
+  const {
+    pickedCategory,
+    setPickedCategory,
+    limitText,
+    setLimitText,
+    available,
+    canAdd,
+    addLimit,
+  } = useCategoryLimitDraft({
+    categories,
+    categoryLimits: alerts.categoryLimits,
+    onSetCategoryLimit,
+  });
 
   return (
     <div className="cf-scrim" onClick={dismiss} role="presentation">
@@ -75,7 +82,7 @@ export function AlertSheet({
 
         <div style={{ flex: 'none' }}>
           <div className="cf-fieldlabel">Cycle starts on day</div>
-          <DayField
+          <CycleStartDayField
             value={cycleStartDay}
             ariaLabel="Cycle start day"
             onCommit={onSetCycleStartDay}
@@ -164,7 +171,7 @@ export function AlertSheet({
               type="button"
               className="cf-add phone__tap"
               style={{ flex: 'none' }}
-              disabled={!pickedCategory || parseAmountInput(limitText) <= 0}
+              disabled={!canAdd}
               onClick={addLimit}
             >
               Set
@@ -213,42 +220,6 @@ export function AlertSheet({
 }
 
 /** Digits-only money input; empty commits 0, which unsets the limit. */
-/** The cycle start day — see the desktop modal's twin. */
-function DayField({
-  value,
-  ariaLabel,
-  onCommit,
-}: {
-  value: number;
-  ariaLabel: string;
-  onCommit: (next: number) => void;
-}): JSX.Element {
-  const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
-
-  const commit = (): void => {
-    const next = clampCycleStartDay(parseInt(text || '1', 10) || 1);
-    setText(String(next));
-    if (next !== value) onCommit(next);
-  };
-
-  return (
-    <input
-      className="tnum cf-input--pos"
-      style={{ width: 80 }}
-      inputMode="numeric"
-      aria-label={ariaLabel}
-      value={text}
-      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-      }}
-      max={MAX_CYCLE_START_DAY}
-    />
-  );
-}
-
 function AmountField({
   value,
   fmt,
@@ -260,13 +231,7 @@ function AmountField({
   ariaLabel: string;
   onCommit: (next: number) => void;
 }): JSX.Element {
-  const [text, setText] = useState(value > 0 ? String(value) : '');
-  useEffect(() => setText(value > 0 ? String(value) : ''), [value]);
-
-  const commit = (): void => {
-    const next = parseAmountInput(text);
-    if (next !== value) onCommit(next);
-  };
+  const field = useCommittedInput({ value, format: amountFieldText, parse: parseAmountInput, onCommit });
 
   return (
     <input
@@ -274,12 +239,10 @@ function AmountField({
       inputMode="numeric"
       placeholder="Rp0"
       aria-label={ariaLabel}
-      value={formatAmountInput(text, fmt)}
-      onChange={(e) => setText(e.target.value.replace(/[^0-9]/g, ''))}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-      }}
+      value={formatAmountInput(field.text, fmt)}
+      onChange={(e) => field.setText(e.target.value.replace(/[^0-9]/g, ''))}
+      onBlur={field.commit}
+      onKeyDown={field.onKeyDown}
     />
   );
 }

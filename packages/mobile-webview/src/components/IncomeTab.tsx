@@ -4,6 +4,7 @@ import {
   formatMoney,
   formatPercent,
   INCOME_CADENCE_LABELS,
+  INCOME_EMPTY_LABELS,
   incomeBreakdown,
   incomeStatus,
   type ExpenseState,
@@ -120,7 +121,9 @@ export function IncomeTab({
 
       {rows.length === 0 ? (
         <div className="phone__empty">
-          {breakdown.sources.length === 0 ? 'Nothing here yet.' : 'No sources match this filter.'}
+          {breakdown.sources.length === 0
+            ? INCOME_EMPTY_LABELS['no-sources']
+            : 'No sources match this filter.'}
         </div>
       ) : null}
 
@@ -135,7 +138,7 @@ export function IncomeTab({
             <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>{expected.empty.label}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {expected.upcoming.map((u) => (
+              {expected.items.map((u) => (
                 <div key={u.id} className="phone__incomenext">
                   <span className="phone__incomeday">{u.dateLabel}</span>
                   <span className="phone__incomenextname">{u.name}</span>

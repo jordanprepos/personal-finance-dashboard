@@ -319,7 +319,13 @@ export interface DashboardCardRow {
  */
 export type DashboardCardBody =
   | { type: 'stat'; value: string; caption: string; progress?: number }
-  | { type: 'rows'; rows: DashboardCardRow[]; footer?: { label: string; value: string }; empty: string }
+  | {
+      type: 'rows';
+      rows: DashboardCardRow[];
+      footer?: { label: string; value: string };
+      /** shown in place of the rows when there are none; omit when that cannot happen */
+      empty?: string;
+    }
   | {
       type: 'donut';
       segments: DonutSegment[];
@@ -428,9 +434,9 @@ function incomeCompositionBody(ctx: DashboardCardContext): DashboardCardBody {
       value: b.total > 0 ? formatMoney(b.total, ctx.fmt) : '—',
     },
     // Same reasons as the Income expected card: with every source paused this
-    // said "no sources" above its own "· 2 paused" footer. The fallback is
-    // never shown — rows are empty exactly when no source is active.
-    empty: incomeEmptyState(ctx.budget)?.label ?? '',
+    // said "no sources" above its own "· 2 paused" footer. Set exactly when the
+    // rows are empty, since both mean no source is active.
+    empty: incomeEmptyState(ctx.budget)?.label,
   };
 }
 
@@ -459,7 +465,7 @@ function incomeExpectedBody(ctx: DashboardCardContext): DashboardCardBody {
   const expected = expectedIncome(ctx.budget, ctx.yearMonth, ctx.cycleStartDay);
   return {
     type: 'rows',
-    rows: expected.upcoming.slice(0, MAX_ROWS).map((u) => ({
+    rows: expected.items.slice(0, MAX_ROWS).map((u) => ({
       key: u.id,
       label: u.name,
       caption: u.dateLabel,
@@ -473,8 +479,7 @@ function incomeExpectedBody(ctx: DashboardCardContext): DashboardCardBody {
       ? undefined
       : { label: 'Still expected', value: formatMoney(expected.stillToLand, ctx.fmt) },
     // Why nothing is listed — the same decision the Income page and tab use.
-    // The fallback is never shown: `empty` is set exactly when rows are empty.
-    empty: expected.empty?.label ?? '',
+    empty: expected.empty?.label,
   };
 }
 

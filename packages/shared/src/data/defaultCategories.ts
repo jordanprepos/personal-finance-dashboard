@@ -227,31 +227,29 @@ const FORMER_NAMES: ReadonlyMap<string, string> = new Map([
  * canonical colour (colour is resolved by name), and let "Use my default
  * categories" add the new spelling beside it as a second category.
  *
- * Three rules keep this from merging or losing anything:
+ * Rules that keep this from merging or losing anything:
  *
  * - **A category is renamed only while the current name is free** — free of
  *   the account's own categories *and* of any category this pass has already
  *   renamed. An account holding "Apparel" beside the seeded "Apparell", or two
  *   "Apparell"s, keeps them apart under their stored names and colours.
- * - **An alert cap follows its category.** `categoryLimits` is keyed by name,
- *   so a cap stored under the old spelling is re-keyed to the new one.
- * - **That cap wins over one already under the new name.** A category is only
- *   renamed when no category holds the new name, so a cap stored there can
- *   only be an orphan — left behind by a deleted category, and never firing.
- *   The re-keyed cap is the one that was live. The next alert write saves the
- *   resolved map whole, which deletes both stale keys from Firestore.
+ * - **A cap stored under the old spelling follows its category** to the new
+ *   name.
+ * - **A cap already stored under the new name is kept.** Once the category
+ *   reads as "Apparel", the app itself writes its cap under "Apparel" — and
+ *   the alert write that does so deletes the old key — so that is the normal
+ *   state of a corrected account, not an orphan.
+ * - **When both keys exist, the old-spelling one wins.** That is the cap the
+ *   category was actually firing on before the correction; the new-name key
+ *   can only predate it as a leftover from a deleted category.
  *
- * Returns its inputs untouched when nothing matches, which is every account
+ * Returns its inputs untouched when nothing is renamed, which is every account
  * that was not seeded before a rename.
  */
 export function resolveFormerNames(
   categories: readonly Category[],
   alerts: AlertSettings,
 ): { categories: readonly Category[]; alerts: AlertSettings } {
-  if (!categories.some((c) => FORMER_NAMES.has(normalizeCategoryName(c.name)))) {
-    return { categories, alerts };
-  }
-
   const taken = new Set(categories.map((c) => normalizeCategoryName(c.name)));
   /** old spelling, normalised → the name it now reads as */
   const renamed = new Map<string, string>();
@@ -259,31 +257,52 @@ export function resolveFormerNames(
   const resolved = categories.map((c) => {
     const key = normalizeCategoryName(c.name);
     const current = FORMER_NAMES.get(key);
-    if (current === undefined || taken.has(normalizeCategoryName(current))) return c;
-    taken.add(normalizeCategoryName(current));
+    if (current === undefined) return c;
+    const currentKey = normalizeCategoryName(current);
+    if (taken.has(currentKey)) return c;
+    taken.add(currentKey);
     renamed.set(key, current);
     return { ...c, name: current, color: colorForName(current, c.order) };
   });
 
   if (renamed.size === 0) return { categories, alerts };
 
-  const replaced = new Set([...renamed.values()].map(normalizeCategoryName));
+  // Every other key kept as stored first, then each old-spelling cap re-keyed
+  // over it — so a new-name cap survives, and loses only to an old-spelling one.
   const limits: Record<string, number> = {};
+  /** normalised name → the key it is held under in `limits` */
+  const heldAs = new Map<string, string>();
+  const moved: [string, number][] = [];
   for (const [name, limit] of Object.entries(alerts.categoryLimits)) {
     const key = normalizeCategoryName(name);
     const current = renamed.get(key);
-    if (current !== undefined) limits[current] = limit; // re-keyed, and wins
-    else if (!replaced.has(key)) limits[name] = limit; // an orphan under the new name drops
+    if (current !== undefined) {
+      moved.push([current, limit]);
+    } else {
+      limits[name] = limit;
+      heldAs.set(key, name);
+    }
+  }
+  for (const [current, limit] of moved) {
+    const key = normalizeCategoryName(current);
+    const clash = heldAs.get(key);
+    if (clash !== undefined) delete limits[clash];
+    limits[current] = limit;
+    heldAs.set(key, current);
   }
 
   return { categories: resolved, alerts: { ...alerts, categoryLimits: limits } };
 }
 
 /**
- * A data source's snapshot with `resolveFormerNames` applied — the one call
- * both sources make as they assemble a month, so every consumer of the store
- * sees one name per category. The one-shot `queries.fetch*` reads skip it:
- * no app code calls them, and they return what is stored.
+ * A month snapshot with `resolveFormerNames` applied. `ExpenseStore` calls it
+ * once, as every snapshot arrives from whichever data source, so each consumer
+ * of the store sees one name per category and no source can forget it.
+ *
+ * Stored data is deliberately left as is: the one-shot `queries.fetch*` reads
+ * return stored names and cap keys, and `saveAlerts` depends on that — it
+ * diffs the stored keys against the resolved map to know which ones to
+ * delete, which is how an old-spelling key leaves Firestore.
  */
 export function withCurrentCategoryNames<
   T extends { categories: Category[]; profile: { alerts: AlertSettings } },
