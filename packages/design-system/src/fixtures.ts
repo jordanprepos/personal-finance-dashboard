@@ -129,7 +129,7 @@ export const limitRows: CategoryLimitRow[] = [
   { name: 'Streaming', limit: 200_000, spent: 0, used: 0, orphan: true },
 ];
 
-export const monthSpend = 8_450_000;
+export const spentToDate = 8_450_000;
 
 /** Every callback a category manager needs, as inert no-ops. */
 export const categoryHandlers = {

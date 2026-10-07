@@ -18,6 +18,7 @@ import {
   setupProgress,
   shiftMonth,
   sumAmounts,
+  transactionsToDate,
   shortMonthLabel,
   stackSegments,
   unsetAllocationIds,
@@ -527,7 +528,9 @@ function Phone({
             state.categories,
             state.today,
           )}
-          monthSpend={sumAmounts(state.monthTransactions)}
+          // To today, as the banner measures it — the whole window would count
+          // bills scheduled later in the period against the cap.
+          spentToDate={sumAmounts(transactionsToDate(state.monthTransactions, state.today))}
           categories={state.categories}
           fmt={fmt}
           onToggleEnabled={(enabled) => void store.setAlertsEnabled(enabled)}
