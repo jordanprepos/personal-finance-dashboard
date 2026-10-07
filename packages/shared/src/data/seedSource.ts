@@ -1,6 +1,13 @@
 import { Timestamp } from 'firebase/firestore';
 
-import { seriesDates } from '../lib/queries.js';
+import {
+  seriesDates,
+  seriesExtendResult,
+  seriesExtension,
+  type SeriesExtendResult,
+  type SeriesExtendWindow,
+} from '../lib/queries.js';
+import { carryOverPlan, type CarryOverResult } from '../lib/carryOver.js';
 import { normalizeDashboardCards } from '../lib/dashboardCards.js';
 import { cycleRange, toYear, toYearMonth, yearMonthOf, yearOfMonth } from '../lib/dates.js';
 import type {
@@ -26,7 +33,7 @@ import {
   seedTransactions,
   SEED_INCOME,
 } from './seedData.js';
-import type { ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
+import type { DeletedCategory, ExpenseDataSource, MonthSnapshot, Unsubscribe } from './source.js';
 
 /**
  * In-memory stand-in for Firestore. Same interface, same denormalization
@@ -75,6 +82,19 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     createdAt: Timestamp.now(),
   });
 
+  /** One row per date under `seriesId` — what creating and extending a run
+      both write, as `writeSeriesRows` is on the Firestore path. */
+  const appendSeries = (
+    input: TransactionInput,
+    dates: readonly string[],
+    seriesId: string,
+  ): Transaction[] => {
+    const created = dates.map((date) => build({ ...input, date }, seriesId));
+    transactions = [...transactions, ...created];
+    notify();
+    return clone(created);
+  };
+
   /* The reads, as plain closures. The interface methods and the watch
      snapshot both go through these, so a live subscriber and a one-shot
      caller can never disagree about what the month contains. */
@@ -107,6 +127,7 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
     categories: readCategories(),
     monthTransactions: readPeriod(yearMonth, cycleStartDay),
     yearTransactions: readYear(yearMonth, cycleStartDay),
+    hasTransactions: transactions.length > 0,
     budget: readBudget(yearMonth),
     profile: { ...profile },
   });
@@ -198,12 +219,32 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       return { ...category };
     },
 
-    async deleteCategory(categoryId: string): Promise<number> {
-      const removed = transactions.filter((t) => t.categoryId === categoryId).length;
+    async deleteCategory(categoryId: string): Promise<DeletedCategory> {
+      // As stored — the seed array holds what was created, not the snapshot's
+      // name-corrected copy — matching what the Firestore path reads back.
+      const category = categories.find((c) => c.id === categoryId);
+      const removed = transactions.filter((t) => t.categoryId === categoryId);
       transactions = transactions.filter((t) => t.categoryId !== categoryId);
       categories = categories.filter((c) => c.id !== categoryId);
       notify();
-      return removed;
+      const missing: Category = {
+        id: categoryId,
+        name: '',
+        type: 'variable',
+        color: '',
+        icon: '',
+        order: 0,
+        archived: false,
+      };
+      return { category: { ...(category ?? missing) }, transactions: clone(removed) };
+    },
+
+    async restoreCategory(category: Category): Promise<void> {
+      // Skipped when the id is back already: a repeated undo must not add a
+      // second copy, which `setDoc` to the same id never would either.
+      if (categories.some((c) => c.id === category.id)) return;
+      categories = [...categories, { ...category }];
+      notify();
     },
 
     async createTransaction(input: TransactionInput): Promise<Transaction> {
@@ -217,13 +258,22 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       input: TransactionInput,
       throughYearMonth: string,
     ): Promise<Transaction[]> {
-      const seriesId = newSeriesId();
-      const created = seriesDates(input.date, throughYearMonth).map((date) =>
-        build({ ...input, date }, seriesId),
+      return appendSeries(input, seriesDates(input.date, throughYearMonth), newSeriesId());
+    },
+
+    async extendTransactionSeries(
+      seriesId: string,
+      window: SeriesExtendWindow,
+    ): Promise<SeriesExtendResult> {
+      // The same plan the Firestore path writes, so the two cannot disagree
+      // about which months a run gains or which fields it carries.
+      const plan = seriesExtension(
+        transactions.filter((t) => t.seriesId === seriesId),
+        window,
       );
-      transactions = [...transactions, ...created];
-      notify();
-      return clone(created);
+      if (!plan || plan.dates.length === 0) return seriesExtendResult([]);
+      appendSeries(plan.input, plan.dates, seriesId);
+      return seriesExtendResult(plan.dates);
     },
 
     async updateTransaction(transactionId: string, patch: TransactionPatch): Promise<void> {
@@ -249,13 +299,23 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
       notify();
     },
 
-    async deleteTransactionSeries(key: TransactionSeriesKey): Promise<number> {
+    async deleteTransactionSeries(key: TransactionSeriesKey): Promise<Transaction[]> {
       const matches = (t: Transaction): boolean =>
         t.seriesId === key.seriesId && t.date >= key.fromDate;
-      const removed = transactions.filter(matches).length;
+      const removed = transactions.filter(matches);
       transactions = transactions.filter((t) => !matches(t));
       notify();
-      return removed;
+      return clone(removed);
+    },
+
+    async restoreTransactions(rows: readonly Transaction[]): Promise<void> {
+      // Original ids, and skipped when already present — the seed twin of
+      // `setDoc` to the same id, where a repeat writes nothing new.
+      const present = new Set(transactions.map((t) => t.id));
+      const back = rows.filter((r) => !present.has(r.id)).map((r) => ({ ...r }));
+      if (back.length === 0) return;
+      transactions = [...transactions, ...back];
+      notify();
     },
 
     async saveBudget(budget: Budget): Promise<void> {
@@ -296,6 +356,22 @@ export function createSeedDataSource(userId = 'demo-user'): ExpenseDataSource {
         ...current,
         categoryBudgets: { ...current.categoryBudgets, [categoryId]: amount },
       });
+    },
+
+    async carryOverBudget(
+      yearMonth: string,
+      categoryIds: readonly string[],
+    ): Promise<CarryOverResult> {
+      // Stored months only, as the Firestore path sees them; the target is
+      // read the way the snapshot shows it, so what is filled is what was empty.
+      const { result, budget } = carryOverPlan(
+        yearMonth,
+        Object.values(budgets),
+        readBudget(yearMonth),
+        categoryIds,
+      );
+      if (budget) await this.saveBudget(budget);
+      return result;
     },
 
   };

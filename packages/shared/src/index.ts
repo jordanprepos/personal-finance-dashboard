@@ -6,6 +6,7 @@ export * from './lib/derive.js';
 export * from './lib/accounts.js';
 export * from './lib/dashboardCards.js';
 export * from './lib/forms.js';
+export * from './lib/carryOver.js';
 export * as queries from './lib/queries.js';
 export * from './data/index.js';
 export * from './store.js';

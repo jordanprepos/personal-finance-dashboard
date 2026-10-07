@@ -15,7 +15,7 @@ import {
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
-import { IncomeModal } from '@expense-tracker/design-system';
+import { CarryOverButton, IncomeModal } from '@expense-tracker/design-system';
 
 type Filter = 'all' | 'active' | 'paused';
 
@@ -143,6 +143,17 @@ export function IncomeView({ store, state, fmt }: ViewProps): JSX.Element {
               {breakdown.sources.length === 0
                 ? INCOME_EMPTY_LABELS['no-sources']
                 : 'No sources match this filter.'}
+              {/* Income is per period, so every new one opens here. Copying
+                  is the way back to an established plan without re-typing
+                  each source; the toast names the month it came from. */}
+              {breakdown.sources.length === 0 ? (
+                <div style={{ marginTop: 14 }}>
+                  <CarryOverButton
+                    busy={state.busy}
+                    onCarryOver={() => void store.carryOverBudget()}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

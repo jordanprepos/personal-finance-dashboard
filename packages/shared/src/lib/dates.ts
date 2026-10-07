@@ -269,3 +269,42 @@ export function cycleRangeLabel(cycleId: string, startDay: number, locale = 'en-
   const { start, end } = cycleRange(cycleId, startDay);
   return `${shortDayLabel(start, locale)} – ${shortDayLabel(end, locale)}`;
 }
+
+/* --------------------------------------------------------- recurring runs */
+
+/**
+ * How far a repeating charge is written ahead: twelve periods.
+ *
+ * Runs used to stop at the year's last period, so one set up in December was a
+ * single entry and every run on an account ended together, each January, with
+ * nothing to say so. A rolling horizon staggers the ends; `seriesExtendTarget`
+ * is how a run is kept going past one.
+ */
+export const SERIES_PERIODS = 12;
+
+/** The last period a run reaches when it covers `periods` periods from `period`. */
+export function seriesLastPeriod(period: string, periods: number = SERIES_PERIODS): string {
+  return shiftMonth(period, periods - 1);
+}
+
+/**
+ * The calendar month a run on `day` must be written through to reach
+ * `lastPeriod`. `seriesDates` steps calendar months, and which half of a cycle
+ * a day lands in depends on the day itself — at a 27th start, the 28th of the
+ * 2027-09 period is in August, the 3rd in September — so a single fixed bound
+ * would truncate one and overshoot the other. At a start day of 1 this is
+ * `lastPeriod` itself.
+ */
+export function seriesThroughMonth(lastPeriod: string, day: number, startDay: number): string {
+  return toYearMonth(dateInCycle(lastPeriod, day, startDay));
+}
+
+/**
+ * The period "Repeat through …" extends a run to: a full horizon counted from
+ * the period containing `today`, not from the entry being edited — so it
+ * means "keep this going a year from now" whichever month it is pressed in.
+ * The button's label and the store's write both read this, so they agree.
+ */
+export function seriesExtendTarget(today: string, startDay: number): string {
+  return seriesLastPeriod(cycleOf(today, startDay));
+}

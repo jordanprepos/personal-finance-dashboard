@@ -83,6 +83,7 @@ export const noopHandlers = {
   onManageAccounts: () => {},
   onDelete: () => {},
   onDeleteSeries: () => {},
+  onExtendSeries: () => {},
   onClose: () => {},
   onManageCategories: () => {},
   onAddDefaultCategories: () => {},
@@ -136,6 +137,7 @@ export const categoryHandlers = {
   onDeleteCategory: () => {},
   onSetAllocation: () => {},
   onAddDefaultCategories: () => {},
+  onCarryOver: () => {},
   onClose: () => {},
 };
 

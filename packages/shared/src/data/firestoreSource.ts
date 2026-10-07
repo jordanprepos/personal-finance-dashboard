@@ -39,7 +39,8 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
     deleteAccount: (accountId: string): Promise<void> => q.deleteAccount(db, userId, accountId),
 
     createCategory: (input: CategoryInput): Promise<Category> => q.createCategory(db, userId, input),
-    deleteCategory: (categoryId: string): Promise<number> => q.deleteCategory(db, userId, categoryId),
+    deleteCategory: (categoryId: string) => q.deleteCategory(db, userId, categoryId),
+    restoreCategory: (category: Category) => q.restoreCategory(db, userId, category),
 
     createTransaction: (input: TransactionInput): Promise<Transaction> =>
       q.createTransaction(db, userId, input),
@@ -47,9 +48,12 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
       q.createTransactionSeries(db, userId, input, through),
     updateTransaction: (id: string, patch: TransactionPatch): Promise<void> =>
       q.updateTransaction(db, userId, id, patch),
-    deleteTransaction: (id: string): Promise<void> => q.deleteTransaction(db, userId, id),
-    deleteTransactionSeries: (key: TransactionSeriesKey): Promise<number> =>
+    deleteTransaction: (id: string) => q.deleteTransaction(db, userId, id),
+    deleteTransactionSeries: (key: TransactionSeriesKey) =>
       q.deleteTransactionSeries(db, userId, key),
+    restoreTransactions: (rows: readonly Transaction[]) => q.restoreTransactions(db, userId, rows),
+    extendTransactionSeries: (seriesId: string, window: q.SeriesExtendWindow) =>
+      q.extendTransactionSeries(db, userId, seriesId, window),
 
     saveBudget: (budget: Budget): Promise<void> => q.saveBudget(db, userId, budget),
     setIncomes: (yearMonth: string, incomes: Income[]): Promise<void> =>
@@ -61,25 +65,30 @@ export function createFirestoreDataSource(db: Firestore, userId: string): Expens
       q.saveDashboardCards(db, userId, cards),
     setCategoryBudget: (yearMonth: string, categoryId: string, amount: number): Promise<void> =>
       q.setCategoryBudget(db, userId, yearMonth, categoryId, amount),
+    carryOverBudget: (yearMonth: string, categoryIds: readonly string[]) =>
+      q.carryOverBudget(db, userId, yearMonth, categoryIds),
   };
 }
 
 /**
- * Fans one period out to the six listeners the dashboard needs, and gates the
+ * Fans one period out to the seven listeners the dashboard needs, and gates the
  * callback until each has reported at least once.
  *
- * Two of the six are windowed by `cycleStartDay` rather than by the period id
+ * Two of the seven are windowed by `cycleStartDay` rather than by the period id
  * — the period's own transactions, and the twelve periods of the year around
- * it. The other four (accounts, categories, the budget document, the profile)
- * are keyed by id or account and are unaffected by how wide a period is.
+ * it. Four (accounts, categories, the budget document, the profile) are keyed
+ * by id or account and are unaffected by how wide a period is. The seventh is
+ * a `limit(1)` probe of the whole transactions collection — whether the
+ * account has logged anything ever, which the getting-started panel needs and
+ * the year's rows cannot answer on the first period of a new year.
  *
- * Without that gate the first paint would arrive in six pieces — categories
+ * Without that gate the first paint would arrive in seven pieces — categories
  * with no transactions, then transactions with no budget — and each piece
  * would render. After the gate opens every later change emits immediately,
  * since by then only one part is actually changing.
  *
  * The first error wins and stops the flow: a partial month is worse than a
- * visible failure, and in practice all six fail together (they share one
+ * visible failure, and in practice all seven fail together (they share one
  * rules path).
  */
 function watchMonth(
@@ -96,7 +105,7 @@ function watchMonth(
   /**
    * Registers each listener the moment it exists.
    *
-   * Passing all six to one `push(...)` would evaluate every argument before
+   * Passing all seven to one `push(...)` would evaluate every argument before
    * pushing any, leaving `unsubscribes` empty for the whole of setup — so a
    * listener that threw partway (`assertYearMonth` on a malformed
    * `yearMonth`, say) would strand the ones already registered, with the
@@ -114,24 +123,34 @@ function watchMonth(
 
   /**
    * Emits only once every part has arrived. The undefined checks are the gate
-   * — they also let TypeScript narrow, so no casts are needed. Once all six
+   * — they also let TypeScript narrow, so no casts are needed. Once all seven
    * are set the condition stays false and every later change emits straight
    * through.
    */
   const emit = (): void => {
     if (failed) return;
-    const { accounts, categories, monthTransactions, yearTransactions, budget, profile } = parts;
+    const { accounts, categories, monthTransactions, yearTransactions, hasTransactions, budget, profile } =
+      parts;
     if (
       accounts === undefined ||
       categories === undefined ||
       monthTransactions === undefined ||
       yearTransactions === undefined ||
+      hasTransactions === undefined ||
       budget === undefined ||
       profile === undefined
     ) {
       return;
     }
-    onChange({ accounts, categories, monthTransactions, yearTransactions, budget, profile });
+    onChange({
+      accounts,
+      categories,
+      monthTransactions,
+      yearTransactions,
+      hasTransactions,
+      budget,
+      profile,
+    });
   };
 
   const fail = (error: Error): void => {
@@ -191,6 +210,17 @@ function watchMonth(
         yearEnd,
         (rows) => {
           parts.yearTransactions = rows;
+          emit();
+        },
+        fail,
+      ),
+    );
+    track(
+      q.watchHasTransactions(
+        db,
+        userId,
+        (hasTransactions) => {
+          parts.hasTransactions = hasTransactions;
           emit();
         },
         fail,

@@ -13,6 +13,15 @@ import type {
   TransactionPatch,
   TransactionSeriesKey,
 } from '../types.js';
+import type { CarryOverResult } from '../lib/carryOver.js';
+import type { SeriesExtendResult, SeriesExtendWindow } from '../lib/queries.js';
+
+/** What a category delete removed, kept so it can be undone. */
+export interface DeletedCategory {
+  /** the category document as stored — not name-corrected, not recoloured */
+  category: Category;
+  transactions: Transaction[];
+}
 
 /** Tears down a subscription. Safe to call more than once. */
 export type Unsubscribe = () => void;
@@ -27,6 +36,13 @@ export interface MonthSnapshot {
   categories: Category[];
   monthTransactions: Transaction[];
   yearTransactions: Transaction[];
+  /**
+   * Whether the account holds any transaction in any period — the one fact
+   * about history beyond the year in view. `yearTransactions` is empty on the
+   * first period of every new year, so "has ever logged an expense" cannot be
+   * read from it.
+   */
+  hasTransactions: boolean;
   budget: Budget;
   profile: Profile;
 }
@@ -50,9 +66,9 @@ export interface ExpenseDataSource {
    * ending in that month. Both are needed — the id alone does not say which
    * dates it covers.
    *
-   * The Firestore implementation fans out to six listeners and emits only
-   * once all six have reported, so the first callback is a complete month
-   * rather than six partial repaints. The seed implementation re-emits after
+   * The Firestore implementation fans out to seven listeners and emits only
+   * once all seven have reported, so the first callback is a complete month
+   * rather than seven partial repaints. The seed implementation re-emits after
    * every write, so demo mode behaves the same way rather than going stale
    * after the first paint.
    *
@@ -83,16 +99,42 @@ export interface ExpenseDataSource {
   deleteAccount(accountId: string): Promise<void>;
 
   createCategory(input: CategoryInput): Promise<Category>;
-  /** Hard delete — also removes every transaction in the category. Returns that count. */
-  deleteCategory(categoryId: string): Promise<number>;
+  /**
+   * Hard delete — also removes every transaction in the category, in every
+   * year. Returns what was removed, the category as stored, so undo can put
+   * it back with `restoreCategory` and `restoreTransactions`.
+   */
+  deleteCategory(categoryId: string): Promise<DeletedCategory>;
+  /** Writes a deleted category back under its own id. */
+  restoreCategory(category: Category): Promise<void>;
 
   createTransaction(input: TransactionInput): Promise<Transaction>;
   /** One document per month, from `input.date` through `throughYearMonth`. */
   createTransactionSeries(input: TransactionInput, throughYearMonth: string): Promise<Transaction[]>;
   updateTransaction(transactionId: string, patch: TransactionPatch): Promise<void>;
+  /**
+   * No read first: undo restores the snapshot's own row, which came through
+   * the same `toTransaction` mapper, so a round trip before the delete would
+   * buy nothing and delay latency compensation on the commonest delete.
+   */
   deleteTransaction(transactionId: string): Promise<void>;
-  /** "This and future months" — matches on categoryId + item + date >= fromDate. */
-  deleteTransactionSeries(key: TransactionSeriesKey): Promise<number>;
+  /**
+   * Continues a run past its last entry, under its own `seriesId`, within
+   * `window` — never into a period before today's, never into a gap, and
+   * nothing at all when the run already reaches the target. The plan is
+   * `queries.seriesExtension`, shared by both implementations.
+   */
+  extendTransactionSeries(seriesId: string, window: SeriesExtendWindow): Promise<SeriesExtendResult>;
+  /**
+   * "This and future months" — matches on `seriesId` and `date >= fromDate`.
+   * Returns the rows removed, including any beyond the year in view.
+   */
+  deleteTransactionSeries(key: TransactionSeriesKey): Promise<Transaction[]>;
+  /**
+   * Writes deleted rows back under their original ids — undo for the deletes
+   * above. Ids already present are left as they are, so a repeat adds nothing.
+   */
+  restoreTransactions(rows: readonly Transaction[]): Promise<void>;
 
   saveBudget(budget: Budget): Promise<void>;
   /**
@@ -112,4 +154,11 @@ export interface ExpenseDataSource {
   setDashboardCards(cards: readonly string[]): Promise<void>;
   /** Read-modify-write of one category's allocation for one month. */
   setCategoryBudget(yearMonth: string, categoryId: string, amount: number): Promise<void>;
+  /**
+   * Fills the month's empty income list and unset allocations from the latest
+   * earlier months that hold them — a write that reads first, like the two above,
+   * not a read path. Only `categoryIds` are carried. Never overwrites; the
+   * rules are `lib/carryOver.ts`'s, shared by both implementations.
+   */
+  carryOverBudget(yearMonth: string, categoryIds: readonly string[]): Promise<CarryOverResult>;
 }

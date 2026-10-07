@@ -55,6 +55,12 @@ export interface ExpenseFormProps {
   onDelete: (transaction: Transaction) => void;
   /** delete this entry and every later month in its series */
   onDeleteSeries: (transaction: Transaction) => void;
+  /**
+   * Continue this entry's series past its last month, to
+   * `seriesExtendTarget(today, cycleStartDay)` — the form labels the button
+   * with the same helper, so the label and the write agree.
+   */
+  onExtendSeries: (transaction: Transaction) => void;
   onClose: () => void;
   /** hands off to the categories surface when there is nothing to pick yet */
   onManageCategories: () => void;
@@ -85,7 +91,15 @@ export interface CategoryManagerProps {
   fmt: MoneyFormat;
   onAddCategory: (name: string, type: CategoryType, allocation: number) => void;
   onDeleteCategory: (category: Category) => void;
+  /** Writes this month's allocation for one category; 0 clears it. */
+  onSetAllocation: (categoryId: string, amount: number) => void;
   onAddDefaultCategories: () => void;
+  /**
+   * Fill this month's unset allocations (and an empty income list) from
+   * earlier months — `store.carryOverBudget`. Offered while any category has
+   * no allocation set (`unsetAllocationIds`), the same test the fill uses.
+   */
+  onCarryOver: () => void;
   onClose: () => void;
 }
 

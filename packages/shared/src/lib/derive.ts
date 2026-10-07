@@ -1138,37 +1138,41 @@ export interface SetupProgress {
  * what an empty account sees in place of a page of blank envelopes.
  *
  * `show` is deliberately narrower than "something is missing". Income is
- * per period and does not carry over, so every account starts each month with
- * none — the income hint on the summary card covers that, and the panel stays
- * out of it. A missing expense only counts on the period containing `today`:
- * stepping into next January (recurring runs stop at the year's last period)
- * or a year before the app was used is empty for an established account too,
- * and greeting that with "log your first expense" would be wrong. A missing
- * category list is a fresh account on any period.
+ * per period and does not carry over by itself, so every account starts each
+ * month with none — the income hint on the summary card covers that (with
+ * "Copy from last month"), and the panel stays out of it. A missing category
+ * list is a fresh account on any period.
+ *
+ * A missing expense is read **account-wide** (`hasTransactions`), never from
+ * the year in view. It used to be `yearTransactions.length > 0`, which is
+ * empty on the first period of every new year — so on 1 January every
+ * established account was told to "log your first expense", and the panel
+ * being up also hid the income hint's Copy button exactly when it mattered.
+ * It still only counts on the period containing `today`, so a brand-new
+ * account browsing earlier months sees no panel there.
  */
 export function setupProgress({
   categories,
-  transactions,
+  hasTransactions,
   budget,
   yearMonth,
   today,
   cycleStartDay = 1,
 }: {
   categories: readonly Category[];
-  /** the widest window the snapshot carries — `yearTransactions` */
-  transactions: readonly Transaction[];
+  /** whether the account holds any transaction in any period — `state.hasTransactions` */
+  hasTransactions: boolean;
   budget: Budget | null;
   yearMonth: string;
   today: string;
   cycleStartDay?: number;
 }): SetupProgress {
   const hasCategories = categories.length > 0;
-  const hasExpense = transactions.length > 0;
   const onCurrentPeriod = cycleOf(today, cycleStartDay) === yearMonth;
   return {
     categories: hasCategories,
     income: totalIncome(budget) > 0,
-    expense: hasExpense,
-    show: !hasCategories || (onCurrentPeriod && !hasExpense),
+    expense: hasTransactions,
+    show: !hasCategories || (onCurrentPeriod && !hasTransactions),
   };
 }

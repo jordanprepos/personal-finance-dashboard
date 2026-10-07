@@ -37,7 +37,7 @@ export interface ExpenseFormValues {
   item: string;
   /** day of month, as typed */
   dayText: string;
-  /** write one document per remaining month of the year */
+  /** write one document per period for `SERIES_PERIODS` periods */
   repeat: boolean;
   note: string;
 }

@@ -20,6 +20,7 @@ import {
   sumAmounts,
   shortMonthLabel,
   stackSegments,
+  unsetAllocationIds,
   yearOfMonth,
   type AuthController,
   type AuthState,
@@ -40,7 +41,7 @@ import { IncomeTab } from './components/IncomeTab';
 import { HomeTab } from './components/HomeTab';
 import { ManageSheet } from './components/ManageSheet';
 import { MobileAlertBanners as AlertBanners } from '@expense-tracker/design-system';
-import { GettingStarted } from '@expense-tracker/design-system';
+import { CarryOverButton, GettingStarted, Toast } from '@expense-tracker/design-system';
 
 type Tab = 'home' | 'daily' | 'monthly' | 'yearly' | 'income';
 
@@ -174,7 +175,7 @@ function Phone({
   const present = categories.filter((c) => monthTransactions.some((t) => t.categoryId === c.id));
   const setup = setupProgress({
     categories,
-    transactions: state.yearTransactions,
+    hasTransactions: state.hasTransactions,
     budget,
     yearMonth,
     today: state.today,
@@ -252,22 +253,33 @@ function Phone({
             is up, whose step two is the same button. Outside the summary so
             Home, which has no summary, still offers it. */}
         {summary.hasIncome || tab === 'income' || setup.show ? null : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none' }}>
-            <button
-              type="button"
-              className="cf-ghostbtn"
-              style={{ height: 44, flex: 'none' }}
-              onClick={() => setTab('income')}
-            >
-              Add income
-            </button>
-            {/* Home has no summary to explain the button, so it says why. */}
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="cf-ghostbtn"
+                style={{ height: 44, flex: 'none' }}
+                onClick={() => setTab('income')}
+              >
+                Add income
+              </button>
+              {/* Every established account lands here at the start of a period:
+                  income and allocations are per period and do not carry over on
+                  their own. This is also the only way a phone fills in
+                  allocations for a month after the first. */}
+              <CarryOverButton
+                busy={state.busy}
+                onCarryOver={() => void store.carryOverBudget()}
+                style={{ height: 44, flex: 'none' }}
+              />
+            </div>
+            {/* Home has no summary to explain the buttons, so it says why. */}
             {tab === 'home' ? (
-              <span style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
+              <span style={{ fontSize: 12.5, color: 'var(--cf-slate)', flex: 'none' }}>
                 No income set for this month yet.
               </span>
             ) : null}
-          </div>
+          </>
         )}
 
         {tab === 'home' ? null : (
@@ -379,7 +391,9 @@ function Phone({
           </>
         ) : null}
 
-        {tab === 'monthly' ? <MonthTab state={state} fmt={fmt} /> : null}
+        {tab === 'monthly' ? (
+          <MonthTab state={state} fmt={fmt} onSetAllocations={() => setCategoriesOpen(true)} />
+        ) : null}
         {tab === 'yearly' ? <YearTab store={store} state={state} fmt={fmt} /> : null}
         {tab === 'home' ? <HomeTab store={store} state={state} fmt={fmt} /> : null}
         {tab === 'income' ? <IncomeTab store={store} state={state} fmt={fmt} /> : null}
@@ -439,6 +453,7 @@ function Phone({
           }}
           onDelete={(entry) => void store.deleteExpense(entry)}
           onDeleteSeries={(entry) => void store.deleteExpenseSeries(entry)}
+          onExtendSeries={(entry) => void store.extendExpenseSeries(entry)}
           onAddDefaultCategories={() => void store.addDefaultCategories()}
           transaction={editing}
           isRecurring={editing !== null && editing.seriesId !== null}
@@ -494,7 +509,9 @@ function Phone({
             void store.addCategory(name, type, allocation)
           }
           onDeleteCategory={(category) => void store.deleteCategory(category)}
+          onSetAllocation={(categoryId, amount) => void store.setCategoryBudget(categoryId, amount)}
           onAddDefaultCategories={() => void store.addDefaultCategories()}
+          onCarryOver={() => void store.carryOverBudget()}
           onClose={() => setCategoriesOpen(false)}
         />
       ) : null}
@@ -523,7 +540,9 @@ function Phone({
         />
       ) : null}
 
-      {state.toast ? <div className="cf-toast cf-anim-in-fast">{state.toast}</div> : null}
+      {state.toast ? (
+        <Toast text={state.toast} undoable={state.undoable} onUndo={() => void store.undo()} />
+      ) : null}
     </div>
   );
 }
@@ -533,9 +552,12 @@ function Phone({
 function MonthTab({
   state,
   fmt,
+  onSetAllocations,
 }: {
   state: ReturnType<typeof useStore>;
   fmt: MoneyFormat;
+  /** Opens Categories, where each row carries this month's allocation. */
+  onSetAllocations: () => void;
 }): JSX.Element {
   const { categories, monthTransactions, budget } = state;
   const groups: [string, Envelope[]][] = [
@@ -544,8 +566,33 @@ function MonthTab({
     ['Savings', envelopesByType('savings', categories, monthTransactions, budget)],
   ];
 
+  // Allocations are per month, so this is where a missing one is noticed —
+  // and Categories, where it is set, is two taps away behind Manage. Unset
+  // means no key, as "Copy from last month" reads it: a stored 0 is someone
+  // leaving that category unbudgeted on purpose, and must not nag every month.
+  const unallocated =
+    unsetAllocationIds(
+      groups.flatMap(([, envelopes]) => envelopes.map((e) => ({ id: e.categoryId }))),
+      budget?.categoryBudgets ?? {},
+    ).length > 0;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 'none' }}>
+      {unallocated ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ flex: 1, fontSize: 12.5, color: 'var(--cf-slate)' }}>
+            Some envelopes have no allocation for {monthLabel(state.yearMonth)}.
+          </span>
+          <button
+            type="button"
+            className="cf-ghostbtn"
+            style={{ minHeight: 44, flex: 'none' }}
+            onClick={onSetAllocations}
+          >
+            Set allocations
+          </button>
+        </div>
+      ) : null}
       {groups.map(([label, envelopes]) =>
         envelopes.length === 0 ? null : (
           <div key={label}>

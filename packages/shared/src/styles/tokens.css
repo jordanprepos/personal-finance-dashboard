@@ -938,6 +938,25 @@ input {
   font-weight: 500;
   box-shadow: var(--cf-shadow-pos);
   z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Undo, inside a delete's toast. Text-weight rather than a filled button: it
+   sits on the ink pill and is the only control there. */
+.cf-toast__undo {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px 2px;
+  min-height: 32px;
+  cursor: pointer;
 }
 
 .cf-banner {
