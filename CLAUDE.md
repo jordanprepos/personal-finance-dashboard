@@ -231,11 +231,19 @@ Two things matter when touching this:
   the generation before calling `set`, and `reset()` both bumps the generation
   and unsubscribes. `watchCurrentMonth` tears down the previous subscription
   before opening a new one, so a month switch never leaves two running.
-- **The Firestore implementation gates its first emit.** It fans out to six
-  listeners and stays silent until all six have reported, so the first paint
-  is a whole month rather than six partial repaints. After that, every change
+- **The Firestore implementation gates its first emit.** It fans out to seven
+  listeners and stays silent until all seven have reported, so the first paint
+  is a whole month rather than seven partial repaints. After that, every change
   emits immediately. The first error tears the whole fan-out down — a partial
   month is worse than a visible failure.
+- **The seventh listener is `hasTransactions`**, a `limit(1)` probe of the
+  whole transactions collection (`queries.watchHasTransactions`). It is the
+  snapshot's only fact about history beyond the year in view, and exists for
+  the getting-started panel — see "First run" below. It is derived, not
+  stored: a "has logged an expense" flag on the profile would be a rollup
+  document, missed by any write that bypasses the store (spreadsheet backfill
+  through plain `createTransaction`) and absent on every existing account. One
+  document read per subscription, no index.
 
 The seed source is genuinely reactive too: it keeps a watcher registry and
 re-emits after every write, so demo mode behaves like the live path instead of
@@ -308,9 +316,12 @@ defaulting to `1`: `pace` counts elapsed days and period length from the window;
 `bucketByMonth` assigns rows by `cycleOf(t.date)` rather than the stored
 `yearMonth` (still twelve buckets a year, just cycle-shaped); `expectedIncome`
 sorts by position in the window, not by day number, since 27 comes before 3.
-`store.addExpense`'s repeat bound is the calendar month the year's **last
-period opens in** (`"2026-11"` at a 27th start), not `"${year}-12"` — left as
-December the run overshoots by one period into January.
+`store.addExpense`'s repeat bound is `seriesThroughMonth(lastPeriod, day,
+startDay)`: the calendar month *that day* falls in for the run's last period.
+Which half of a cycle a day lands in depends on the day — at a 27th start the
+28th of period `2027-09` is in August, the 3rd in September — so a single
+fixed bound truncates one and overshoots the other. See "Recurring entries"
+for how far a run reaches.
 
 ### The category template — one source, three consumers
 
@@ -434,6 +445,58 @@ that month's entry. Rows written via plain `createTransaction` (e.g. spreadsheet
 backfill) get `seriesId: null` and read as one-offs; only
 `createTransactionSeries` produces entries that show in the recurring panel.
 
+**A run covers twelve periods, and is continued on request.** `SERIES_PERIODS`
+(`lib/dates.ts`) periods from the one in view, through `seriesLastPeriod`. It
+used to be "every remaining period of the year", which made a run set up in
+December a single entry and ended every run on the account together each
+January, with nothing on screen to say so.
+
+Continuing one is **Repeat through …** on the edit form of any series member
+(`store.extendExpenseSeries`). It is deliberately an action, never automatic,
+for the same reason "Copy from last month" is: opening a period must not write
+rows. What it writes is `queries.seriesExtension`, which both data sources
+call (`extendTransactionSeries`, Firestore and seed twin):
+
+- **Months after the run's last entry only**, through
+  `seriesExtendTarget(today, cycleStartDay)` — a full horizon from the period
+  containing *today*, not from the entry being edited, so it means "keep this
+  going a year from now" whichever month it is pressed from. The button's
+  label reads the same helper, so the label and the write agree.
+- **Never into the past.** Nothing is written before the period containing
+  today: a run that lapsed in December and is extended in March resumes in
+  March. January and February went by without it — exactly the months someone
+  logs by hand once a charge stops appearing — so backfilling them would
+  duplicate those. The toast names where it resumed ("from March 2027"), so a
+  skipped stretch is visible.
+- **Idempotent.** A run already reaching the target gains nothing, so a second
+  press or a second tab writes no duplicates. A month deleted from the middle
+  of a run is not refilled — it was deleted on purpose.
+- **Same `seriesId`**, which is what lets "this + future months" reach the new
+  entries. It takes an existing id and writes nothing for one with no entries,
+  so callers still cannot mint a run — the reason `seriesId` stays out of
+  `TransactionInput`.
+- **Fields from the last entry, day from the first.** The last carries the
+  latest edits (editing a member changes only that month); the first carries
+  the day the run was set up on, which a short month may have clamped since —
+  a run on the 31st continuing from February goes on the 31st/30th, not the
+  28th forever. Both calendar bounds (`SeriesExtendWindow` is in periods) are
+  derived inside `seriesExtension` from that same first day, so under a cycle
+  the window and the dates written into it cannot disagree about which half of
+  a period the day lands in. Optional fields are spread conditionally, never
+  `undefined`.
+
+It reads the run with `fetchTransactionSeries` (`seriesId ==`, `orderBy date`),
+which the existing `seriesId, date` composite index covers. Runs written before
+this change end at December of their year; each needs one **Repeat through …**
+to continue. Before January is the easy time — afterwards none of their entries
+is in the period in view, and since nothing is backfilled, January would be
+left to log by hand.
+
+Runs still end **silently**. Twelve-period horizons stagger the ends rather
+than stacking them on 1 January, but nothing yet says "this run ends in May";
+an "ends …" marker on the Monthly recurring panel, for runs whose last entry
+falls inside the year in view, is the obvious follow-up.
+
 ### Denormalization
 
 `yearMonth` ("YYYY-MM") and `year` ("YYYY") are computed **from `date` on every
@@ -460,9 +523,19 @@ re-derives both).
   element-wise. Editing itself is a modal/sheet (`IncomeModal` /
   `IncomeSheet`), not inline fields — a source carries six fields, and six
   always-live inputs per row read as a form.
-- **Allocations**: per-category field in desktop Categories modal, or the
-  allocation input when creating a category on mobile. Writes to
-  `budgets/{yearMonth}.categoryBudgets[categoryId]`.
+- **Allocations**: a per-category field in the Categories manager on both
+  surfaces — inline beside the name on desktop, on its own line under the name
+  in the phone's sheet (at 360px a name, a money field and Delete in one row
+  would leave the name little room — estimated, not measured). Both commit on blur/Enter and write
+  `budgets/{yearMonth}.categoryBudgets[categoryId]`; an emptied field writes
+  0, which "Copy from last month" (below) then leaves alone. The phone sheet
+  used to have no such field — allocation was set once, at create — so every
+  month after a category's first read "no allocation" with no way to change
+  it there. The phone's Month tab links to the sheet ("Set allocations")
+  whenever an envelope has no allocation **set** for the month — no key, as
+  carry-over reads it, so a category deliberately cleared to 0 does not nag
+  every month. That is where the gap is noticed, and Categories sits behind
+  Manage.
 
 `Income.amount` is **per payment, not per month**, and a source carries
 `cadence` (`monthly` | `quarterly` | `one_off`), `kind` (`fixed` | `variable`,
@@ -526,6 +599,77 @@ fallback: `queries.resolveIncomes` synthesises a one-source list from it when
 a document has no `incomes` array, so an account written before this change
 keeps its income with no migration. Nothing writes it any more. This is the
 same trick `colorForName` plays with the palette.
+
+**"Copy from last month" is how a plan moves forward — and only on request.**
+Income and allocations both live on `budgets/{yearMonth}`, so a new period
+opens with neither: Budget Left reads raw spend and every envelope reads "no
+allocation set". `store.carryOverBudget` fills them from **earlier periods**
+(not just the previous one, so a skipped month does not leave nothing to
+copy). It is a button, never automatic: opening a period is navigation, and
+copying on open would write a budget document for every month someone
+stepped past — the same "nothing seeds itself" rule `addDefaultCategories`
+follows.
+
+The rules are `lib/carryOver.ts`'s — `planSourcesBefore` finds, `fillPlanGaps`
+fills, `carryOverPlan` is the two together — and both data sources call
+`carryOverPlan` (`queries.carryOverBudget`, the seed twin), so they cannot
+drift. The operation is "carry over" at every layer: `carryOverBudget` on the
+store, the data source and in `queries`, `onCarryOver` on the props,
+`CarryOverButton` in the design system.
+
+**Where it copies from is decided per half, and allocations per category.**
+
+- **Income** comes from the latest earlier month holding income to carry.
+- **Each allocation** comes from the latest earlier month with a key for that
+  category.
+
+The two are searched separately because a month can hold one half without the
+other. Setting an allocation on a month with no income writes its budget
+document with an empty income list. A single "latest month with a plan" then
+picked that month and copied no income, even though the month before had some.
+Per category because a half-filled month would otherwise be the source for
+everything, and its gaps would stay gaps. A key holding 0 in the latest month
+is a decision, and stops the search for that category. The toast names the
+sources: "Copied 3 income sources from August 2026 and 11 allocations from
+September 2026 and earlier".
+
+It **fills gaps and never overwrites**:
+
+- Income is copied only when the target has **no sources at all**. A month
+  holding only the legacy `income` number already has one, and an all-paused
+  month still has its sources.
+- Copied sources reset `received` (nothing has landed yet) and keep `paused`.
+  `one_off` sources are not carried — they belong to the month they landed
+  in; `quarterly` ones are, since their amount is per payment.
+- An allocation is copied only where the target has **no key** for that
+  category. A stored `0` is someone clearing it and is left alone. Only
+  current categories are carried, so a deleted one's allocation stays behind.
+
+**"Unset" is one test, `unsetAllocationIds`**, and every surface uses it: the
+fill, the Categories manager's copy prompt (both surfaces), and the phone's
+Month-tab link. The prompt once offered itself while no allocation was *above
+0*. After someone cleared every category to 0, it still offered a copy, and
+the copy then reported nothing to do.
+
+`carryOverBudget` on `ExpenseDataSource` is a **write** that reads first,
+like `setIncomes` — `watchMonth` is still the only read. The Firestore side
+reads the whole `budgets` collection (one document per month), as
+`fetchBudgetsByYear` already does, so it needs no index.
+
+The button is `CarryOverButton` (design-system), one component rather than
+seven copies, as `DefaultCategoriesButton` is. It is offered wherever an empty
+plan shows: the Income page's no-sources state, the "No income set" hint
+(desktop Home and Monthly, the phone's summary row), and the Categories
+manager while any category has no allocation set. Every one of them runs the
+same carry, so each copies allocations as well as income. The hint's copy
+hides with its Add income button while the getting-started panel is up. The
+Income page and Categories offer it regardless, and a new account that taps it
+gets "Nothing to copy" rather than a write.
+
+Demo mode only half-shows it: `seedSource.readBudget` invents the seed income
+list for any month with no stored budget, so outside the seed year only
+allocations are ever missing there. The income rules were verified against
+`carryOverPlan` directly.
 
 ### Accounts and balances
 
@@ -807,13 +951,22 @@ categories, then income, then a first expense, each with its own button.
 Progress comes from `derive.setupProgress`.
 
 When it shows is the part to keep straight. A missing category list shows it
-on any period. A missing expense shows it only on the period containing
-`today`, because an established account's next January (recurring runs stop at
-the year's last period) or a year before the app was used is empty too, and
-"log your first expense" would be wrong there. **Income never shows it on its
-own**: income is per period and does not carry over, so every account starts
-each month without any. The summary card's own "No income set" hint carries an
-**Add income** button for that case instead, on both apps — the copy used to
+on any period. A missing expense is read **account-wide**, from
+`state.hasTransactions` — never from `yearTransactions`. It used to be the
+year's rows, and those are empty on the first period of every new year
+(recurring runs written before twelve-period horizons stopped at the year's
+last period), so on 1 January every
+established account was told to "log your first expense"; and since the panel
+being up hides the income hint, its **Copy from last month** vanished at
+exactly the moment a new year needs it. It still shows only on the period
+containing `today`, so a brand-new account browsing earlier months does not
+see it there. Note "ever logged" is really "holds any now": delete every entry
+and the panel returns, which is the honest reading of an empty account. **Income never shows it on its
+own**: income is per period and does not carry over by itself, so every
+account starts each month without any. The summary card's own "No income set"
+hint carries **Add income** and **Copy from last month** buttons for that case
+instead, on both apps (desktop shows it on Home too, which has no summary
+card) — the copy used to
 point at "below" (desktop) and "the Month tab" (mobile), neither of which held
 income. That button hides while the panel is up, since step two is the same
 button.
@@ -854,6 +1007,54 @@ Every modal and sheet is dismissed through `useDismiss` (design-system):
 When Save is disabled, the expense form says why. `evaluateExpenseForm`
 returns `missing` and a ready-worded `hint` ("To save, add a category and
 what it was for."), so both surfaces use the same sentence.
+
+### Deleting, and undo
+
+Deleting an entry, a run's remaining months ("Delete this + future months")
+or a category with its entries takes effect at once, and the toast that
+reports it offers **Undo** (`Toast`, design-system; `store.undo()`). These are
+frequent one-tap actions: a confirm would cost a tap on every intended delete
+and still lose data on a mis-tap. The category delete keeps its two-click arm
+as well, since it cascades through every year. An account's Remove keeps its
+named confirm (see Accounts) — it is rare, and what it loses is a confirmed
+balance that undo-by-rewrite would be the riskier way to get back.
+
+What makes it work, and what to keep true when touching it:
+
+- **Deletes that reach beyond the snapshot return what they removed**, never
+  a count. `deleteTransactionSeries` returns the rows and `deleteCategory` a
+  `DeletedCategory`. Those deletes reach into future years for a run and every
+  year for a category, so undo cannot rebuild them from `state`. A single
+  `deleteTransaction` has nothing beyond the snapshot. Undo restores the
+  snapshot's own row, which is the stored document as `toTransaction` read it,
+  so it does no read before deleting.
+- **Restores write under the original ids** (`restoreTransactions`,
+  `restoreCategory`), through `denormalize`, keeping `createdAt`. The same id
+  is what keeps `seriesId` meaningful, so "this + future" still reaches a
+  restored run. Firestore's `setDoc` to an existing id is harmless; the seed
+  twins skip ids already present to match.
+- **A category comes back as stored.** `deleteCategory` reads the raw document
+  rather than going through `toCategory` or the snapshot. The first resolves
+  colour from the name, and the second has corrected former spellings
+  ("Apparell" reads as "Apparel"), so restoring from either would rewrite it.
+  The category is restored before its entries. Its allocations need nothing,
+  because the delete never touched budget keys.
+- **One pending undo, and only for the toast on screen.** `mutate` takes an
+  `{ note, undo }` from a delete. Every toast goes through `showToastFor`, so
+  any later toast, `dismissToast`, the timeout (`UNDO_TOAST_MS`, 7s against an
+  ordinary toast's 2.8s) or `reset()` drops it.
+- **Undo is generation-guarded.** The pending undo records the generation it
+  was created under, and `undo()` refuses across a change. Otherwise an Undo
+  pressed around a sign-out would write one account's rows into the next
+  one's collection.
+
+On the phone the toast is anchored inside the frame, above the floating add
+button, and Undo is a 44px target. At the shared `bottom: 24px` it lay over the
+nav bar. The position comes from the stylesheet and has not been measured on a
+device.
+
+Income's Remove (desktop row, phone sheet) is the same kind of single-tap
+delete and does **not** offer undo yet.
 
 ### Spending alerts
 

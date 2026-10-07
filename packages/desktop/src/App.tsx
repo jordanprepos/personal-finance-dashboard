@@ -39,6 +39,7 @@ import {
   CategoryModal,
   DashboardCardPicker,
   GettingStarted,
+  Toast,
 } from '@expense-tracker/design-system';
 
 export function App({
@@ -158,7 +159,7 @@ function Dashboard({
 
   const setup = setupProgress({
     categories: state.categories,
-    transactions: state.yearTransactions,
+    hasTransactions: state.hasTransactions,
     budget: state.budget,
     yearMonth: state.yearMonth,
     today: state.today,
@@ -345,6 +346,7 @@ function Dashboard({
           }}
           onDelete={(entry) => void store.deleteExpense(entry)}
           onDeleteSeries={(entry) => void store.deleteExpenseSeries(entry)}
+          onExtendSeries={(entry) => void store.extendExpenseSeries(entry)}
           onAddDefaultCategories={() => void store.addDefaultCategories()}
           transaction={editing}
           isRecurring={editing !== null && editing.seriesId !== null}
@@ -379,6 +381,7 @@ function Dashboard({
           onDeleteCategory={(category) => void store.deleteCategory(category)}
           onSetAllocation={(categoryId, amount) => void store.setCategoryBudget(categoryId, amount)}
           onAddDefaultCategories={() => void store.addDefaultCategories()}
+          onCarryOver={() => void store.carryOverBudget()}
           onClose={() => setCategoriesOpen(false)}
         />
       ) : null}
@@ -438,7 +441,9 @@ function Dashboard({
         />
       ) : null}
 
-      {state.toast ? <div className="cf-toast cf-anim-in-fast">{state.toast}</div> : null}
+      {state.toast ? (
+        <Toast text={state.toast} undoable={state.undoable} onUndo={() => void store.undo()} />
+      ) : null}
     </div>
   );
 }

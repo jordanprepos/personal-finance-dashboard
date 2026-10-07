@@ -14,7 +14,7 @@ import {
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
-import { IncomeSheet } from '@expense-tracker/design-system';
+import { CarryOverButton, IncomeSheet } from '@expense-tracker/design-system';
 
 type Filter = 'all' | 'active' | 'paused';
 
@@ -124,6 +124,18 @@ export function IncomeTab({
           {breakdown.sources.length === 0
             ? INCOME_EMPTY_LABELS['no-sources']
             : 'No sources match this filter.'}
+          {/* Income is per period, so every new one opens here. Copying is
+              the way back to an established plan without re-typing each
+              source; the toast names the month it came from. */}
+          {breakdown.sources.length === 0 ? (
+            <div style={{ marginTop: 12 }}>
+              <CarryOverButton
+                busy={state.busy}
+                onCarryOver={() => void store.carryOverBudget()}
+                style={{ minHeight: 44 }}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
 

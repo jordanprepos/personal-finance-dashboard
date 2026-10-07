@@ -19,6 +19,7 @@ import {
   type DocumentData,
   type DocumentReference,
   type Firestore,
+  type Query,
   type QueryConstraint,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -31,6 +32,7 @@ import {
   isPaymentMethod,
   MAX_INCOME_DAY,
 } from '../types.js';
+import type { DeletedCategory } from '../data/source.js';
 import type {
   Account,
   AccountInput,
@@ -48,11 +50,14 @@ import type {
   TransactionPatch,
   TransactionSeriesKey,
 } from '../types.js';
+import { carryOverPlan, type CarryOverResult } from './carryOver.js';
 import {
   assertISODate,
   assertYearMonth,
   clampCycleStartDay,
+  dateInMonth,
   monthsOfYear,
+  seriesThroughMonth,
   shiftMonth,
   toYear,
   toYearMonth,
@@ -400,16 +405,44 @@ export async function archiveCategory(db: Firestore, userId: string, categoryId:
 }
 
 /**
- * Hard delete: removes the category and every transaction filed under it.
- * Returns the number of transactions removed.
+ * Hard delete: removes the category and every transaction filed under it, in
+ * every year. Returns what it removed, as stored, so undo can put it back.
+ *
+ * The category comes back **as stored**, not through `toCategory`: that one
+ * resolves colour from the name, and the store's snapshot has already
+ * corrected former template spellings ("Apparell" reads as "Apparel"), so
+ * restoring from either would quietly rewrite the document.
  */
-export async function deleteCategory(db: Firestore, userId: string, categoryId: string): Promise<number> {
-  const snap = await getDocs(
-    query(transactionsCollection(db, userId), where('categoryId', '==', categoryId)),
-  );
+export async function deleteCategory(
+  db: Firestore,
+  userId: string,
+  categoryId: string,
+): Promise<DeletedCategory> {
+  const ref = doc(categoriesCollection(db, userId), categoryId);
+  const [stored, snap] = await Promise.all([
+    getDoc(ref),
+    getDocs(query(transactionsCollection(db, userId), where('categoryId', '==', categoryId))),
+  ]);
   await deleteInBatches(db, snap.docs.map((d) => d.ref));
-  await deleteDoc(doc(categoriesCollection(db, userId), categoryId));
-  return snap.size;
+  await deleteDoc(ref);
+  const d = stored.data() ?? {};
+  return {
+    category: {
+      id: categoryId,
+      name: String(d['name'] ?? ''),
+      type: (d['type'] ?? 'variable') as Category['type'],
+      color: String(d['color'] ?? ''),
+      icon: String(d['icon'] ?? ''),
+      order: Number(d['order'] ?? 0),
+      archived: Boolean(d['archived'] ?? false),
+    },
+    transactions: snap.docs.map(toTransaction),
+  };
+}
+
+/** Puts a deleted category back under its own id — undo's half of `deleteCategory`. */
+export async function restoreCategory(db: Firestore, userId: string, category: Category): Promise<void> {
+  await setDoc(doc(categoriesCollection(db, userId), category.id), category);
 }
 
 /* ----------------------------------------------------------- transactions */
@@ -554,6 +587,40 @@ export function watchTransactionsInRange(
   return watchTransactionQuery(db, userId, rangeConstraints(from, to), onChange, onError);
 }
 
+/** The probe both twins run: any one document, unordered, so no index. */
+const hasTransactionsQuery = (db: Firestore, userId: string): Query<DocumentData> =>
+  query(transactionsCollection(db, userId), limit(1));
+
+/**
+ * Whether the account holds any transaction at all, in any period.
+ *
+ * What "has this account ever logged an expense" means for the getting-started
+ * panel: `yearTransactions` only reaches the year in view, so every account
+ * reads as empty on the first period of a new year. Derived from the data
+ * rather than stored as a profile flag — a flag would be a rollup, missed by
+ * any write that bypasses the store, and absent on every existing account.
+ * `limit(1)` with no ordering needs no index and reads one document.
+ */
+export async function fetchHasTransactions(db: Firestore, userId: string): Promise<boolean> {
+  const snap = await getDocs(hasTransactionsQuery(db, userId));
+  return !snap.empty;
+}
+
+
+/** Live. Mirrors `fetchHasTransactions`. */
+export function watchHasTransactions(
+  db: Firestore,
+  userId: string,
+  onChange: (hasTransactions: boolean) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    hasTransactionsQuery(db, userId),
+    (snap) => onChange(!snap.empty),
+    onError,
+  );
+}
+
 export function watchTransactionsByMonth(
   db: Firestore,
   userId: string,
@@ -664,20 +731,127 @@ export async function createTransactionSeries(
   throughYearMonth: string,
 ): Promise<Transaction[]> {
   assertYearMonth(throughYearMonth);
-  const dates = seriesDates(input.date, throughYearMonth);
   const seriesId = newSeriesId(db, userId);
+  return writeSeriesRows(db, userId, input, seriesDates(input.date, throughYearMonth), seriesId);
+}
+
+/**
+ * One document per date, all under `seriesId`, in a single batch — what
+ * creating a run and extending one both write. A run is at most a horizon of
+ * months, far inside Firestore's 500-write batch limit.
+ */
+async function writeSeriesRows(
+  db: Firestore,
+  userId: string,
+  input: TransactionInput,
+  dates: readonly string[],
+  seriesId: string,
+): Promise<Transaction[]> {
   const batch = writeBatch(db);
   const created: Transaction[] = [];
-
   for (const date of dates) {
     const ref = doc(transactionsCollection(db, userId));
     const body = denormalize({ ...input, date }, ref.id, seriesId);
     batch.set(ref, { ...body, createdAt: serverTimestamp() });
     created.push({ ...body, createdAt: Timestamp.now() });
   }
-
   await batch.commit();
   return created;
+}
+
+/**
+ * The window an extension writes into, in periods: from the one containing
+ * today through the target. Calendar bounds are worked out inside
+ * `seriesExtension`, from the run's own day — the caller never has to.
+ */
+export interface SeriesExtendWindow {
+  /** the period containing today — nothing earlier is written */
+  fromPeriod: string;
+  /** the last period the run should reach — `seriesExtendTarget` */
+  throughPeriod: string;
+  cycleStartDay: number;
+}
+
+/** What an extension added: a count, and the first and last new dates. */
+export interface SeriesExtendResult {
+  added: number;
+  /** ISO date of the first new entry, or null when nothing was added */
+  first: string | null;
+}
+
+/** The result both data sources report for the dates an extension wrote. */
+export const seriesExtendResult = (dates: readonly string[]): SeriesExtendResult => ({
+  added: dates.length,
+  first: dates[0] ?? null,
+});
+
+/**
+ * What extending a run writes: the months **after its last entry**, from the
+ * period containing today through the target, carrying the last entry's
+ * fields. Shared by both data sources, like `seriesDates`.
+ *
+ * - Only past the end, never into gaps: a month deleted from the middle of a
+ *   run was deleted on purpose and stays deleted.
+ * - **Never into the past.** A run that lapsed in December and is extended in
+ *   March starts in March. January and February went by without it, and are
+ *   exactly the months someone would have logged by hand once the charge
+ *   stopped appearing — backfilling them would duplicate those entries.
+ * - Fields come from the **last** entry, which carries the latest edits —
+ *   editing a series member changes only that month, so the newest one is the
+ *   run as it stands now.
+ * - The day comes from the **first** entry, which is the day the run was set
+ *   up on; later ones may be clamped to a short month, or edited. Both
+ *   calendar bounds are derived from that same day, so under a cycle the
+ *   window and the dates written into it cannot disagree about which half of
+ *   a period the day falls in.
+ *
+ * Empty `dates` when the run already reaches the target — which is what makes
+ * a second press, or a second tab, write nothing.
+ */
+export function seriesExtension(
+  run: readonly Transaction[],
+  window: SeriesExtendWindow,
+): { input: TransactionInput; dates: string[] } | null {
+  if (run.length === 0) return null;
+  const sorted = [...run].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const first = sorted[0]!;
+  const last = sorted[sorted.length - 1]!;
+  const day = Number(first.date.slice(8, 10));
+
+  // Everything the last entry carries except what a write derives or issues.
+  // Optional fields it lacks stay absent, and `denormalize` / `build` omit
+  // them again on the way out.
+  const { id: _id, yearMonth: _ym, year: _y, seriesId: _s, createdAt: _c, ...input } = last;
+
+  const through = seriesThroughMonth(window.throughPeriod, day, window.cycleStartDay);
+  const earliest = seriesThroughMonth(window.fromPeriod, day, window.cycleStartDay);
+  const afterLast = shiftMonth(last.yearMonth, 1);
+  const next = afterLast > earliest ? afterLast : earliest;
+  if (next > through) return { input, dates: [] };
+  return { input, dates: seriesDates(dateInMonth(next, day), through, day) };
+}
+
+/**
+ * Continues an existing run under its own `seriesId`, so "this + future
+ * months" still reaches the new entries. Reads the run first — a write that
+ * reads, like `setIncomes`. The months written are `seriesExtension`'s.
+ *
+ * Takes an id that already exists rather than minting one, and writes nothing
+ * for an id with no entries, so a caller still cannot invent a run.
+ */
+export async function extendTransactionSeries(
+  db: Firestore,
+  userId: string,
+  seriesId: string,
+  window: SeriesExtendWindow,
+): Promise<SeriesExtendResult> {
+  assertYearMonth(window.fromPeriod);
+  assertYearMonth(window.throughPeriod);
+  const run = await fetchTransactionSeries(db, userId, seriesId);
+  const plan = seriesExtension(run, window);
+  if (!plan || plan.dates.length === 0) return seriesExtendResult([]);
+  await writeSeriesRows(db, userId, plan.input, plan.dates, seriesId);
+  return seriesExtendResult(plan.dates);
 }
 
 /** Every transaction in one recurring run, oldest first. */
@@ -692,16 +866,25 @@ export async function fetchTransactionSeries(
   ]);
 }
 
-/** The ISO dates a series occupies — same day-of-month, clamped to short months. */
-export function seriesDates(startDate: string, throughYearMonth: string): string[] {
-  const day = Number(startDate.slice(8, 10));
+/**
+ * The ISO dates a series occupies — same day-of-month, clamped to short months.
+ *
+ * `day` defaults to `startDate`'s. An extension passes the run's original day
+ * explicitly: its first new date may itself be clamped (a run on the 31st
+ * continuing from February), and reading the day back off that would carry
+ * the 28th forward for good.
+ */
+export function seriesDates(
+  startDate: string,
+  throughYearMonth: string,
+  day: number = Number(startDate.slice(8, 10)),
+): string[] {
   const dates: string[] = [startDate];
   let ym = toYearMonth(startDate);
 
   while (ym < throughYearMonth) {
     ym = shiftMonth(ym, 1);
-    const daysIn = new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).getUTCDate();
-    dates.push(`${ym}-${String(Math.min(day, daysIn)).padStart(2, '0')}`);
+    dates.push(dateInMonth(ym, day));
   }
   return dates;
 }
@@ -747,13 +930,14 @@ export async function deleteTransaction(
 /**
  * "This and future months" for a recurring entry: every document sharing the
  * run's `seriesId` from `fromDate` onward. Earlier months are left alone.
- * Returns the number of documents removed.
+ * Returns the rows removed — including any beyond the year in view, which the
+ * snapshot never held, so undo has to be told them.
  */
 export async function deleteTransactionSeries(
   db: Firestore,
   userId: string,
   key: TransactionSeriesKey,
-): Promise<number> {
+): Promise<Transaction[]> {
   const snap = await getDocs(
     query(
       transactionsCollection(db, userId),
@@ -763,7 +947,35 @@ export async function deleteTransactionSeries(
     ),
   );
   await deleteInBatches(db, snap.docs.map((d) => d.ref));
-  return snap.size;
+  return snap.docs.map(toTransaction);
+}
+
+/**
+ * Writes deleted rows back under their **original ids** — undo's half of the
+ * deletes above. The same id keeps `seriesId` meaningful, so "this + future
+ * months" still reaches a restored run; the body goes through `denormalize`
+ * so a restored row has exactly the shape of a created one (optional fields
+ * omitted, never `undefined`), and keeps its original `createdAt`. Writing to
+ * an id that exists again replaces it with the same content, so a repeat is
+ * harmless.
+ */
+export async function restoreTransactions(
+  db: Firestore,
+  userId: string,
+  rows: readonly Transaction[],
+): Promise<void> {
+  const CHUNK = 400; // Firestore caps a batch at 500 writes.
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    for (const row of rows.slice(i, i + CHUNK)) {
+      const body = denormalize(row, row.id, row.seriesId);
+      batch.set(doc(transactionsCollection(db, userId), row.id), {
+        ...body,
+        createdAt: row.createdAt,
+      });
+    }
+    await batch.commit();
+  }
 }
 
 async function deleteInBatches(db: Firestore, refs: DocumentReference<DocumentData>[]): Promise<void> {
@@ -854,6 +1066,30 @@ export async function setIncomes(
 ): Promise<void> {
   const current = await fetchBudget(db, userId, yearMonth);
   await saveBudget(db, userId, { ...current, incomes });
+}
+
+/**
+ * Fills `yearMonth`'s empty income list and unset allocations from the latest
+ * earlier months that hold them. The rules are `lib/carryOver.ts`'s.
+ *
+ * Reads the whole `budgets` collection, as `fetchBudgetsByYear` does — one
+ * document per month, so it stays small, and the search can skip a month that
+ * was never planned without a round-trip per step. Writes nothing when there
+ * is nothing earlier or nothing to fill.
+ */
+export async function carryOverBudget(
+  db: Firestore,
+  userId: string,
+  yearMonth: string,
+  categoryIds: readonly string[],
+): Promise<CarryOverResult> {
+  assertYearMonth(yearMonth);
+  const snap = await getDocs(budgetsCollection(db, userId));
+  const stored = snap.docs.map((d) => toBudget(d.id, d.data()));
+  const target = stored.find((b) => b.id === yearMonth) ?? toBudget(yearMonth, undefined);
+  const { result, budget } = carryOverPlan(yearMonth, stored, target, categoryIds);
+  if (budget) await saveBudget(db, userId, budget);
+  return result;
 }
 
 /* ----------------------------------------------------------------- profile */

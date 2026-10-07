@@ -5,18 +5,17 @@ import {
   evaluateCategoryForm,
   formatAmountInput,
   monthLabel,
+  unsetAllocationIds,
   parseAmountInput,
   type MoneyFormat,
 } from '@expense-tracker/shared';
 
+import { CarryOverButton } from './CarryOverButton.js';
 import { DEFAULT_CATEGORY_COUNT, DefaultCategoriesButton } from './DefaultCategoriesButton.js';
 import type { CategoryManagerProps } from '../types.js';
 import { useDismiss } from '../useDismiss.js';
 
-export interface CategoryModalProps extends CategoryManagerProps {
-  /** Writes this month's allocation for one category. */
-  onSetAllocation: (categoryId: string, amount: number) => void;
-}
+export type CategoryModalProps = CategoryManagerProps;
 
 /**
  * The desktop categories dialog: bulk-seed while empty, an add form, and a row
@@ -33,11 +32,13 @@ export function CategoryModal({
   onDeleteCategory,
   onSetAllocation,
   onAddDefaultCategories,
+  onCarryOver,
   onClose,
 }: CategoryModalProps): JSX.Element {
   const { dismiss } = useDismiss({ onClose });
   const [values, setValues] = useState(emptyCategoryForm);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const unset = unsetAllocationIds(categories, allocations);
   const result = evaluateCategoryForm(values, categories);
 
   return (
@@ -142,6 +143,25 @@ export function CategoryModal({
             Allocations are set month by month. This one applies to {monthLabel(yearMonth)}.
           </div>
         </div>
+
+        {/* Allocations are per month, so every new month opens with gaps.
+            Copying is the way back to last month's envelopes without
+            re-typing each one. Offered while any category has no allocation
+            *set* — the same test the carry fills by, so a month whose gaps
+            were all cleared to 0 on purpose is not offered a copy that would
+            then report nothing to do. */}
+        {unset.length > 0 ? (
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: 'none' }}
+          >
+            <span style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
+              {unset.length === categories.length
+                ? `No allocations for ${monthLabel(yearMonth)} yet.`
+                : `${unset.length} ${unset.length === 1 ? 'category has' : 'categories have'} no allocation for ${monthLabel(yearMonth)} yet.`}
+            </span>
+            <CarryOverButton busy={busy} onCarryOver={onCarryOver} style={{ height: 32 }} />
+          </div>
+        ) : null}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {categories.map((c) => {

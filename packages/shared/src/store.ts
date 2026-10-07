@@ -15,10 +15,12 @@ import {
   cycleOf,
   cycleRangeLabel,
   dateInCycle,
+  monthLabel,
+  seriesExtendTarget,
+  seriesLastPeriod,
+  seriesThroughMonth,
   todayISO,
   toYear,
-  toYearMonth,
-  yearMonthOf,
   yearOfMonth,
 } from './lib/dates.js';
 import type {
@@ -87,11 +89,15 @@ export interface ExpenseState {
   monthTransactions: Transaction[];
   /** transactions of the twelve periods labelled by the year of `yearMonth` */
   yearTransactions: Transaction[];
+  /** whether the account holds any transaction in any period — see `MonthSnapshot` */
+  hasTransactions: boolean;
   budget: Budget | null;
   profile: Profile;
   /** a write is in flight */
   busy: boolean;
   toast: string | null;
+  /** the toast offers Undo — `store.undo()` reverses the delete it reports */
+  undoable: boolean;
 }
 
 export interface ExpenseDraft {
@@ -117,7 +123,7 @@ export interface ExpenseDraft {
    * exactly one date — `dateInCycle` is what resolves it.
    */
   day: number;
-  /** write one document per remaining period of the year */
+  /** write one document per period for `SERIES_PERIODS` periods */
   repeat: boolean;
   note?: string;
 }
@@ -134,6 +140,7 @@ const initialState = (yearMonth: string, today: string): ExpenseState => ({
   categories: [],
   monthTransactions: [],
   yearTransactions: [],
+  hasTransactions: false,
   budget: null,
   // `alerts` and `dashboardCards` are both copied out rather than shared: a
   // bare spread would leave every store pointing at the one array inside the
@@ -147,16 +154,31 @@ const initialState = (yearMonth: string, today: string): ExpenseState => ({
   },
   busy: false,
   toast: null,
+  undoable: false,
 });
 
 const message = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+/**
+ * How long an undoable toast stays up. Long enough to read "deleted from 9
+ * months" and reach the button; the 2.8s an ordinary toast gets is not.
+ */
+const UNDO_TOAST_MS = 7000;
 
 export class ExpenseStore {
   private state: ExpenseState;
   private listeners = new Set<() => void>();
   private source: ExpenseDataSource | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * The one delete that can still be undone: how to put it back, and the
+   * generation it happened under. Only the latest is kept — any other toast
+   * replaces it — and `undo()` refuses one from a previous account, since
+   * restoring it would write that account's rows into the current one's
+   * collection: the exact failure the generation guard exists for.
+   */
+  private pendingUndo: { generation: number; restore: () => Promise<string> } | null = null;
   /**
    * Bumped by every `reset()`, so each load can tell whether it still owns the
    * store. Awaited work captures the value it started under and drops its
@@ -236,6 +258,7 @@ export class ExpenseStore {
     this.unwatch();
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = null;
+    this.pendingUndo = null;
     this.source = null;
     this.pinned = false;
     this.state = initialState(this.state.yearMonth, this.state.today);
@@ -308,6 +331,7 @@ export class ExpenseStore {
           categories: snapshot.categories,
           monthTransactions: snapshot.monthTransactions,
           yearTransactions: snapshot.yearTransactions,
+          hasTransactions: snapshot.hasTransactions,
           budget: snapshot.budget,
           profile: snapshot.profile,
         });
@@ -337,14 +361,45 @@ export class ExpenseStore {
   }
 
   showToast(text: string): void {
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.set({ toast: text });
-    this.toastTimer = setTimeout(() => this.set({ toast: null }), 2800);
+    this.showToastFor(text, null, 2800);
   }
 
   dismissToast(): void {
     if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.set({ toast: null });
+    this.pendingUndo = null;
+    this.set({ toast: null, undoable: false });
+  }
+
+  /**
+   * Every toast goes through here, so a new one always replaces the previous
+   * undo along with its text — Undo can only ever act on what the toast on
+   * screen says. An undoable toast stays up longer: it has a decision in it.
+   */
+  private showToastFor(
+    text: string,
+    undo: { generation: number; restore: () => Promise<string> } | null,
+    ms: number,
+  ): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.pendingUndo = undo;
+    this.set({ toast: text, undoable: undo !== null });
+    this.toastTimer = setTimeout(() => {
+      this.pendingUndo = null;
+      this.set({ toast: null, undoable: false });
+    }, ms);
+  }
+
+  /**
+   * Reverses the delete the current toast reports. Runs through `mutate`, so
+   * `busy` and the error toast behave as for any write, and its own toast
+   * ("… restored") replaces the undo. Does nothing once the toast has gone,
+   * after any later toast, or across an account change.
+   */
+  async undo(): Promise<void> {
+    const pending = this.pendingUndo;
+    this.pendingUndo = null;
+    if (!pending || pending.generation !== this.generation) return;
+    await this.mutate(pending.restore);
   }
 
   /**
@@ -357,16 +412,23 @@ export class ExpenseStore {
     return budget ?? { id: yearMonth, income: 0, incomes: [], categoryBudgets: {} };
   }
 
-  private async mutate(work: () => Promise<string>): Promise<void> {
+  /**
+   * Runs a write. `work` returns the toast; a delete returns it with an
+   * `undo`, which the toast then offers for `UNDO_TOAST_MS`.
+   */
+  private async mutate(
+    work: () => Promise<string | { note: string; undo: () => Promise<string> }>,
+  ): Promise<void> {
     if (!this.source) return;
     const generation = this.generation;
     this.set({ busy: true });
     try {
-      const note = await work();
+      const outcome = await work();
       if (generation !== this.generation) return;
       // No reload: the subscription delivers the write. Firestore's latency
       // compensation has usually already painted it before this line runs.
-      this.showToast(note);
+      if (typeof outcome === 'string') this.showToast(outcome);
+      else this.showToastFor(outcome.note, { generation, restore: outcome.undo }, UNDO_TOAST_MS);
     } catch (error) {
       if (generation !== this.generation) return;
       this.set({ error: message(error) });
@@ -399,19 +461,18 @@ export class ExpenseStore {
     await this.mutate(async () => {
       if (draft.repeat) {
         /*
-         * "Every remaining period of the year". `seriesDates` steps calendar
-         * months, so the bound has to be the calendar month *this day* falls in
-         * for the year's last period — which half of the window a day lands in
-         * depends on the day itself. A day at or above the start day sits in
-         * the opening month (28 -> "2026-11"), one below it in the closing
-         * month (3 -> "2026-12"); a single fixed bound serves one and truncates
-         * or overshoots the other. At a start day of 1 this is `${year}-12`,
-         * exactly as it was.
+         * Twelve periods from the one in view, not "the rest of the year": that
+         * made a run set up in December a single entry, and ended every run on
+         * the account together each January. `seriesThroughMonth` turns the
+         * last period into the calendar bound `seriesDates` steps to — which
+         * half of a cycle a day lands in depends on the day itself.
          */
-        const lastPeriod = yearMonthOf(Number(yearOfMonth(yearMonth)), 12);
-        const through = toYearMonth(dateInCycle(lastPeriod, draft.day, profile.cycleStartDay));
+        const through = seriesThroughMonth(
+          seriesLastPeriod(yearMonth),
+          draft.day,
+          profile.cycleStartDay,
+        );
         const rows = await source.createTransactionSeries(input, through);
-        // Repeating from December leaves a single month — don't say "1 months".
         return rows.length > 1
           ? `${input.item} saved — repeats for ${rows.length} months`
           : `${input.item} saved`;
@@ -450,8 +511,50 @@ export class ExpenseStore {
     const source = this.source;
     if (!source) return;
     await this.mutate(async () => {
+      // Undo puts back the snapshot's row, which is the stored document as
+      // `toTransaction` read it — no read before the delete is needed.
       await source.deleteTransaction(transaction.id);
-      return `${transaction.item} deleted`;
+      return {
+        note: `${transaction.item} deleted`,
+        undo: async () => {
+          await source.restoreTransactions([transaction]);
+          return `${transaction.item} restored`;
+        },
+      };
+    });
+  }
+
+  /**
+   * "Repeat through …" for a repeating charge: continues its run past the last
+   * entry, to `seriesExtendTarget` — a full horizon from the period containing
+   * today — under the run's own `seriesId`. Only on request, like every other
+   * write here; nothing extends a run on its own.
+   *
+   * Idempotent: a run already reaching the target gains nothing, so a second
+   * press or a second tab writes no duplicates. Months deleted from the middle
+   * of the run are not refilled.
+   */
+  async extendExpenseSeries(transaction: Transaction): Promise<void> {
+    const source = this.source;
+    if (!source || transaction.seriesId === null) return;
+    const seriesId = transaction.seriesId;
+    const { today, profile } = this.state;
+    const startDay = profile.cycleStartDay;
+    const target = seriesExtendTarget(today, startDay);
+    await this.mutate(async () => {
+      const result = await source.extendTransactionSeries(seriesId, {
+        fromPeriod: cycleOf(today, startDay),
+        throughPeriod: target,
+        cycleStartDay: startDay,
+      });
+      if (result.first === null) {
+        return `${transaction.item} already repeats through ${monthLabel(target)}`;
+      }
+      // Where it resumes is named, so a lapsed run's skipped months are
+      // visible rather than silently left empty.
+      return `${transaction.item} repeats through ${monthLabel(target)} (+${result.added} ${
+        result.added === 1 ? 'month' : 'months'
+      }, from ${monthLabel(cycleOf(result.first, startDay))})`;
     });
   }
 
@@ -469,11 +572,20 @@ export class ExpenseStore {
     }
     const seriesId = transaction.seriesId;
     await this.mutate(async () => {
+      // Every row removed, including months beyond the year in view, which the
+      // snapshot never held — undo restores exactly these.
       const removed = await source.deleteTransactionSeries({
         seriesId,
         fromDate: transaction.date,
       });
-      return `${transaction.item} deleted from ${removed} ${removed === 1 ? 'month' : 'months'}`;
+      const months = `${removed.length} ${removed.length === 1 ? 'month' : 'months'}`;
+      return {
+        note: `${transaction.item} deleted from ${months}`,
+        undo: async () => {
+          await source.restoreTransactions(removed);
+          return `${transaction.item} restored in ${months}`;
+        },
+      };
     });
   }
 
@@ -685,9 +797,19 @@ export class ExpenseStore {
     if (!source) return;
     await this.mutate(async () => {
       const removed = await source.deleteCategory(category.id);
-      return removed > 0
-        ? `${category.name} deleted with ${removed} ${removed === 1 ? 'entry' : 'entries'}`
-        : `${category.name} deleted`;
+      const count = removed.transactions.length;
+      const entries = `${count} ${count === 1 ? 'entry' : 'entries'}`;
+      return {
+        note: count > 0 ? `${category.name} deleted with ${entries}` : `${category.name} deleted`,
+        // The category first, so its entries never land under an id that
+        // reads as missing. Its allocations were never removed — the delete
+        // leaves budget keys alone — so they come back with the id.
+        undo: async () => {
+          await source.restoreCategory(removed.category);
+          await source.restoreTransactions(removed.transactions);
+          return count > 0 ? `${category.name} restored with ${entries}` : `${category.name} restored`;
+        },
+      };
     });
   }
 
@@ -958,6 +1080,55 @@ export class ExpenseStore {
 
   clearCategoryLimit(categoryName: string): Promise<void> {
     return this.setCategoryLimit(categoryName, 0);
+  }
+
+  /**
+   * "Copy from last month": fills the period's empty income list and unset
+   * allocations from the latest earlier periods that hold them.
+   *
+   * Only on request. Income and allocations are per period, and opening a
+   * period is just navigation — carrying forward on its own would write a
+   * budget document for every month someone stepped past. Never overwrites;
+   * see `lib/carryOver.ts`.
+   */
+  async carryOverBudget(): Promise<void> {
+    const source = this.source;
+    if (!source) return;
+    const { yearMonth, categories } = this.state;
+    await this.mutate(async () => {
+      const result = await source.carryOverBudget(
+        yearMonth,
+        categories.map((c) => c.id),
+      );
+      const incomes =
+        result.incomes > 0 && result.incomesFrom
+          ? `${result.incomes} income ${result.incomes === 1 ? 'source' : 'sources'}`
+          : null;
+      const latestAllocation = result.allocationsFrom[0];
+      const allocations =
+        result.allocations > 0 && latestAllocation
+          ? `${result.allocations} ${result.allocations === 1 ? 'allocation' : 'allocations'}`
+          : null;
+      if (!incomes && !allocations) {
+        return !result.foundEarlier
+          ? 'Nothing to copy — no earlier month has income or allocations'
+          : 'Nothing to copy — this period already has its income and allocations';
+      }
+      // Income comes from one month, allocations per category from the latest
+      // month that set each — so the toast names each source, collapsing to
+      // one month when they agree.
+      const allocationSource = latestAllocation
+        ? `${monthLabel(latestAllocation)}${result.allocationsFrom.length > 1 ? ' and earlier' : ''}`
+        : '';
+      if (incomes && allocations) {
+        return result.incomesFrom === latestAllocation && result.allocationsFrom.length === 1
+          ? `Copied ${incomes} and ${allocations} from ${allocationSource}`
+          : `Copied ${incomes} from ${monthLabel(result.incomesFrom!)} and ${allocations} from ${allocationSource}`;
+      }
+      return incomes
+        ? `Copied ${incomes} from ${monthLabel(result.incomesFrom!)}`
+        : `Copied ${allocations} from ${allocationSource}`;
+    });
   }
 
   async setCategoryBudget(categoryId: string, amount: number): Promise<void> {

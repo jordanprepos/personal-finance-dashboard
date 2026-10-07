@@ -7,6 +7,9 @@ import {
   formatAmountInput,
   formatMoney,
   monthLabel,
+  SERIES_PERIODS,
+  seriesExtendTarget,
+  seriesLastPeriod,
   parseISODate,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
@@ -41,6 +44,7 @@ export function ExpenseModal({
   onSave,
   onDelete,
   onDeleteSeries,
+  onExtendSeries,
   onClose,
   onManageCategories,
   onManageAccounts,
@@ -270,9 +274,30 @@ export function ExpenseModal({
           {editing
             ? 'Editing changes this entry only.'
             : values.repeat
-              ? 'Written into every remaining month of the year as its own entry.'
+              ? `Written as its own entry for ${SERIES_PERIODS} months, ${monthLabel(yearMonth)} through ${monthLabel(seriesLastPeriod(yearMonth))}.`
               : `Logged once, in ${monthLabel(yearMonth)}.`}
         </div>
+
+        {/* Continuing a run is its own action, above the destructive pair and
+            apart from Save: it writes months after the run's last entry and
+            never touches this one. The form stays open — closing would drop
+            anything typed — and the toast says what was added. */}
+        {editing && transaction && isRecurring ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ flex: '1 1 200px', fontSize: 12.5, color: 'var(--cf-slate)' }}>
+              Part of a monthly run. Repeating adds months after its last entry.
+            </span>
+            <button
+              type="button"
+              className="cf-ghostbtn"
+              style={{ flex: 'none' }}
+              disabled={busy}
+              onClick={() => onExtendSeries(transaction)}
+            >
+              Repeat through {monthLabel(seriesExtendTarget(today, cycleStartDay))}
+            </button>
+          </div>
+        ) : null}
 
         {editing && transaction ? (
           <div

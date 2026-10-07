@@ -211,6 +211,25 @@ body {
   bottom: 86px;
 }
 
+/* The toast carries Undo now, so it must not sit where a thumb aims for
+   something else. At the shared `bottom: 24px` it lay over the nav bar, with
+   the FAB just above. Anchored inside the phone frame instead, clear above the
+   FAB (86px + its 46px + a gap), and Undo gets a full 44px target. Positions
+   are from the stylesheet, not measured on a device. */
+.cf-phone .cf-toast {
+  position: absolute;
+  bottom: 142px;
+  /* `left: 50%` sizes a shrink-to-fit box against half the frame, so a long
+     "deleted from 11 months" would wrap into a column without this. */
+  width: max-content;
+  max-width: calc(100% - 32px);
+}
+
+.cf-phone .cf-toast__undo {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* Dashboard-card controls (↑ ↓ Remove) are text links — 9×16px for an arrow.
    On the phone each gets a 44px box, pulled back out with negative margins
    so the card header keeps its height. */

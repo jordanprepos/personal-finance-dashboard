@@ -14,11 +14,12 @@ import {
 } from '@expense-tracker/shared';
 
 import { type ViewProps } from '../appTypes';
-import { catStyle } from '@expense-tracker/design-system';
+import { CarryOverButton, catStyle } from '@expense-tracker/design-system';
 
 const DONUT_RADIUS = 54;
 
 export function MonthlyView({
+  store,
   state,
   fmt,
   onAdd,
@@ -67,15 +68,19 @@ export function MonthlyView({
                 nothing below — so it now carries the way there itself.
                 Not while the getting-started panel is up: its step two is
                 the same button, a few rows higher. */}
+            {/* Copy sits beside it because an established account lands here
+                at the start of every period: income and allocations are per
+                period and do not carry over on their own. */}
             {summary.hasIncome || setupShowing ? null : (
-              <button
-                type="button"
-                className="cf-ghostbtn"
-                style={{ marginTop: 14 }}
-                onClick={onOpenIncome}
-              >
-                Add income
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                <button type="button" className="cf-ghostbtn" onClick={onOpenIncome}>
+                  Add income
+                </button>
+                <CarryOverButton
+                  busy={state.busy}
+                  onCarryOver={() => void store.carryOverBudget()}
+                />
+              </div>
             )}
           </div>
           <div style={{ marginTop: 22 }}>

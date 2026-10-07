@@ -23,12 +23,14 @@ export {
   DashboardCardSheet,
   type DashboardCardSheetProps,
 } from './components/DashboardCardSheet.js';
+export { CarryOverButton, type CarryOverButtonProps } from './components/CarryOverButton.js';
 export {
   DefaultCategoriesButton,
   DEFAULT_CATEGORY_COUNT,
   type DefaultCategoriesButtonProps,
 } from './components/DefaultCategoriesButton.js';
 export { GettingStarted, type GettingStartedProps } from './components/GettingStarted.js';
+export { Toast, type ToastProps } from './components/Toast.js';
 export { catStyle } from './catStyle.js';
 export { useDismiss, type Dismiss } from './useDismiss.js';
 export type {
