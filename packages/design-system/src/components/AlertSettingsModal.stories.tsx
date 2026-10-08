@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { AlertSettingsModal } from './AlertSettingsModal';
-import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, monthSpend } from '../fixtures';
+import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, spentToDate } from '../fixtures';
 
 const meta = {
   title: 'Alerts/AlertSettingsModal',
@@ -12,7 +12,7 @@ const meta = {
     cycleStartDay,
     cycleRangeLabel,
     rows: limitRows,
-    monthSpend,
+    spentToDate,
     categories,
     fmt: IDR,
     ...alertHandlers,

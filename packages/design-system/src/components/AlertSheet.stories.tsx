@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { IDR } from '@expense-tracker/shared';
 
 import { AlertSheet } from './AlertSheet';
-import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, monthSpend } from '../fixtures';
+import { alertHandlers, alertSettings, categories, cycleRangeLabel, cycleStartDay, limitRows, spentToDate } from '../fixtures';
 
 function PhoneShell({ children }: { children: ReactNode }) {
   return (
@@ -22,7 +22,7 @@ const meta = {
     cycleStartDay,
     cycleRangeLabel,
     rows: limitRows,
-    monthSpend,
+    spentToDate,
     categories,
     fmt: IDR,
     ...alertHandlers,

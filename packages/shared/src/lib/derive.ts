@@ -345,6 +345,25 @@ export interface MonthSummary {
 }
 
 /**
+ * The rows dated on or before `today` — what has actually been spent, as
+ * against what a period's window holds, which includes bills scheduled later.
+ *
+ * The one definition of "to date": `monthSummary.spentToDate`,
+ * `evaluateAlerts`, `categoryLimitRows` and the alert-settings surfaces all
+ * read it, so a banner, its settings rows and the monthly-cap figure beside
+ * them cannot measure different windows. `<=`, so a row dated today counts —
+ * matching `accountBalances`, which skips only `t.date < balanceAsOf`. A day is
+ * spent or it is not, and no two surfaces may disagree about which side of it
+ * "today" falls on.
+ */
+export function transactionsToDate<T extends Pick<Transaction, 'date'>>(
+  transactions: readonly T[],
+  today: string,
+): T[] {
+  return transactions.filter((t) => t.date <= today);
+}
+
+/**
  * `today` is **required**, and deliberately so: it is the only thing that can
  * separate what has been spent from what is merely scheduled, and a caller
  * that omitted it would silently get the whole-window figure everywhere —
@@ -359,10 +378,7 @@ export function monthSummary(
   const income = totalIncome(budget);
   const hasIncome = income > 0;
   const spent = sumAmounts(transactions);
-  // `<=`, so a row dated today counts — matching `accountBalances`, which
-  // skips only `t.date < balanceAsOf`. A day is spent or it is not; the two
-  // surfaces must not disagree about which side of it "today" falls on.
-  const spentToDate = sumAmounts(transactions.filter((t) => t.date <= today));
+  const spentToDate = sumAmounts(transactionsToDate(transactions, today));
   // With no income set there is nothing to take a share of — reporting
   // "100% remaining" against a negative balance would be worse than zero.
   const spentShare = hasIncome ? Math.min(1, spent / income) : 0;
@@ -1013,8 +1029,8 @@ export function evaluateAlerts({
   const monthName = monthNameLabel(yearMonth, locale);
   const out: SpendAlert[] = [];
   // Bounded once, so the monthly cap and every category cap are measured over
-  // the same window — `<=`, matching `monthSummary.spentToDate`.
-  const sofar = transactions.filter((t) => t.date <= today);
+  // the same window as `monthSummary.spentToDate`.
+  const sofar = transactionsToDate(transactions, today);
 
   const monthly = applyRule({
     id: 'month',
@@ -1077,7 +1093,7 @@ export function categoryLimitRows(
   today: string,
 ): CategoryLimitRow[] {
   const known = new Set(categories.map((c) => normalizeCategoryName(c.name)));
-  const sofar = transactions.filter((t) => t.date <= today);
+  const sofar = transactionsToDate(transactions, today);
   return Object.entries(alerts.categoryLimits)
     .map(([name, limit]) => {
       const spent = spendForCategoryName(sofar, categories, name);

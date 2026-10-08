@@ -903,8 +903,10 @@ total twice, and **which one a caller reads is the whole decision**:
   `spentShare`, `leftShare`. A scheduled bill is money that is committed, and a
   Budget Left that ignored it would read **high** — the one direction that
   recreates the problem the app exists to solve.
-- **`spentToDate`** — rows dated `<= today`. Only `pace` and `evaluateAlerts`
-  read it, and both for the same reason: they compare spending against
+- **`spentToDate`** — rows dated `<= today`, through `transactionsToDate`, the
+  one definition of "to date". Only `pace` and the alerts read it
+  (`evaluateAlerts`, `categoryLimitRows`, and the monthly-cap figure on the
+  Settings surfaces), all for the same reason: they compare spending against
   **elapsed time**, so both sides of the comparison must be measured over the
   same window. `pace` already prorates its target by `throughDay`; taking the
   actual from `spent` mixed a whole period's fixed costs into a day-2 figure.
@@ -1069,6 +1071,12 @@ Spend is counted to `today` only, never past it — see the section above; the
 filter is applied once inside `evaluateAlerts` so the monthly cap and every
 category cap measure the same window, and `categoryLimitRows` bounds
 identically so the settings list cannot contradict the banner it explains.
+The monthly cap's own line in Settings ("Spent X of this cap so far") is
+bounded the same way: both apps pass `spentToDate`, built from
+`transactionsToDate`. It used to be `sumAmounts(state.monthTransactions)`, the
+whole window. With Rp 100.000 spent and a Rp 5.000.000 bill scheduled on the
+25th, Settings showed a 6.000.000 cap 85% used, while the banner correctly said
+nothing.
 
 Two rules, applied to the monthly cap and to each per-category cap alike:
 over the limit is a breach, at or past `warnPct` of it is a warning. A limit

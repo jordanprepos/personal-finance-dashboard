@@ -32,7 +32,7 @@ export function AlertSheet({
   cycleStartDay,
   cycleRangeLabel,
   rows,
-  monthSpend: spent,
+  spentToDate,
   categories,
   fmt,
   onToggleEnabled,
@@ -121,7 +121,7 @@ export function AlertSheet({
           />
           <div style={{ fontSize: 11.5, color: 'var(--cf-muted)', marginTop: 4 }}>
             {alerts.monthlyLimit > 0
-              ? `${formatMoney(spent, fmt)} spent against it.`
+              ? `${formatMoney(spentToDate, fmt)} spent against it so far.`
               : 'Leave at 0 to turn the monthly check off.'}
           </div>
         </div>

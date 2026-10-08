@@ -34,7 +34,7 @@ export function AlertSettingsModal({
   cycleStartDay,
   cycleRangeLabel,
   rows,
-  monthSpend,
+  spentToDate,
   categories,
   fmt,
   onToggleEnabled,
@@ -127,7 +127,7 @@ export function AlertSettingsModal({
           />
           <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 6 }}>
             {alerts.monthlyLimit > 0
-              ? `Spent ${formatMoney(monthSpend, fmt)} of this cap.`
+              ? `Spent ${formatMoney(spentToDate, fmt)} of this cap so far.`
               : 'No limit set — leave it at 0 to turn the monthly check off.'}
           </div>
         </div>

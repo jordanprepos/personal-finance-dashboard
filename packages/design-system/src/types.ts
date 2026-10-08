@@ -126,9 +126,9 @@ export interface IncomeEditorProps {
  *
  * The settings themselves live on the profile and are the same every month;
  * what each row *shows* — spend, percent used — belongs to the month in view.
- * That month-dependent part arrives already derived (`rows`, `monthSpend`,
- * via `categoryLimitRows` and `sumAmounts`) rather than as a transaction list,
- * so the contract stays free of `Transaction`.
+ * That month-dependent part arrives already derived (`rows`, `spentToDate`,
+ * via `categoryLimitRows` and `transactionsToDate`) rather than as a
+ * transaction list, so the contract stays free of `Transaction`.
  */
 export interface AlertSettingsProps {
   alerts: AlertSettings;
@@ -141,8 +141,13 @@ export interface AlertSettingsProps {
   cycleRangeLabel: string;
   /** per-category cap rows for the month in view */
   rows: readonly CategoryLimitRow[];
-  /** total spend for the month in view, against the monthly cap */
-  monthSpend: number;
+  /**
+   * Spend in the period in view **to today**, against the monthly cap —
+   * `sumAmounts(transactionsToDate(…))`, the figure the banner compares. Not
+   * the whole window: that counts bills scheduled later in the period, and
+   * would show the cap nearly used while the banner, rightly, says nothing.
+   */
+  spentToDate: number;
   categories: readonly Category[];
   fmt: MoneyFormat;
   onToggleEnabled: (enabled: boolean) => void;
