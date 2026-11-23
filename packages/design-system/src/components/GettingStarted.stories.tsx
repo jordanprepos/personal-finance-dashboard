@@ -12,6 +12,9 @@ const meta = {
     onManageCategories: () => {},
     onAddIncome: () => {},
     onAddExpense: () => {},
+    cycleStartDay: 1,
+    cycleRangeLabel: '',
+    onSetCycleStartDay: () => {},
   },
   decorators: [
     (Story) => <div style={{ background: 'var(--cf-page)', padding: 20, maxWidth: 960 }}><Story /></div>,

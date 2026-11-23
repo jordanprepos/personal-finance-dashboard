@@ -11,7 +11,7 @@ import {
 import type { AlertSettingsProps } from '../types.js';
 import { useCategoryLimitDraft } from '../useCategoryLimitDraft.js';
 import { amountFieldText, useCommittedInput } from '../useCommittedInput.js';
-import { CycleStartDayField } from './CycleStartDayField.js';
+import { CycleStartDayField, cycleStartDayHint } from './CycleStartDayField.js';
 import { useDismiss } from '../useDismiss.js';
 
 export type AlertSettingsModalProps = AlertSettingsProps;
@@ -90,9 +90,7 @@ export function AlertSettingsModal({
             onCommit={onSetCycleStartDay}
           />
           <div style={{ fontSize: 12, color: 'var(--cf-muted)', marginTop: 6 }}>
-            {cycleRangeLabel
-              ? `Tracking ${cycleRangeLabel} as one period. Set it to 1 for calendar months.`
-              : 'Tracking calendar months. Set this to the day you are paid to track salary to salary.'}
+            {cycleStartDayHint(cycleRangeLabel)}
           </div>
         </div>
 

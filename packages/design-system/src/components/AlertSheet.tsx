@@ -11,7 +11,7 @@ import {
 import type { AlertSettingsProps } from '../types.js';
 import { useCategoryLimitDraft } from '../useCategoryLimitDraft.js';
 import { amountFieldText, useCommittedInput } from '../useCommittedInput.js';
-import { CycleStartDayField } from './CycleStartDayField.js';
+import { CycleStartDayField, cycleStartDayHint } from './CycleStartDayField.js';
 import { useDismiss } from '../useDismiss.js';
 
 export type AlertSheetProps = AlertSettingsProps;
@@ -88,9 +88,7 @@ export function AlertSheet({
             onCommit={onSetCycleStartDay}
           />
           <div style={{ fontSize: 11.5, color: 'var(--cf-muted)', marginTop: 4 }}>
-            {cycleRangeLabel
-              ? `${cycleRangeLabel} is one period. Set 1 for calendar months.`
-              : 'Calendar months. Set the day you are paid to track salary to salary.'}
+            {cycleStartDayHint(cycleRangeLabel)}
           </div>
         </div>
 

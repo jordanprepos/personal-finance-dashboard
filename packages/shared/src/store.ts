@@ -4,6 +4,7 @@ import {
   collidingCategoryOrders,
   colorForName,
   nextCategoryOrder,
+  templateAllocation,
   normalizeCategoryName,
   resolveSession,
   withCurrentCategoryNames,
@@ -53,7 +54,8 @@ import {
   type DashboardCardContext,
   type DashboardCardId,
 } from './lib/dashboardCards.js';
-import type { MoneyFormat } from './lib/format.js';
+import { formatMoney, type MoneyFormat } from './lib/format.js';
+import { totalIncome } from './lib/derive.js';
 
 /**
  * Framework-agnostic application state.
@@ -763,6 +765,10 @@ export class ExpenseStore {
 
     await this.mutate(async () => {
       const allocations: Record<string, number> = {};
+      // The month's income, split by the template's weights — never the
+      // spreadsheet's own amounts. None set yet means no allocations at all,
+      // rather than zeros, which would read as cleared on purpose.
+      const income = totalIncome(this.state.budget);
 
       // Sequential, so `order` follows the sheet's order rather than
       // whichever write happens to land first.
@@ -777,7 +783,8 @@ export class ExpenseStore {
           order,
           archived: false,
         });
-        if (c.allocation > 0) allocations[created.id] = c.allocation;
+        const amount = templateAllocation(c.allocation, income);
+        if (amount > 0) allocations[created.id] = amount;
       }
 
       if (Object.keys(allocations).length > 0) {
@@ -788,7 +795,13 @@ export class ExpenseStore {
         });
       }
 
-      return `${missing.length} ${missing.length === 1 ? 'category' : 'categories'} added${warning}`;
+      const added = `${missing.length} ${missing.length === 1 ? 'category' : 'categories'} added`;
+      const { currency, locale } = this.state.profile;
+      const split =
+        Object.keys(allocations).length > 0
+          ? `, allocations split from your ${formatMoney(income, { currency, locale })} income`
+          : " — add income and set allocations when you're ready";
+      return `${added}${split}${warning}`;
     });
   }
 
