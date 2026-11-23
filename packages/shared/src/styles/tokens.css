@@ -708,6 +708,17 @@ input {
   color: var(--cf-surface);
 }
 
+/* The pay-day question above the steps: laid out like a step, but with no
+   number — it is optional, and 1 (calendar months) is already an answer. */
+.cf-setup__payday {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--cf-border);
+}
+
 .cf-setup__body {
   flex: 1 1 220px;
   min-width: 0;

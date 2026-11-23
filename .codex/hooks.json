@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r \".tool_input.command // empty\" | grep -q \"gh pr create\" && jq -n --arg m \"Reminder: nothing deploys automatically (no CI). After this PR merges, run: pnpm build && npx firebase-tools deploy --only hosting\" \"{systemMessage: \\$m, hookSpecificOutput: {hookEventName: \\\"PostToolUse\\\", additionalContext: \\\"A pull request was just opened. In your reply, remind the user that Firebase Hosting does not deploy automatically and that after the PR merges they should run: pnpm build && npx firebase-tools deploy --only hosting  (build first: VITE_FIREBASE_* is inlined at build time). Do not run the deploy yourself.\\\"}}\" || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

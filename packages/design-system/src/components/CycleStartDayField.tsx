@@ -8,8 +8,9 @@ import { useCommittedInput } from '../useCommittedInput.js';
  * rather than a date picker: a period opens on the same day every month, and
  * `MAX_CYCLE_START_DAY` is what keeps it a day every month actually has.
  *
- * One component for both surfaces — `AlertSettingsModal` and `AlertSheet`
- * each had an identical copy.
+ * One component for every place it is asked — `AlertSettingsModal`,
+ * `AlertSheet` and the getting-started panel — with one sentence explaining
+ * it (`cycleStartDayHint`), so the three cannot word it three ways.
  */
 export function CycleStartDayField({
   value,
@@ -41,3 +42,13 @@ export function CycleStartDayField({
     />
   );
 }
+
+/**
+ * What the start day currently means, in a sentence — calendar months, or the
+ * salary-to-salary window it makes. `rangeLabel` is `periodRangeLabel(state)`:
+ * empty on calendar months, "27 Aug – 26 Sep" otherwise.
+ */
+export const cycleStartDayHint = (rangeLabel: string): string =>
+  rangeLabel
+    ? `Tracking ${rangeLabel} as one period. Set it to 1 for calendar months.`
+    : 'Tracking calendar months. Set this to the day you are paid to track salary to salary.';

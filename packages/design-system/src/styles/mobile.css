@@ -534,7 +534,8 @@ body {
    under a cursor, short of the 44px a thumb needs. On the phone the step's
    actions also drop under its text (the body's flex-basis forces the wrap),
    so they get the full row to sit in. */
-.cf-phone .cf-setup .cf-ghostbtn {
+.cf-phone .cf-setup .cf-ghostbtn,
+.cf-phone .cf-setup__payday input {
   height: 44px;
 }
 

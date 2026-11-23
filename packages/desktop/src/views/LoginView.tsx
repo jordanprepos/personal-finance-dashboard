@@ -68,21 +68,6 @@ export function LoginView({
               seconds, check it once a week.
             </div>
           </div>
-
-          <div className="login__stats">
-            <div>
-              <div className="login__stat tnum">11</div>
-              <div className="login__statlabel">envelopes</div>
-            </div>
-            <div>
-              <div className="login__stat tnum">5</div>
-              <div className="login__statlabel">recurring</div>
-            </div>
-            <div>
-              <div className="login__stat tnum">2026</div>
-              <div className="login__statlabel">year to date</div>
-            </div>
-          </div>
         </aside>
 
         <form className="login__form" onSubmit={submit}>

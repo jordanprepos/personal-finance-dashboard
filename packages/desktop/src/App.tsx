@@ -317,6 +317,9 @@ function Dashboard({
               onManageCategories={() => setCategoriesOpen(true)}
               onAddIncome={() => setTab('income')}
               onAddExpense={openAdd}
+              cycleStartDay={state.profile.cycleStartDay}
+              cycleRangeLabel={periodRangeLabel(state)}
+              onSetCycleStartDay={(day) => void store.setCycleStartDay(day)}
             />
           ) : null}
 

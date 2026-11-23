@@ -334,6 +334,30 @@ there moves all of them at once:
 - `ExpenseStore.addDefaultCategories` writes it into a live account,
 - `colorForName` treats its `color` field as the canonical palette.
 
+**A live account never gets the spreadsheet's amounts.** `allocation` holds
+one person's budget: Rp 10,15 juta across the eleven, Bills alone at Rp 5,1
+juta. Demo data uses it as written. For a live account it is only a **weight**.
+`templateAllocation(weight, income)` gives each category its share of the
+whole template, applied to the month's `totalIncome` (paused sources out,
+quarterly at a third) and floored to Rp 10.000, so the eleven together never
+allocate more than the income. That is the "every rupiah has a place" the
+login pitch promises. The rules:
+
+- **No income means no keys, not zeros.** A stored 0 means cleared on purpose
+  to `unsetAllocationIds`, carry-over and the Month-tab link, so writing 0s
+  would opt a new account out of all three. A share that floors to 0 is left
+  out the same way.
+- **A top-up uses each missing category's full-template share.** It does not
+  renormalise over just the missing ones, which would spread the whole income
+  again on top of allocations the account already has.
+- **An account that has all eleven is untouched** ("already set up"), as
+  before. Nothing existing is re-split.
+
+The toast says which happened: "allocations split from your Rp X income", or
+"add income and set allocations when you're ready". The desktop login rail
+used to show "11 envelopes · 5 recurring · 2026" as fixed text, which a new
+user read as their own figures. That row is gone.
+
 **Category colour is resolved from the name, not read from the document.**
 `colorForName(name, order)` is applied wherever a category is read
 (`toCategory`, `seedCategories`), and the stored `color` field is deliberately
@@ -949,8 +973,21 @@ now" check just as happily as a correct one.
 An account with nothing in it used to open on a bare "Fixed envelopes" label
 (desktop) or "Nothing here yet." (mobile), with no next step. Both apps now
 render `GettingStarted` (design-system, surface-neutral) above the spend tabs:
-categories, then income, then a first expense, each with its own button.
-Progress comes from `derive.setupProgress`.
+income, then categories, then a first expense, each with its own button.
+Progress comes from `derive.setupProgress`. Income leads because the suggested
+categories split it between them (see the template section). The order is
+only the panel's. `setupProgress` tracks the three steps independently, and a
+user who makes categories first gets them with no allocations, not wrong ones.
+
+Above the steps sits an unnumbered question: **When does your month start?**
+It writes `profile.cycleStartDay` with the same `CycleStartDayField` Settings
+uses, under the same sentence (`cycleStartDayHint`, the one wording all three
+places share). Before it, a salary-cycle user's first periods were calendar
+months unless they went looking in Settings next to the alerts. It is a
+question, not a step: 1 is a complete answer, so it is neither numbered nor
+counted in "N of 3 done", and it leaves when the panel does. Changing it
+re-windows history, nothing stored moves, and the store's re-point logic lands
+the panel on the new current period.
 
 When it shows is the part to keep straight. A missing category list shows it
 on any period. A missing expense is read **account-wide**, from

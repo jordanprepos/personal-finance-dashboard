@@ -26,7 +26,12 @@ export interface DefaultCategory {
   icon: string;
   /** hex — this category's identity colour everywhere it is shown */
   color: string;
-  /** monthly allocation, in the smallest currency unit */
+  /**
+   * Monthly allocation from the source spreadsheet, in the smallest currency
+   * unit. The demo dataset uses it as written. For a live account it is only a
+   * **weight**: `templateAllocation` turns it into that account's share of its
+   * own income, so a new user is never handed someone else's rupiah amounts.
+   */
   allocation: number;
 }
 
@@ -117,6 +122,38 @@ export const DEFAULT_CATEGORIES: readonly DefaultCategory[] = [
 ];
 
 /* --------------------------------------------------------------- palette */
+
+/** The template's allocations summed — the denominator its weights share. */
+const TEMPLATE_TOTAL = DEFAULT_CATEGORIES.reduce((sum, c) => sum + c.allocation, 0);
+
+/** Splits are floored to this step, so an allocation reads as a round figure. */
+const ALLOCATION_STEP = 10_000;
+
+/**
+ * A template category's allocation for an account with `income` this period:
+ * its share of the **whole** template, applied to that income and floored to
+ * `ALLOCATION_STEP`.
+ *
+ * - **Never the spreadsheet's own amounts.** Those are one person's budget;
+ *   handing them to a new account read as a plan the user never made.
+ * - **0 means "write no key".** With no income there is nothing to split, and
+ *   a share that floors to 0 is too small to name. A stored 0 is "cleared on
+ *   purpose" everywhere else (`unsetAllocationIds`, carry-over, the Month-tab
+ *   link), so writing one would silently opt a new account out of all three.
+ * - **Floored, so the split never exceeds the income.** All eleven together
+ *   allocate at most the whole of it — every rupiah has a place, which is the
+ *   app's own pitch.
+ * - **A share of the full template, even when topping up.** Renormalising over
+ *   only the missing categories would spread the whole income again on top of
+ *   allocations the account already has.
+ *
+ * `income` is `totalIncome(budget)` — paused sources excluded, quarterly ones
+ * at a third — the same figure Budget Left counts down from.
+ */
+export function templateAllocation(weight: number, income: number): number {
+  if (income <= 0 || weight <= 0 || TEMPLATE_TOTAL <= 0) return 0;
+  return Math.floor((income * weight) / TEMPLATE_TOTAL / ALLOCATION_STEP) * ALLOCATION_STEP;
+}
 
 /**
  * Colours for categories that aren't in the template above — the ones the

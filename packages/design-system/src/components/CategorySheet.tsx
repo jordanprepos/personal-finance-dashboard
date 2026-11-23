@@ -83,8 +83,8 @@ export function CategorySheet({
             }}
           >
             <div style={{ fontSize: 12.5, color: 'var(--cf-slate)' }}>
-              Start with {DEFAULT_CATEGORY_COUNT} suggested categories, each with a starting monthly
-              allocation you can change.
+              Start with {DEFAULT_CATEGORY_COUNT} suggested categories. If this month has income,
+              it is split across them as a starting allocation you can change.
             </div>
             <DefaultCategoriesButton busy={busy} onAdd={onAddDefaultCategories} />
           </div>
