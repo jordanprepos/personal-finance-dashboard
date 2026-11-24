@@ -15,7 +15,7 @@ import { DEFAULT_CATEGORIES } from './defaultCategories.js';
 
 export const SEED_YEAR = '2026';
 export const SEED_TODAY = '2026-08-26';
-export const SEED_INCOME = 9_095_079;
+export const SEED_INCOME = 9_831_000;
 
 export const seedCategories = (): Category[] =>
   DEFAULT_CATEGORIES.map((c, i) => ({
@@ -194,20 +194,20 @@ interface Charge {
  * produces against Firestore.
  */
 const MONTHLY: Charge[] = [
-  { item: 'Kost', categoryId: 'bills', amount: 2_100_000, day: 1, seriesId: 'series-kost' },
-  { item: 'Katering', categoryId: 'bills', amount: 1_440_000, day: 5, seriesId: 'series-katering' },
-  { item: 'CC BRI', categoryId: 'bills', amount: 1_500_000, day: 5, seriesId: 'series-cc-bri' },
+  { item: 'Kost', categoryId: 'bills', amount: 2_810_000, day: 1, seriesId: 'series-kost' },
+  { item: 'Katering', categoryId: 'bills', amount: 1_435_000, day: 5, seriesId: 'series-katering' },
+  { item: 'CC BRI', categoryId: 'bills', amount: 2_125_000, day: 5, seriesId: 'series-cc-bri' },
   {
     item: 'Youtube Sharing',
     categoryId: 'subscription',
-    amount: 109_000,
+    amount: 59_000,
     day: 14,
     seriesId: 'series-youtube',
   },
   {
     item: 'Internet byU',
     categoryId: 'subscription',
-    amount: 75_000,
+    amount: 174_000,
     day: 14,
     seriesId: 'series-internet',
   },
@@ -216,8 +216,8 @@ const MONTHLY: Charge[] = [
 /** August 2026 — the open month, including entries logged without a price. */
 const CURRENT_MONTH_CHARGES: Charge[] = [
   { item: 'KPR BNI', categoryId: 'bills', amount: 0, day: 1 },
-  { item: 'Gojek PP Kantor 2x', categoryId: 'transportation', amount: 400_000, day: 12 },
-  { item: 'Token Listrik', categoryId: 'utilities', amount: 200_000, day: 18 },
+  { item: 'Gojek PP Kantor 2x', categoryId: 'transportation', amount: 340_000, day: 12 },
+  { item: 'Token Listrik', categoryId: 'utilities', amount: 320_000, day: 18 },
   { item: 'Obat', categoryId: 'health-insurance', amount: 0, day: 8 },
   { item: 'Vitamin D-3', categoryId: 'health-insurance', amount: 0, day: 8 },
   { item: 'Magnesium Zinc', categoryId: 'health-insurance', amount: 0, day: 8 },
@@ -258,20 +258,20 @@ export function seedTransactions(): Transaction[] {
       push(yearMonth, {
         item: 'Token Listrik',
         categoryId: 'utilities',
-        amount: 200_000 + (i % 3) * 15_000,
+        amount: 310_000 + (i % 3) * 12_000,
         day: 18,
       });
       push(yearMonth, {
         item: 'Gojek PP Kantor 2x',
         categoryId: 'transportation',
-        amount: 400_000,
+        amount: 630_000,
         day: 12,
       });
       if (i % 2 === 0) {
         push(yearMonth, {
           item: 'Makan luar',
           categoryId: 'food-and-beverages',
-          amount: 180_000 + (i % 4) * 40_000,
+          amount: 265_000 + (i % 4) * 60_000,
           day: 22,
         });
       }
